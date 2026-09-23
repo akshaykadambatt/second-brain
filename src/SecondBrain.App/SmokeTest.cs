@@ -1,5 +1,4 @@
 using System.IO;
-using System.Speech.Recognition;
 using System.Speech.Synthesis;
 using System.Text.Json;
 using System.Windows;
@@ -27,7 +26,21 @@ internal static class SmokeTest
             await Settle();
             if (phase == "voice")
             {
-                Check(SpeechRecognitionEngine.InstalledRecognizers().Any(r => r.Culture.TwoLetterISOLanguageName == "en"), "English speech engine installed");
+                var keys = new ApiKeyStore(directory);
+                await window.Voice.StartAsync("missing-device");
+                Check(!window.Voice.Running && window.StatusText.Text.Contains("key is not configured", StringComparison.Ordinal), "Missing credential is visible without opening the microphone");
+                var import = Path.Combine(directory, "temporary-test-key.txt");
+                const string fakeKey = "synthetic-test-credential-not-a-real-key";
+                File.WriteAllText(import, fakeKey);
+                keys.Import(import); File.Delete(import);
+                Check(keys.Load() == fakeKey && !System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(keys.FilePath)).Contains(fakeKey, StringComparison.Ordinal), "Key roundtrips with Windows user protection and is absent from plaintext storage");
+                File.Delete(keys.FilePath);
+                Check(window.MicrophonePicker.Items.Cast<Microphone>().All(m => !string.IsNullOrWhiteSpace(m.Id) && !string.IsNullOrWhiteSpace(m.Name)), "Listed microphones have selectable endpoint IDs and readable names");
+                await window.Voice.StopAsync(); await window.Voice.StopAsync();
+                Check(!window.Voice.Running, "Repeated stop is safe");
+            }
+            else if (phase == "deepgram")
+            {
                 const string sentence = "Today I want to talk about our next steps.";
                 window.ScriptEditor.Text = sentence;
                 await window.ApplyText();
@@ -42,11 +55,15 @@ internal static class SmokeTest
                 });
                 var completed = new TaskCompletionSource();
                 window.Voice.Stopped += () => completed.TrySetResult();
-                await window.Voice.StartAsync(wave);
+                await window.Voice.StartAsync(waveFile: wave);
                 await completed.Task.WaitAsync(TimeSpan.FromSeconds(20));
-                Check(window.Session.Position >= 8, "Real WAV recognition advances through at least eight script words: " + window.HeardText.Text);
+                Check(window.Session.Position >= 8, "Live Deepgram WAV recognition advances through at least eight script words: " + window.HeardText.Text + "; status=" + window.StatusText.Text);
                 await window.StopListening();
-                Check(!window.Voice.Running, "Speech engine stops and releases input");
+                Check(!window.Voice.Running, "Deepgram stops and releases input");
+                var restart = window.Voice.StartAsync(waveFile: wave);
+                var stopTime = System.Diagnostics.Stopwatch.StartNew();
+                await window.StopListening(); await restart;
+                Check(!window.Voice.Running && stopTime.Elapsed.TotalSeconds < 3, "Stopping during connection cancels startup without a stale session");
             }
             else
             {
@@ -55,6 +72,7 @@ internal static class SmokeTest
                     Check(window.Panels.Count == 4, "Four panel layouts restore across process restart");
                     Check(window.Settings.ReaderStyle.FontSize == 38, "Appearance survives process restart");
                     Check(window.ScriptEditor.Text == ReaderSession.Sample, "Script survives process restart");
+                    Check(window.MicrophonePicker.Items.Count == 0 || window.MicrophonePicker.SelectedItem is Microphone mic && mic.Id == window.Settings.MicrophoneId, "Selected microphone survives process restart");
                 }
                 window.OpenReaderButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 var first = window.Panels[0];

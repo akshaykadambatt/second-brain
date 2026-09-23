@@ -11,5 +11,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../SecondBrain.Core/SecondBrain.Core.csproj" /></ItemGroup>
-  <ItemGroup><PackageReference Include="System.Speech" Version="10.0.0" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Speech" Version="10.0.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+  </ItemGroup>
 </Project>

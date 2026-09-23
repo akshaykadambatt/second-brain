@@ -37,13 +37,16 @@ public partial class MainWindow : Window
         VersionText.ToolTip = "Settings and diagnostics: " + dataDirectory;
         saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         saveTimer.Tick += (_, _) => { saveTimer.Stop(); SaveSettings(); };
-        Voice = new VoiceService(Dispatcher, Session);
+        var keys = new ApiKeyStore(dataDirectory);
+        Voice = new VoiceService(Dispatcher, Session, keys, log);
         Voice.Status += text => SetStatus(text); Voice.Heard += text => HeardText.Text = "Heard: " + text; Voice.Level += level => MicLevel.Value = level;
-        Voice.Stopped += () => { ListenButton.Content = "Start listening"; MicLabel.Text = "Mic off"; MicLevel.Value = 0; };
+        Voice.Stopped += () => { MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true; ListenButton.Content = "Start listening"; MicLabel.Text = "Mic off"; MicLevel.Value = 0; };
         Session.Changed += change => { if (change is ReaderChange.Position or ReaderChange.Document) Voice.Reanchor(); };
         SourceInitialized += (_, _) => HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);
         Loaded += (_, _) => { if (settings.RememberReaderPosition) foreach (var saved in settings.Panels.ToArray()) AddReader(saved); };
         initialized = true;
+        RefreshMicrophones();
+        if (!keys.Exists) SetStatus("Deepgram key is not configured yet. Ask Codex to finish setup.", true);
         UpdatePanelCount();
     }
     private IntPtr WindowHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -99,13 +102,17 @@ public partial class MainWindow : Window
         if (ScriptEditor.Text.Trim() != Session.Text && !await ApplyText()) return;
         if (panels.Count == 0) AddReader();
         if (Session.Position >= Session.Words.Count) ResetPosition();
+        if (MicrophonePicker.SelectedItem is not Microphone microphone) { SetStatus("Select an available microphone, then start listening.", true); return; }
         startingVoice = true; ListenButton.IsEnabled = false;
-        await Voice.StartAsync(); startingVoice = false; ListenButton.IsEnabled = true;
+        MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = false;
+        await Voice.StartAsync(microphone.Id); startingVoice = false; ListenButton.IsEnabled = true;
+        MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = !Voice.Running;
         ListenButton.Content = Voice.Running ? "Stop listening" : "Start listening"; MicLabel.Text = Voice.Running ? "Mic listening" : "Mic off";
     }
     internal async Task StopListening()
     {
         await Voice.StopAsync(); ListenButton.Content = "Start listening"; MicLabel.Text = "Mic off";
+        MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true;
         if (!closing) SetStatus("Microphone off. Your reading position is preserved.");
     }
     private void Appearance_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -114,6 +121,25 @@ public partial class MainWindow : Window
         Session.SetStyle(new(FontSlider.Value, WidthSlider.Value, SpacingSlider.Value, OpacitySlider.Value / 100, BandSlider.Value / 100)); ScheduleSave();
     }
     private void RememberPosition_Changed(object sender, RoutedEventArgs e) { if (initialized) ScheduleSave(); }
+    private void RefreshMicrophones_Click(object sender, RoutedEventArgs e) => RefreshMicrophones();
+    private void RefreshMicrophones()
+    {
+        var selected = (MicrophonePicker.SelectedItem as Microphone)?.Id ?? settings.MicrophoneId;
+        try
+        {
+            var inputs = VoiceService.Microphones();
+            MicrophonePicker.ItemsSource = inputs;
+            MicrophonePicker.SelectedItem = inputs.FirstOrDefault(m => m.Id == selected) ?? (selected is null ? inputs.FirstOrDefault() : null);
+            if (inputs.Count == 0) SetStatus("No microphones found. Connect a microphone and press Refresh.", true);
+            else if (MicrophonePicker.SelectedItem is null) SetStatus("Your saved microphone is disconnected. Select an available input.", true);
+        }
+        catch (Exception ex) { log.Write("Microphone enumeration failure type=" + ex.GetType().Name); SetStatus("Microphones could not be listed. Check Windows audio settings and press Refresh.", true); }
+    }
+    private void Microphone_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (initialized && MicrophonePicker.SelectedItem is Microphone microphone)
+        { settings = settings with { MicrophoneId = microphone.Id }; ScheduleSave(); }
+    }
     private void SaveSettings()
     {
         try

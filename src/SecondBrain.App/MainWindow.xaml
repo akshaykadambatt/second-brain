@@ -2,7 +2,7 @@
         Title="Second Brain" Style="{StaticResource ShellWindowStyle}" Width="1000" Height="790" MinWidth="620" MinHeight="480" WindowStartupLocation="CenterScreen">
   <Grid Margin="28">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <DockPanel><TextBlock Text="SECOND BRAIN" FontSize="12" FontWeight="SemiBold"/><TextBlock Text="LOCAL VOICE PROTOTYPE" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right"/></DockPanel>
+    <DockPanel><TextBlock Text="SECOND BRAIN" FontSize="12" FontWeight="SemiBold"/><TextBlock Text="DEEPGRAM VOICE PROTOTYPE" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right"/></DockPanel>
     <StackPanel Grid.Row="1" Margin="0,22,0,22"><TextBlock Text="Read at your own pace." FontSize="30" FontWeight="SemiBold"/><TextBlock Text="Paste your words. Open a reader. Start listening when you're ready." Foreground="{StaticResource Muted}" Margin="0,8,0,0" FontSize="14"/></StackPanel>
     <ScrollViewer x:Name="WorkspaceScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"><Grid x:Name="WorkspaceGrid" MinHeight="520" MinWidth="650" Width="{Binding ElementName=WorkspaceScroll, Path=ViewportWidth}" Height="{Binding ElementName=WorkspaceScroll, Path=ViewportHeight}">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="22"/><ColumnDefinition Width="265"/></Grid.ColumnDefinitions>
@@ -18,12 +18,12 @@
             <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock x:Name="MicLabel" Text="Mic off" FontSize="11" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,12,0"/><ProgressBar x:Name="MicLevel" Grid.Column="1" Minimum="0" Maximum="100" Height="5" Foreground="#639773" Background="#E5EBDF" BorderThickness="0"/></Grid>
           </StackPanel>
           <TextBlock x:Name="HeardText" Grid.Row="5" Text="Recognized words will appear here." TextWrapping="Wrap" MaxHeight="45" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
-          <TextBlock x:Name="StatusText" Grid.Row="6" Text="Uses your Windows default microphone. Nothing is recorded or uploaded." TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,8,0,0"/>
+          <TextBlock x:Name="StatusText" Grid.Row="6" Text="Start sends the selected microphone to Deepgram. Audio is not saved locally." TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,8,0,0"/>
         </Grid>
       </Border>
       <Border Grid.Column="2" Background="#EBEFE4" CornerRadius="12" Padding="20">
         <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
-          <TextBlock Text="Make it comfortable" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,18"/>
+          <DockPanel Margin="0,0,0,6"><Button x:Name="RefreshMicrophonesButton" DockPanel.Dock="Right" Content="Refresh" Click="RefreshMicrophones_Click" Padding="8,4"/><TextBlock Text="Microphone" FontSize="12" VerticalAlignment="Center"/></DockPanel><ComboBox x:Name="MicrophonePicker" DisplayMemberPath="Name" SelectionChanged="Microphone_Changed" Padding="5" FontSize="12" AutomationProperties.Name="Microphone input" ToolTip="{Binding RelativeSource={RelativeSource Self}, Path=SelectedItem.Name}"/><TextBlock Text="{Binding ElementName=MicrophonePicker, Path=SelectedItem.Name}" TextWrapping="Wrap" FontSize="11" Margin="0,5,0,6" Foreground="{StaticResource Muted}"/><TextBlock Text="Start streams this microphone to Deepgram. Audio is not saved locally." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,18" Foreground="{StaticResource Muted}"/><TextBlock Text="Make it comfortable" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,18"/>
           <TextBlock Text="Text size" FontSize="12"/><DockPanel><TextBlock Text="{Binding ElementName=FontSlider, Path=Value, StringFormat={}{0:F0} px}" DockPanel.Dock="Right" Width="48" TextAlignment="Right"/><Slider x:Name="FontSlider" Minimum="18" Maximum="64" Value="32" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="Appearance_Changed" AutomationProperties.Name="Text size"/></DockPanel>
           <TextBlock Text="Column width" FontSize="12" Margin="0,18,0,3"/><DockPanel><TextBlock Text="{Binding ElementName=WidthSlider, Path=Value, StringFormat={}{0:F0} ch}" DockPanel.Dock="Right" Width="48" TextAlignment="Right"/><Slider x:Name="WidthSlider" Minimum="20" Maximum="72" Value="36" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="Appearance_Changed" AutomationProperties.Name="Column width"/></DockPanel>
           <TextBlock Text="Line spacing" FontSize="12" Margin="0,18,0,3"/><DockPanel><TextBlock Text="{Binding ElementName=SpacingSlider, Path=Value, StringFormat={}{0:F1}×}" DockPanel.Dock="Right" Width="48" TextAlignment="Right"/><Slider x:Name="SpacingSlider" Minimum="1.1" Maximum="2.2" Value="1.4" TickFrequency="0.1" IsSnapToTickEnabled="True" ValueChanged="Appearance_Changed" AutomationProperties.Name="Line spacing"/></DockPanel>
@@ -35,6 +35,6 @@
         </StackPanel></ScrollViewer>
       </Border>
     </Grid></ScrollViewer>
-    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="VOICE FOLLOWING · WINDOWS ENGLISH · NO API KEY" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.2.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
+    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="VOICE FOLLOWING · DEEPGRAM NOVA-3 · ENGLISH" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.3.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
   </Grid>
 </Window>

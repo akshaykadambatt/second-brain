@@ -5,3 +5,6 @@ dist/
 .build/
 *.user
 *.suo
+data/
+*.protected
+*key.txt

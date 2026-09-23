@@ -22,11 +22,11 @@ public partial class App : Application
                 else if (e.Args[i] == "--smoke-test" && i + 1 < e.Args.Length) smokePhase = e.Args[++i];
                 else throw new ArgumentException("Expected --data-dir <directory> or --smoke-test <seed|verify|voice>.");
             }
-            if (smokePhase is not null and not "seed" and not "verify" and not "voice") throw new ArgumentException("Unknown smoke phase.");
+            if (smokePhase is not null and not "seed" and not "verify" and not "voice" and not "deepgram") throw new ArgumentException("Unknown smoke phase.");
             Directory.CreateDirectory(dataDirectory);
             instanceLock = new FileStream(Path.Combine(dataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             log = new DiagnosticLog(dataDirectory);
-            var loggingAvailable = log.Write("Application started v0.2.0");
+            var loggingAvailable = log.Write("Application started v0.3.0");
             var store = new SettingsStore(dataDirectory);
             var settings = store.Load(out var warning);
             var window = new MainWindow(store, settings, log, dataDirectory, hiddenTestMode: smokePhase is not null);

@@ -99,9 +99,9 @@ Test("Requirements have unique IDs, sprint assignments and completion evidence",
     }
     Assert(Enumerable.Range(0, 11).All(sprints.Contains), "A sprint has no requirements");
 });
-Test("Local prototype has no network, meeting recording or AI APIs", () =>
+Test("Voice prototype excludes system capture, recognition fallback and unrelated AI capabilities", () =>
 {
-    var forbidden = new[] { "HttpClient", "WebSocket", "TcpClient", "UdpClient", "Socket(", "WebRequest", "NAudio", "Wasapi", "WaveIn", "Deepgram", "Process.Start" };
+    var forbidden = new[] { "SpeechRecognitionEngine", "DictationGrammar", "WasapiLoopbackCapture", "DataFlow.Render", "Process.Start", "api.openai.com", "api.anthropic.com" };
     foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
         .Where(p => !p.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)))
     {
@@ -111,7 +111,7 @@ Test("Local prototype has no network, meeting recording or AI APIs", () =>
     foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.csproj", SearchOption.AllDirectories))
     {
         var xml = System.Xml.Linq.XDocument.Load(file);
-        Assert(xml.Descendants("PackageReference").All(p => (string?)p.Attribute("Include") == "System.Speech"), "Unexpected external runtime dependency");
+        Assert(xml.Descendants("PackageReference").All(p => new[] { "System.Speech", "NAudio.Wasapi", "System.Security.Cryptography.ProtectedData" }.Contains((string?)p.Attribute("Include"))), "Unexpected external runtime dependency");
     }
 });
 Test("Words retain identity across styling and manual selection", () =>
@@ -155,6 +155,65 @@ Test("Disconnected-display geometry fits in physical work area", () =>
     Assert(placed == new PanelPlacement(0, 0, 1920, 1040), "Recovery failed");
     var leftMonitor = new PanelPlacement(-1800, 100, 700, 500).FitTo(new(-1920, 0, 1920, 1040));
     Assert(leftMonitor.Left == -1800, "Negative monitor coordinate was lost");
+});
+Test("Deepgram revisions, finalized chunks and late duplicates retain correct anchors", () =>
+{
+    var session = new ReaderSession(); session.Load("hello world hello world welcome back");
+    var progress = new DeepgramProgress(session);
+    progress.Observe(new(0, .4, "hello", false, false, .95f));
+    progress.Observe(new(0, .9, "hello world", false, false, .95f));
+    progress.Observe(new(0, 1, "hello world", true, false, .95f));
+    Assert(session.Position == 2, "First chunk mismatch");
+    progress.Observe(new(0, 1, "hello world", true, false, .95f));
+    Assert(session.Position == 2, "Final duplicate advanced");
+    progress.Observe(new(1, 1, "hello world", true, true, .95f));
+    Assert(session.Position == 4, "Next final chunk failed to reanchor");
+    progress.Observe(new(0, 2, "hello world welcome back", true, true, .95f));
+    Assert(session.Position == 4, "Late revision advanced");
+});
+Test("Deepgram manual recovery suppresses in-flight words until a final boundary", () =>
+{
+    var session = new ReaderSession(); session.Load("hello world welcome back");
+    var progress = new DeepgramProgress(session);
+    progress.Observe(new(0, 1, "hello world", true, true, .95f));
+    session.Select(0); progress.Reanchor();
+    progress.Observe(new(1, 1, "welcome back", false, false, .95f));
+    Assert(session.Position == 0, "In-flight words defeated manual positioning");
+    progress.Observe(new(1, 1.2, "", true, true, 0));
+    progress.Observe(new(2.2, 1, "hello world", true, true, .95f));
+    Assert(session.Position == 2, "Empty final did not release manual hold");
+});
+Test("Deepgram JSON separates results, metadata and service errors", () =>
+{
+    var result = DeepgramProtocol.Parse("""{"type":"Results","start":0,"duration":1.3,"is_final":true,"speech_final":true,"channel":{"alternatives":[{"transcript":"Hello world.","confidence":0.98}]}}""");
+    Assert(result is { Text: "Hello world.", Final: true, SpeechFinal: true, Duration: 1.3 }, "Result was not decoded");
+    Assert(DeepgramProtocol.Parse("""{"type":"Metadata","request_id":"test"}""") is null, "Metadata became speech");
+    try { DeepgramProtocol.Parse("""{"type":"Error","description":"untrusted payload"}"""); throw new Exception("Error ignored"); }
+    catch (InvalidOperationException ex) { Assert(!ex.Message.Contains("untrusted"), "Raw service payload exposed"); }
+});
+Test("Native float stereo converts to signed mono PCM with clipping and silence handling", () =>
+{
+    var input = new[] { .5f, .5f, -1f, -1f, float.NaN, 0f, 2f, 2f }.SelectMany(BitConverter.GetBytes).ToArray();
+    var pcm = PcmAudio.ToMono16(input, 32, 2, true, out var level);
+    var samples = Enumerable.Range(0, pcm.Length / 2).Select(i => BitConverter.ToInt16(pcm, i * 2)).ToArray();
+    Assert(samples.SequenceEqual(new short[] { 16384, -32768, 0, 32767 }) && level == 100, "Float conversion corrupted audio");
+    var silence = PcmAudio.ToMono16(new byte[12], 24, 2, false, out level);
+    Assert(silence.All(b => b == 0) && level == 0, "Silence acquired noise");
+});
+Test("PCM16, PCM24 and PCM32 retain polarity and full-scale amplitude", () =>
+{
+    foreach (var bits in new[] { 16, 24, 32 })
+    {
+        var bytes = bits / 8;
+        var input = new byte[bytes * 2];
+        input[bytes - 1] = 128;
+        for (var i = bytes; i < input.Length; i++) input[i] = 255;
+        input[^1] = 127;
+        var pcm = PcmAudio.ToMono16(input, bits, 1, false, out _);
+        Assert(BitConverter.ToInt16(pcm, 0) == -32768 && BitConverter.ToInt16(pcm, 2) == 32767, "Integer conversion failed " + bits);
+    }
+    try { PcmAudio.ToMono16(new byte[3], 16, 1, false, out _); throw new Exception("Partial frame accepted"); }
+    catch (InvalidOperationException) { }
 });
 var report = Path.Combine(root, "artifacts", "unit-tests.json");
 File.WriteAllText(report, JsonSerializer.Serialize(new { passed = failures == 0, results }, new JsonSerializerOptions { WriteIndented = true }));
