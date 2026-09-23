@@ -1,0 +1,4 @@
+<Window x:Class="SecondBrain.App.ReaderWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Second Brain · Reader" Style="{StaticResource ShellWindowStyle}" Width="600" Height="320" MinWidth="320" MinHeight="180" Background="#172723" Topmost="True" WindowStartupLocation="CenterScreen">
+  <Grid AutomationProperties.Name="Empty reader surface" />
+</Window>

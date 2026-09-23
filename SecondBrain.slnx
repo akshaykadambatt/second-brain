@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/SecondBrain.Core/SecondBrain.Core.csproj" />
+  <Project Path="src/SecondBrain.App/SecondBrain.App.csproj" />
+  <Project Path="tests/SecondBrain.Tests/SecondBrain.Tests.csproj" />
+</Solution>

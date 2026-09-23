@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- WPF uses the SDK's WindowsDesktop reference pack, not an external Windows SDK.
+         Explicit metadata avoids unnecessary per-user SDK-directory discovery. -->
+    <TargetPlatformMoniker>Windows,Version=7.0</TargetPlatformMoniker>
+    <TargetPlatformDisplayName>Windows</TargetPlatformDisplayName>
+    <AssemblyName>SecondBrain</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../SecondBrain.Core/SecondBrain.Core.csproj" /></ItemGroup>
+</Project>

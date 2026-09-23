@@ -1,0 +1,61 @@
+using System.IO;
+using System.Windows;
+using SecondBrain.Core;
+
+namespace SecondBrain.App;
+
+public partial class App : Application
+{
+    private DiagnosticLog? log;
+    private FileStream? instanceLock;
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+        var dataDirectory = Path.Combine(AppContext.BaseDirectory, "data");
+        string? smokePhase = null;
+        try
+        {
+            for (var i = 0; i < e.Args.Length; i++)
+            {
+                if (e.Args[i] == "--data-dir" && i + 1 < e.Args.Length) dataDirectory = Path.GetFullPath(e.Args[++i]);
+                else if (e.Args[i] == "--smoke-test" && i + 1 < e.Args.Length) smokePhase = e.Args[++i];
+                else throw new ArgumentException("Expected --data-dir <directory> or --smoke-test <seed|verify>.");
+            }
+            if (smokePhase is not null and not "seed" and not "verify") throw new ArgumentException("Unknown smoke phase.");
+            Directory.CreateDirectory(dataDirectory);
+            instanceLock = new FileStream(Path.Combine(dataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            log = new DiagnosticLog(dataDirectory);
+            var loggingAvailable = log.Write("Application started v0.1.0");
+            var store = new SettingsStore(dataDirectory);
+            var settings = store.Load(out var warning);
+            var window = new MainWindow(store, settings, log, dataDirectory);
+            MainWindow = window;
+            if (warning is not null) window.SetStatus(warning, true);
+            else if (!loggingAvailable) window.SetStatus("Diagnostic logging is unavailable. Check folder permissions.", true);
+            DispatcherUnhandledException += (_, args) =>
+            {
+                log.Write("Unhandled error: " + args.Exception);
+                MessageBox.Show("An unexpected error occurred. See the local diagnostic log.", "Second Brain");
+                args.Handled = true;
+                Shutdown(1);
+            };
+            window.Show();
+            if (smokePhase is not null) _ = SmokeTest.Run(window, dataDirectory, smokePhase);
+        }
+        catch (Exception ex)
+        {
+            log?.Write("Startup failed: " + ex);
+            if (smokePhase is null)
+                MessageBox.Show("Second Brain could not start. Another copy may be using this data folder, or the folder may not be writable.\n\n" + ex.Message, "Second Brain");
+            Shutdown(1);
+        }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        log?.Write("Application stopped");
+        instanceLock?.Dispose();
+        base.OnExit(e);
+    }
+}
