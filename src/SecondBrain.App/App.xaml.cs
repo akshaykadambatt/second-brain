@@ -20,23 +20,25 @@ public partial class App : Application
             {
                 if (e.Args[i] == "--data-dir" && i + 1 < e.Args.Length) dataDirectory = Path.GetFullPath(e.Args[++i]);
                 else if (e.Args[i] == "--smoke-test" && i + 1 < e.Args.Length) smokePhase = e.Args[++i];
-                else throw new ArgumentException("Expected --data-dir <directory> or --smoke-test <seed|verify>.");
+                else throw new ArgumentException("Expected --data-dir <directory> or --smoke-test <seed|verify|voice>.");
             }
-            if (smokePhase is not null and not "seed" and not "verify") throw new ArgumentException("Unknown smoke phase.");
+            if (smokePhase is not null and not "seed" and not "verify" and not "voice") throw new ArgumentException("Unknown smoke phase.");
             Directory.CreateDirectory(dataDirectory);
             instanceLock = new FileStream(Path.Combine(dataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             log = new DiagnosticLog(dataDirectory);
-            var loggingAvailable = log.Write("Application started v0.1.0");
+            var loggingAvailable = log.Write("Application started v0.2.0");
             var store = new SettingsStore(dataDirectory);
             var settings = store.Load(out var warning);
-            var window = new MainWindow(store, settings, log, dataDirectory);
+            var window = new MainWindow(store, settings, log, dataDirectory, hiddenTestMode: smokePhase is not null);
             MainWindow = window;
+            window.Width = Math.Min(window.Width, SystemParameters.WorkArea.Width);
+            window.Height = Math.Min(window.Height, SystemParameters.WorkArea.Height);
             if (warning is not null) window.SetStatus(warning, true);
             else if (!loggingAvailable) window.SetStatus("Diagnostic logging is unavailable. Check folder permissions.", true);
             DispatcherUnhandledException += (_, args) =>
             {
                 log.Write("Unhandled error: " + args.Exception);
-                MessageBox.Show("An unexpected error occurred. See the local diagnostic log.", "Second Brain");
+                if (smokePhase is null) MessageBox.Show("An unexpected error occurred. See the local diagnostic log.", "Second Brain");
                 args.Handled = true;
                 Shutdown(1);
             };

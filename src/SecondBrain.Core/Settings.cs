@@ -14,6 +14,9 @@ public sealed record AppSettings
     public int SchemaVersion { get; init; } = 1;
     public bool RememberReaderPosition { get; init; } = true;
     public WindowPlacement? ReaderPlacement { get; init; }
+    public string ScriptText { get; init; } = ReaderSession.Sample;
+    public ReaderStyle ReaderStyle { get; init; } = new();
+    public List<PanelPlacement> Panels { get; init; } = [];
 }
 
 public sealed class SettingsStore(string directory)
@@ -32,6 +35,10 @@ public sealed class SettingsStore(string directory)
             if (result.SchemaVersion != 1) throw new JsonException("Unsupported settings version.");
             if (result.ReaderPlacement is { IsValid: false })
                 throw new JsonException("Invalid reader position.");
+            if (result.ScriptText is null || result.ScriptText.Length > 20000 || result.ReaderStyle is null
+                || !result.ReaderStyle.IsValid || result.Panels is null
+                || result.Panels.Any(p => p is null || !p.IsValid))
+                throw new JsonException("Invalid reader settings.");
             return result;
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)

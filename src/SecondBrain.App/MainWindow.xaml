@@ -1,31 +1,40 @@
 <Window x:Class="SecondBrain.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Second Brain" Style="{StaticResource ShellWindowStyle}" Width="640" Height="570" MinWidth="540" MinHeight="520" WindowStartupLocation="CenterScreen">
-  <Grid Margin="32">
+        Title="Second Brain" Style="{StaticResource ShellWindowStyle}" Width="1000" Height="790" MinWidth="620" MinHeight="480" WindowStartupLocation="CenterScreen">
+  <Grid Margin="28">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <DockPanel>
-      <TextBlock Text="SECOND BRAIN" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-      <Border HorizontalAlignment="Right" Background="#E3EBDC" CornerRadius="10" Padding="10,4"><TextBlock Text="LOCAL · OFFLINE" FontSize="10" FontWeight="SemiBold" /></Border>
-    </DockPanel>
-    <StackPanel Grid.Row="1" Margin="0,30,0,24">
-      <TextBlock Text="A quiet place to begin." FontSize="30" FontWeight="SemiBold" />
-      <TextBlock Text="Your reader workspace starts here." Foreground="{StaticResource Muted}" FontSize="15" Margin="0,10,0,0" />
-    </StackPanel>
-    <Border Grid.Row="2" Background="White" BorderBrush="#DFE4DA" BorderThickness="1" CornerRadius="12" Padding="24">
-      <Grid>
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-        <DockPanel><TextBlock Text="Reader panel" FontSize="20" FontWeight="SemiBold" /><TextBlock x:Name="ReaderState" Text="Closed" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource Muted}" /></DockPanel>
-        <TextBlock Grid.Row="1" Text="Open an empty floating panel. Text and playback arrive in the next stages." TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource Muted}" Margin="0,10,0,20" />
-        <StackPanel Grid.Row="2" Orientation="Horizontal">
-          <Button x:Name="OpenReaderButton" Content="Open reader" Click="OpenReader_Click" Background="#294C3E" Foreground="White" BorderBrush="#294C3E" />
-          <Button x:Name="CloseReaderButton" Content="Close reader" Click="CloseReader_Click" Margin="10,0,0,0" IsEnabled="False" />
-        </StackPanel>
-        <CheckBox x:Name="RememberPosition" Grid.Row="3" Content="Remember reader position" FontSize="13" Margin="0,22,0,0" Checked="RememberPosition_Changed" Unchecked="RememberPosition_Changed" />
-        <TextBlock x:Name="StatusText" Grid.Row="4" Text="Ready when you are." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,18,0,0" />
-      </Grid>
-    </Border>
-    <DockPanel Grid.Row="3" Margin="0,18,0,0">
-      <TextBlock Text="SPRINT 0  /  FOUNDATION" FontSize="10" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
-      <TextBlock x:Name="VersionText" Text="v0.1.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-    </DockPanel>
+    <DockPanel><TextBlock Text="SECOND BRAIN" FontSize="12" FontWeight="SemiBold"/><TextBlock Text="LOCAL VOICE PROTOTYPE" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right"/></DockPanel>
+    <StackPanel Grid.Row="1" Margin="0,22,0,22"><TextBlock Text="Read at your own pace." FontSize="30" FontWeight="SemiBold"/><TextBlock Text="Paste your words. Open a reader. Start listening when you're ready." Foreground="{StaticResource Muted}" Margin="0,8,0,0" FontSize="14"/></StackPanel>
+    <ScrollViewer x:Name="WorkspaceScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"><Grid x:Name="WorkspaceGrid" MinHeight="520" MinWidth="650" Width="{Binding ElementName=WorkspaceScroll, Path=ViewportWidth}" Height="{Binding ElementName=WorkspaceScroll, Path=ViewportHeight}">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="22"/><ColumnDefinition Width="265"/></Grid.ColumnDefinitions>
+      <Border Background="White" BorderBrush="#DFE4DA" BorderThickness="1" CornerRadius="12" Padding="20">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <DockPanel Margin="0,0,0,12"><TextBlock Text="Your script" FontSize="19" FontWeight="SemiBold"/><TextBlock x:Name="ReaderState" Text="No panels" HorizontalAlignment="Right" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center"/></DockPanel>
+          <TextBox x:Name="ScriptEditor" Grid.Row="1" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MaxLength="20000" FontSize="16" Padding="12" BorderBrush="#D8E0D4" MinHeight="100" TextChanged="ScriptEditor_Changed" AutomationProperties.Name="Script to read"/>
+          <WrapPanel Grid.Row="2" Margin="0,12,0,0"><Button Content="Apply text" Click="Apply_Click" Padding="12,8" Margin="0,0,8,6"/><Button Content="Use sample" Click="Sample_Click" Padding="12,8" Margin="0,0,8,6"/><Button Content="Reset position" Click="Reset_Click" Padding="12,8" Margin="0,0,0,6"/></WrapPanel>
+          <WrapPanel Grid.Row="3" Margin="0,6,0,0"><Button x:Name="OpenReaderButton" Content="Open reader" Click="OpenReader_Click" Padding="12,9" Margin="0,0,8,6"/><Button x:Name="AddPanelButton" Content="Add panel" Click="AddPanel_Click" Padding="12,9" Margin="0,0,8,6"/><Button x:Name="CloseReaderButton" Content="Close all" Click="CloseReader_Click" Padding="12,9" Margin="0,0,0,6"/></WrapPanel>
+          <StackPanel Grid.Row="4" Margin="0,8,0,0">
+            <Button x:Name="ListenButton" Content="Start listening" Click="Listen_Click" Background="#294C3E" Foreground="White" BorderBrush="#294C3E" HorizontalAlignment="Left" />
+            <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock x:Name="MicLabel" Text="Mic off" FontSize="11" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,12,0"/><ProgressBar x:Name="MicLevel" Grid.Column="1" Minimum="0" Maximum="100" Height="5" Foreground="#639773" Background="#E5EBDF" BorderThickness="0"/></Grid>
+          </StackPanel>
+          <TextBlock x:Name="HeardText" Grid.Row="5" Text="Recognized words will appear here." TextWrapping="Wrap" MaxHeight="45" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+          <TextBlock x:Name="StatusText" Grid.Row="6" Text="Uses your Windows default microphone. Nothing is recorded or uploaded." TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,8,0,0"/>
+        </Grid>
+      </Border>
+      <Border Grid.Column="2" Background="#EBEFE4" CornerRadius="12" Padding="20">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+          <TextBlock Text="Make it comfortable" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,18"/>
+          <TextBlock Text="Text size" FontSize="12"/><DockPanel><TextBlock Text="{Binding ElementName=FontSlider, Path=Value, StringFormat={}{0:F0} px}" DockPanel.Dock="Right" Width="48" TextAlignment="Right"/><Slider x:Name="FontSlider" Minimum="18" Maximum="64" Value="32" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="Appearance_Changed" AutomationProperties.Name="Text size"/></DockPanel>
+          <TextBlock Text="Column width" FontSize="12" Margin="0,18,0,3"/><DockPanel><TextBlock Text="{Binding ElementName=WidthSlider, Path=Value, StringFormat={}{0:F0} ch}" DockPanel.Dock="Right" Width="48" TextAlignment="Right"/><Slider x:Name="WidthSlider" Minimum="20" Maximum="72" Value="36" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="Appearance_Changed" AutomationProperties.Name="Column width"/></DockPanel>
+          <TextBlock Text="Line spacing" FontSize="12" Margin="0,18,0,3"/><DockPanel><TextBlock Text="{Binding ElementName=SpacingSlider, Path=Value, StringFormat={}{0:F1}×}" DockPanel.Dock="Right" Width="48" TextAlignment="Right"/><Slider x:Name="SpacingSlider" Minimum="1.1" Maximum="2.2" Value="1.4" TickFrequency="0.1" IsSnapToTickEnabled="True" ValueChanged="Appearance_Changed" AutomationProperties.Name="Line spacing"/></DockPanel>
+          <TextBlock Text="Background opacity" FontSize="12" Margin="0,18,0,3"/><DockPanel><TextBlock Text="{Binding ElementName=OpacitySlider, Path=Value, StringFormat={}{0:F0}%}" DockPanel.Dock="Right" Width="48" TextAlignment="Right"/><Slider x:Name="OpacitySlider" Minimum="25" Maximum="100" Value="94" ValueChanged="Appearance_Changed" AutomationProperties.Name="Background opacity"/></DockPanel>
+          <TextBlock Text="Reading band position" FontSize="12" Margin="0,18,0,3"/><DockPanel><TextBlock Text="{Binding ElementName=BandSlider, Path=Value, StringFormat={}{0:F0}%}" DockPanel.Dock="Right" Width="48" TextAlignment="Right"/><Slider x:Name="BandSlider" Minimum="15" Maximum="70" Value="33" ValueChanged="Appearance_Changed" AutomationProperties.Name="Reading band position"/></DockPanel>
+          <CheckBox x:Name="RememberPosition" Content="Remember panel layouts" Margin="0,24,0,0" Checked="RememberPosition_Changed" Unchecked="RememberPosition_Changed" FontSize="12"/>
+          <TextBlock Text="All panels follow one reading position. Drag a panel by its header and resize from its lower-right corner." TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,22,0,0"/>
+          <TextBlock Text="Click a word to reposition. Use the mouse wheel or arrow keys to move manually." TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+        </StackPanel></ScrollViewer>
+      </Border>
+    </Grid></ScrollViewer>
+    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="VOICE FOLLOWING · WINDOWS ENGLISH · NO API KEY" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.2.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
   </Grid>
 </Window>

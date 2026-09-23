@@ -26,7 +26,7 @@ Test("Settings round-trip across independent store instances", () =>
     var path = Folder("roundtrip");
     var value = new AppSettings { RememberReaderPosition = false, ReaderPlacement = new(100, 120, 520, 280) };
     new SettingsStore(path).Save(value);
-    Assert(new SettingsStore(path).Load(out var warning) == value && warning is null, "Round-trip mismatch");
+    Assert(JsonSerializer.Serialize(new SettingsStore(path).Load(out var warning)) == JsonSerializer.Serialize(value) && warning is null, "Round-trip mismatch");
 });
 Test("Repeated saves replace complete documents", () =>
 {
@@ -95,13 +95,13 @@ Test("Requirements have unique IDs, sprint assignments and completion evidence",
             foreach (var item in evidence)
                 Assert(File.Exists(Path.Combine(root, item.GetString()!)), "Evidence file absent " + id);
         }
-        if (sprint > 0) Assert(status == "planned", "Future sprint unexpectedly marked implemented: " + id);
+        if (sprint > doc.RootElement.GetProperty("activeSprint").GetInt32()) Assert(status is "planned" or "deferred", "Future sprint unexpectedly marked implemented: " + id);
     }
     Assert(Enumerable.Range(0, 11).All(sprints.Contains), "A sprint has no requirements");
 });
-Test("Sprint 0 source has no audio, networking, recording or AI APIs", () =>
+Test("Local prototype has no network, meeting recording or AI APIs", () =>
 {
-    var forbidden = new[] { "HttpClient", "WebSocket", "TcpClient", "UdpClient", "Socket(", "WebRequest", "NAudio", "Wasapi", "WaveIn", "Deepgram", "SpeechRecognizer", "Process.Start", "DllImport", "LibraryImport" };
+    var forbidden = new[] { "HttpClient", "WebSocket", "TcpClient", "UdpClient", "Socket(", "WebRequest", "NAudio", "Wasapi", "WaveIn", "Deepgram", "Process.Start" };
     foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
         .Where(p => !p.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)))
     {
@@ -109,7 +109,52 @@ Test("Sprint 0 source has no audio, networking, recording or AI APIs", () =>
         foreach (var symbol in forbidden) Assert(!source.Contains(symbol, StringComparison.Ordinal), "Unexpected capability in " + file + ": " + symbol);
     }
     foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.csproj", SearchOption.AllDirectories))
-        Assert(!File.ReadAllText(file).Contains("PackageReference"), "Unexpected external runtime dependency");
+    {
+        var xml = System.Xml.Linq.XDocument.Load(file);
+        Assert(xml.Descendants("PackageReference").All(p => (string?)p.Attribute("Include") == "System.Speech"), "Unexpected external runtime dependency");
+    }
+});
+Test("Words retain identity across styling and manual selection", () =>
+{
+    var session = new ReaderSession(); session.Load("Hello world.\n\nThis is a test.");
+    var id = session.DocumentId; var words = session.Words;
+    session.Select(3); session.SetStyle(new ReaderStyle(FontSize: 38));
+    Assert(session.Position == 3 && session.DocumentId == id && ReferenceEquals(words, session.Words), "Styling reset reading state");
+    Assert(session.Words[1].Suffix == "\n\n", "Paragraphs lost");
+});
+Test("Repeated hypotheses cannot advance into a repeated sentence", () =>
+{
+    var session = new ReaderSession(); session.Load("Hello world hello world welcome back.");
+    var follower = new SpeechFollower(session); follower.BeginUtterance();
+    follower.Observe("hello world", false, .9f); follower.Observe("hello world", false, .9f);
+    follower.Observe("hello world", true, .9f); follower.Observe("hello world", true, .9f);
+    Assert(session.Position == 2, "Duplicate hypotheses advanced twice");
+});
+Test("Unrelated and low-confidence speech hold position", () =>
+{
+    var session = new ReaderSession(); session.Load(ReaderSession.Sample);
+    var follower = new SpeechFollower(session); follower.BeginUtterance();
+    follower.Observe("banana helicopter sunshine", true, .9f);
+    follower.Observe("Today I want to talk", true, .1f);
+    Assert(session.Position == 0, "Uncertain speech advanced");
+});
+Test("Final speech advances; manual recovery reanchors; no automatic backward jump", () =>
+{
+    var session = new ReaderSession(); session.Load("Today I want to talk about our next steps.");
+    var follower = new SpeechFollower(session); follower.BeginUtterance();
+    follower.Observe("today I want to talk", true, .9f);
+    Assert(session.Position == 5, "Recognized phrase did not advance");
+    follower.Observe("today I want", true, .9f);
+    Assert(session.Position == 5, "Recognition moved backwards");
+    session.Select(0); follower.BeginUtterance(); follower.Observe("today I want", true, .9f);
+    Assert(session.Position == 3, "Manual recovery failed");
+});
+Test("Disconnected-display geometry fits in physical work area", () =>
+{
+    var placed = new PanelPlacement(90000, 90000, 3000, 2000).FitTo(new(0, 0, 1920, 1040));
+    Assert(placed == new PanelPlacement(0, 0, 1920, 1040), "Recovery failed");
+    var leftMonitor = new PanelPlacement(-1800, 100, 700, 500).FitTo(new(-1920, 0, 1920, 1040));
+    Assert(leftMonitor.Left == -1800, "Negative monitor coordinate was lost");
 });
 var report = Path.Combine(root, "artifacts", "unit-tests.json");
 File.WriteAllText(report, JsonSerializer.Serialize(new { passed = failures == 0, results }, new JsonSerializerOptions { WriteIndented = true }));

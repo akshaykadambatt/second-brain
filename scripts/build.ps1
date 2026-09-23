@@ -29,7 +29,7 @@ try {
     & $Dotnet run --project tests\SecondBrain.Tests -c Release --no-build -- $root
     if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
     if (-not $SkipPackage) {
-        & $Dotnet publish src\SecondBrain.App -c Release -r win-x64 --self-contained true -o dist\win-x64 @restoreArgs -p:NuGetAudit=false
+        & $Dotnet publish src\SecondBrain.App -c Release -r win-x64 --self-contained true -o dist\single-file @restoreArgs -p:NuGetAudit=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=embedded
         if ($LASTEXITCODE -ne 0) { throw 'Package failed.' }
     }
 } finally {
