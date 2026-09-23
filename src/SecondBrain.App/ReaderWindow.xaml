@@ -13,13 +13,15 @@
       </Grid>
       <Grid Grid.Row="1" ClipToBounds="True" x:Name="ReadingArea">
         <Canvas IsHitTestVisible="False"><Border x:Name="Band" Height="3" Width="20" Background="#B9DA98" CornerRadius="1" Canvas.Left="8" /></Canvas>
-        <ScrollViewer x:Name="Viewport" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" PreviewMouseWheel="Reader_MouseWheel" Padding="32,0">
-          <StackPanel>
+        <Border Padding="32,0" PreviewMouseWheel="Reader_MouseWheel" Background="Transparent">
+          <Canvas>
+          <StackPanel x:Name="ReaderContent">
+            <StackPanel.RenderTransform><TranslateTransform x:Name="TextTranslation"/></StackPanel.RenderTransform>
             <Border x:Name="TopSpace" Height="70" />
             <TextBlock x:Name="ScriptText" Foreground="#EDF3E9" FontFamily="Segoe UI" FontSize="32" TextWrapping="Wrap" HorizontalAlignment="Center" LineStackingStrategy="BlockLineHeight" />
-            <Border x:Name="BottomSpace" Height="200" />
           </StackPanel>
-        </ScrollViewer>
+          </Canvas>
+        </Border>
       </Grid>
       <Grid Grid.Row="2" Margin="14,3,24,8">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

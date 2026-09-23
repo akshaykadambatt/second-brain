@@ -24,7 +24,57 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "voice")
+            if (phase == "flow")
+            {
+                while (window.Panels.Count < 4) window.AddReader();
+                for (var i = 0; i < 4; i++) { window.Panels[i].Width = 430 + i * 50; window.Panels[i].Height = 380 + i * 20; }
+                window.Session.Select(0);
+                await Settle();
+                var panels = window.Panels.ToArray();
+                var initial = panels.Select(p => p.ScrollPosition).ToArray();
+                window.Session.Select(1, fromVoice: true);
+                await Settle(); await Task.Delay(150);
+                Check(panels.Select((p, i) => Math.Abs(p.ScrollPosition - initial[i]) < .05).All(x => x), "Words within the same line do not move the text");
+                var nextLine = panels.Max(p => Enumerable.Range(1, window.Session.Words.Count - 1).First(i => p.WordLine(i) > p.WordLine(0) + 1));
+                var samples = new List<(double Time, double[] Offsets)>();
+                var timer = System.Diagnostics.Stopwatch.StartNew();
+                void Frame(object? sender, EventArgs args) => samples.Add((timer.Elapsed.TotalSeconds, panels.Select(p => p.ScrollPosition).ToArray()));
+                CompositionTarget.Rendering += Frame;
+                try
+                {
+                    window.Session.Select(nextLine, fromVoice: true);
+                    await Settle();
+                    Check(panels.Select((p, i) => Math.Abs(p.ScrollPosition - initial[i]) < p.LineHeight * .25).All(x => x), "Crossing a line starts a glide instead of an immediate line jump");
+                    await Task.Delay(2600);
+                    Check(samples.Count > 20, "Actual WPF render frames were observed: " + samples.Count);
+                    for (var frame = 1; frame < samples.Count; frame++)
+                    {
+                        var dt = samples[frame].Time - samples[frame - 1].Time;
+                        for (var panel = 0; panel < panels.Length; panel++)
+                        {
+                            var delta = samples[frame].Offsets[panel] - samples[frame - 1].Offsets[panel];
+                            if (delta < -.01 || delta > panels[panel].LineHeight * 2.2 * Math.Min(dt + .008, .042) + .05)
+                                throw new InvalidOperationException($"Unexpected glide displacement: {delta:F3} DIP in {dt:F4}s");
+                        }
+                    }
+                    Check(panels.All(p => p.AnchorError <= 1 && !p.IsGliding), "Four panel glides settle within one DIP of the reading band");
+                }
+                finally { CompositionTarget.Rendering -= Frame; }
+                File.WriteAllText(Path.Combine(directory, "flow-frames.json"), JsonSerializer.Serialize(samples.Select(s => new { seconds = s.Time, offsets = s.Offsets })));
+                var held = panels.Select(p => p.ScrollPosition).ToArray();
+                await Task.Delay(250);
+                Check(panels.Select((p, i) => p.ScrollPosition == held[i]).All(x => x), "No drift after speech progress stops");
+                window.Session.Select(nextLine + 12, fromVoice: true); await Settle(); await Task.Delay(100);
+                window.FontSlider.Value = 38; panels[0].Width += 35;
+                await Settle();
+                Check(panels.All(p => p.SelectedWord == nextLine + 12 && p.AnchorError <= 1 && !p.IsGliding), "Resize and font changes preserve the selected word and cancel stale glide geometry");
+                window.Session.Select(nextLine + 20, fromVoice: true); await Settle(); await Task.Delay(100);
+                window.Session.Select(0); await Settle(); await Task.Delay(150);
+                Check(panels.All(p => p.SelectedWord == 0 && p.AnchorError <= 1 && !p.IsGliding), "Manual reposition immediately clears voice momentum");
+                Capture(panels[0], Path.Combine(directory, "reader-flow.png"));
+                Check(!window.Voice.Running, "Flow tests use dummy progress without microphone or network");
+            }
+            else if (phase == "voice")
             {
                 var keys = new ApiKeyStore(directory);
                 await window.Voice.StartAsync("missing-device");

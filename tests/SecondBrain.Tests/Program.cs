@@ -215,6 +215,46 @@ Test("PCM16, PCM24 and PCM32 retain polarity and full-scale amplitude", () =>
     try { PcmAudio.ToMono16(new byte[3], 16, 1, false, out _); throw new Exception("Partial frame accepted"); }
     catch (InvalidOperationException) { }
 });
+Test("Line glide eases in and out without overshoot, then holds during silence", () =>
+{
+    var motion = new ReaderMotion(); motion.Reset(0); motion.Follow(44.8);
+    var steps = new List<double>();
+    for (var i = 0; i < 180; i++)
+    {
+        var old = motion.Position; motion.Step(1d / 60, 44.8);
+        steps.Add(motion.Position - old);
+        Assert(motion.Position >= old && motion.Position <= 44.8, "Glide reversed or overshot");
+    }
+    Assert(steps[0] < .25 && steps.Max() > steps[0] * 3, "No gentle acceleration");
+    Assert(steps.Max() <= 44.8 * 2.2 / 60 + .001, "Line speed cap exceeded");
+    Assert(!motion.Moving && Math.Abs(motion.Position - 44.8) < .01, "Did not settle on the selected line");
+    for (var i = 0; i < 600; i++) motion.Step(1d / 60, 44.8);
+    Assert(motion.Position == 44.8, "Continued scrolling without new progress");
+});
+Test("Burst updates preserve motion; a render stall cannot trigger catch-up", () =>
+{
+    var motion = new ReaderMotion(); motion.Follow(45);
+    for (var i = 0; i < 15; i++) motion.Step(1d / 60, 45);
+    var old = motion.Position; motion.Follow(225);
+    Assert(motion.Position == old, "Retarget jumped immediately");
+    motion.Step(2, 45);
+    Assert(motion.Position - old <= 45 * 2.2 / 30 + .001, "Stall caused catch-up jump");
+    var target = motion.Target; motion.Follow(0);
+    Assert(motion.Target == target, "Voice target moved backwards");
+    motion.Reset(0); motion.Step(1, 45);
+    Assert(motion.Position == 0 && !motion.Moving, "Manual reposition retained old momentum");
+});
+Test("Glide distance is consistent at 30, 60 and 120 Hz", () =>
+{
+    var offsets = new List<double>();
+    foreach (var hz in new[] { 30, 60, 120 })
+    {
+        var motion = new ReaderMotion(); motion.Follow(200);
+        for (var i = 0; i < hz; i++) motion.Step(1d / hz, 45);
+        offsets.Add(motion.Position);
+    }
+    Assert(offsets.Max() - offsets.Min() < .05, "Motion depends on refresh rate");
+});
 var report = Path.Combine(root, "artifacts", "unit-tests.json");
 File.WriteAllText(report, JsonSerializer.Serialize(new { passed = failures == 0, results }, new JsonSerializerOptions { WriteIndented = true }));
 Console.WriteLine($"{results.Count - failures}/{results.Count} tests passed");

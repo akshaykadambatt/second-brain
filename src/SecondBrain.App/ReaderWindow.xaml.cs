@@ -15,10 +15,19 @@ public partial class ReaderWindow : Window
     private readonly ReaderSession session;
     private readonly List<Run> runs = [];
     private readonly Stopwatch clock = Stopwatch.StartNew();
-    private double lastFrame, targetOffset;
-    private bool animate, alignmentQueued, closed;
+    private readonly ReaderMotion motion = new();
+    private double lastFrame;
+    private bool layoutDirty = true, snapPending, alignmentQueued, closed;
+    private static readonly Brush ReadBrush = FrozenBrush(125, 151, 138);
+    private static readonly Brush CurrentBrush = FrozenBrush(207, 237, 153);
+    private static readonly Brush UnreadBrush = FrozenBrush(237, 243, 233);
     internal bool CaptureExcluded { get; private set; }
     internal int SelectedWord => session.Position;
+    internal double ScrollPosition => motion.Position;
+    internal double VisualTarget => motion.Target;
+    internal bool IsGliding => motion.Moving;
+    internal double LineHeight => session.Style.FontSize * session.Style.LineSpacing;
+    internal double WordLine(int index) => runs[index].ContentStart.GetCharacterRect(LogicalDirection.Forward).Top;
     internal double AnchorError => runs.Count == 0 ? 0 : Math.Abs(WordTop(Math.Min(session.Position, runs.Count - 1)) - ReadingArea.ActualHeight * session.Style.ReadingBand);
     public event Action? ResetRequested;
 
@@ -35,7 +44,7 @@ public partial class ReaderWindow : Window
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);
         };
         Loaded += (_, _) => { Rebuild(); CompositionTarget.Rendering += RenderFrame; };
-        SizeChanged += (_, _) => QueueAlignment(false);
+        SizeChanged += (_, _) => { layoutDirty = true; QueueAlignment(false); };
         Closed += (_, _) => { closed = true; session.Changed -= SessionChanged; CompositionTarget.Rendering -= RenderFrame; };
     }
 
@@ -47,10 +56,15 @@ public partial class ReaderWindow : Window
     private void SessionChanged(ReaderChange change)
     {
         if (change == ReaderChange.Document) Rebuild();
-        else { PaintProgress(); QueueAlignment(change == ReaderChange.VoicePosition); }
+        else
+        {
+            if (change == ReaderChange.Appearance) layoutDirty = true;
+            PaintProgress(); QueueAlignment(change == ReaderChange.VoicePosition);
+        }
     }
     private void Rebuild()
     {
+        layoutDirty = true;
         runs.Clear(); ScriptText.Inlines.Clear();
         foreach (var word in session.Words)
         {
@@ -63,13 +77,13 @@ public partial class ReaderWindow : Window
     private void PaintProgress()
     {
         for (var i = 0; i < runs.Count; i++)
-            runs[i].Foreground = i < session.Position ? new SolidColorBrush(Color.FromRgb(125, 151, 138))
-                : i == session.Position ? new SolidColorBrush(Color.FromRgb(207, 237, 153)) : new SolidColorBrush(Color.FromRgb(237, 243, 233));
+            runs[i].Foreground = i < session.Position ? ReadBrush : i == session.Position ? CurrentBrush : UnreadBrush;
         ProgressText.Text = session.Position >= runs.Count ? "Complete · reset to read again" : $"Word {session.Position + 1} / {runs.Count}";
     }
     private void QueueAlignment(bool smooth)
     {
-        animate = smooth;
+        // Manual/layout requests win if a voice update arrives in the same dispatch turn.
+        snapPending |= !smooth;
         if (alignmentQueued || !IsLoaded || closed) return;
         alignmentQueued = true;
         Dispatcher.BeginInvoke(() =>
@@ -77,16 +91,26 @@ public partial class ReaderWindow : Window
             alignmentQueued = false;
             if (closed || runs.Count == 0) return;
             var style = session.Style;
-            Surface.Background = new SolidColorBrush(Color.FromArgb((byte)(style.BackgroundOpacity * 255), 23, 39, 35));
-            ScriptText.FontSize = style.FontSize; ScriptText.LineHeight = style.FontSize * style.LineSpacing;
-            ScriptText.Width = Math.Max(120, Math.Min(Math.Max(120, ReadingArea.ActualWidth - 64), style.ColumnCharacters * style.FontSize * .5));
             var band = ReadingArea.ActualHeight * style.ReadingBand;
-            TopSpace.Height = band; BottomSpace.Height = Math.Max(ReadingArea.ActualHeight, 100);
-            System.Windows.Controls.Canvas.SetTop(Band, band + style.FontSize * .55);
-            UpdateLayout();
-            targetOffset = Math.Clamp(Viewport.VerticalOffset + WordTop(Math.Min(session.Position, runs.Count - 1)) - band, 0, Viewport.ScrollableHeight);
-            if (!animate) Viewport.ScrollToVerticalOffset(targetOffset);
-            lastFrame = clock.Elapsed.TotalSeconds;
+            if (layoutDirty)
+            {
+                Surface.Background = new SolidColorBrush(Color.FromArgb((byte)(style.BackgroundOpacity * 255), 23, 39, 35));
+                ScriptText.FontSize = style.FontSize; ScriptText.LineHeight = style.FontSize * style.LineSpacing;
+                ReaderContent.Width = Math.Max(120, ReadingArea.ActualWidth - 64);
+                ScriptText.Width = Math.Max(120, Math.Min(ReaderContent.Width, style.ColumnCharacters * style.FontSize * .5));
+                TopSpace.Height = band;
+                System.Windows.Controls.Canvas.SetTop(Band, band + style.FontSize * .55);
+                UpdateLayout();
+                layoutDirty = false;
+            }
+            var target = Math.Max(0, motion.Position + WordTop(Math.Min(session.Position, runs.Count - 1)) - band);
+            if (snapPending)
+            {
+                motion.Reset(target); TextTranslation.Y = -motion.Position;
+                lastFrame = clock.Elapsed.TotalSeconds;
+            }
+            else motion.Follow(target);
+            snapPending = false;
         }, DispatcherPriority.Loaded);
     }
     private double WordTop(int index)
@@ -96,13 +120,12 @@ public partial class ReaderWindow : Window
     }
     private void RenderFrame(object? sender, EventArgs args)
     {
-        var now = clock.Elapsed.TotalSeconds; var dt = Math.Clamp(now - lastFrame, 0, .05); lastFrame = now;
-        if (!animate) return;
-        var remaining = targetOffset - Viewport.VerticalOffset;
-        if (Math.Abs(remaining) < .5) { Viewport.ScrollToVerticalOffset(targetOffset); animate = false; return; }
-        var step = Math.Clamp(remaining * (1 - Math.Exp(-dt / .12)), -650 * dt, 650 * dt);
-        Viewport.ScrollToVerticalOffset(Viewport.VerticalOffset + step);
+        var now = clock.Elapsed.TotalSeconds; var dt = now - lastFrame; lastFrame = now;
+        if (!motion.Moving || alignmentQueued) return;
+        TextTranslation.Y = -motion.Step(dt, LineHeight);
     }
+    private static Brush FrozenBrush(byte red, byte green, byte blue)
+    { var brush = new SolidColorBrush(Color.FromRgb(red, green, blue)); brush.Freeze(); return brush; }
     private void Title_MouseDown(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
     private void Reset_Click(object sender, RoutedEventArgs e) => ResetRequested?.Invoke();
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
