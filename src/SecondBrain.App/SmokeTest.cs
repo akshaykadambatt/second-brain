@@ -24,7 +24,61 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "flow")
+            if (phase == "replay")
+            {
+                window.ReplayButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Task.Delay(8000);
+                Check(window.Session.Position == 15 && window.HeardText.Text.StartsWith("Demo heard:", StringComparison.Ordinal), "Dummy speech replay advances 15 words through shared reader interfaces");
+                Check(!window.Voice.Running && !window.Playback.Playing, "Replay uses neither microphone nor the timed clock");
+                window.ReplayButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Task.Delay(600);
+                window.Session.Select(0); await Task.Delay(1200);
+                Check(window.Session.Position == 0, "Manual reset stops later dummy events until explicitly restarted");
+            }
+            else if (phase == "study")
+            {
+                var script = window.Session.Text; var style = window.Session.Style;
+                window.ScriptEditor.Text = "Unapplied editor draft retained across a reading comparison.";
+                var draft = window.ScriptEditor.Text;
+                var study = new ReadingStudyWindow(window, Path.Combine(directory, "reading-study")) { ShowActivated = false, ShowInTaskbar = false, Opacity = 0 };
+                study.Show(); await Settle();
+                await study.VerifyPersistence(Check); await Settle();
+                Capture(study, Path.Combine(directory, "reading-comparison.png"));
+                study.Close(); await Settle();
+                Check(window.Session.Text == script && window.ScriptEditor.Text == draft && window.Session.Style == style,
+                    "Closing comparison restores applied script, unapplied draft and reader appearance");
+                Check(!window.Voice.Running && !window.Playback.Playing, "Reading comparison tests leave microphone and playback stopped");
+            }
+            else if (phase == "timed")
+            {
+                while (window.Panels.Count < 4) window.AddReader();
+                await Settle();
+                await window.ToggleTimed();
+                await Task.Delay(2000);
+                Check(window.Playback.Cursor > 3 && window.Session.Position > 2 && !window.Voice.Running, "Timed playback advances shared word position without microphone");
+                Check(window.Panels.All(p => p.ScrollPosition > 1 && p.SelectedWord == window.Session.Position), "All panels scroll continuously between word boundaries");
+                var stop = System.Diagnostics.Stopwatch.StartNew();
+                window.Playback.Pause();
+                var offsets = window.Panels.Select(p => p.ScrollPosition).ToArray();
+                await Task.Delay(75);
+                Check(window.Panels.Select((p, i) => Math.Abs(p.ScrollPosition - offsets[i]) < .01).All(x => x), "Pause freezes every panel immediately and remains stationary after 75 ms");
+                var pausedCursor = window.Playback.Cursor;
+                await window.ToggleTimed(); await Task.Delay(300);
+                Check(window.Playback.Cursor > pausedCursor && window.Session.Position >= (int)pausedCursor, "Resume continues from the same logical position");
+                window.Session.Select(window.Session.Position);
+                Check(!window.Playback.Playing, "Clicking the already-selected word still pauses automatic movement");
+                window.Playback.Sentence(1); await Settle();
+                Check(window.Session.Position == 9 && !window.Playback.Playing, "Next sentence pauses and selects the next sentence start");
+                window.Playback.Sentence(-1); await Settle();
+                Check(window.Session.Position == 0, "Previous sentence recovers the prior sentence start");
+                window.SpeedSlider.Value = 210;
+                await window.ToggleTimed(); await Task.Delay(100); window.Playback.UseVoice();
+                var held = window.Panels.Select(p => p.ScrollPosition).ToArray();
+                await Task.Delay(100);
+                Check(!window.Playback.Playing && window.Panels.Select((p, i) => Math.Abs(p.ScrollPosition - held[i]) < .01).All(x => x), "Switching to voice mode clears timed momentum");
+                Capture(window, Path.Combine(directory, "timed-controls.png"));
+                Capture(window.Panels[0], Path.Combine(directory, "timed-reader.png"));
+            }
+            else if (phase == "flow")
             {
                 while (window.Panels.Count < 4) window.AddReader();
                 for (var i = 0; i < 4; i++) { window.Panels[i].Width = 430 + i * 50; window.Panels[i].Height = 380 + i * 20; }
@@ -121,6 +175,7 @@ internal static class SmokeTest
                 {
                     Check(window.Panels.Count == 4, "Four panel layouts restore across process restart");
                     Check(window.Settings.ReaderStyle.FontSize == 38, "Appearance survives process restart");
+                    Check(window.Settings.TimedWordsPerMinute == 175 && window.SpeedSlider.Value == 175, "Timed WPM survives process restart");
                     Check(window.ScriptEditor.Text == ReaderSession.Sample, "Script survives process restart");
                     Check(window.MicrophonePicker.Items.Count == 0 || window.MicrophonePicker.SelectedItem is Microphone mic && mic.Id == window.Settings.MicrophoneId, "Selected microphone survives process restart");
                 }
@@ -133,6 +188,7 @@ internal static class SmokeTest
                 for (var i = 0; i < window.Panels.Count; i++) { window.Panels[i].Width = 430 + 50 * i; window.Panels[i].Height = 380 + 20 * i; }
                 window.Session.Select(35);
                 window.FontSlider.Value = 38;
+                window.SpeedSlider.Value = 175;
                 await Settle();
                 Check(window.Panels.All(p => p.SelectedWord == 35 && p.Topmost), "Four differently sized panels share the selected word");
                 Check(window.Panels.All(p => p.AnchorError <= 1.1), "Selected word stays on the reading band after reflow: " + string.Join(", ", window.Panels.Select(p => p.AnchorError.ToString("F2"))));

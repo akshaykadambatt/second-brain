@@ -12,8 +12,8 @@ $oldLookup = $env:DOTNET_MULTILEVEL_LOOKUP
 try {
     $env:DOTNET_ROOT = Join-Path $data 'absent-runtime'
     $env:DOTNET_MULTILEVEL_LOOKUP = '0'
-    foreach ($phase in @('seed','verify','voice','flow')) {
-        $phaseData = if ($phase -in @('voice','flow')) { Join-Path $data $phase } else { $data }
+    foreach ($phase in @('seed','verify','voice','flow','timed','study','replay')) {
+        $phaseData = if ($phase -in @('voice','flow','timed','study','replay')) { Join-Path $data $phase } else { $data }
         $p = Start-Process -FilePath $isolatedExe -ArgumentList @('--data-dir', ('"' + $phaseData + '"'), '--smoke-test', $phase) -PassThru -WindowStyle Hidden
         if (-not $p.WaitForExit(30000)) { $p.Kill(); throw "Smoke phase timed out: $phase" }
         if ($p.ExitCode -ne 0) { throw "Smoke phase failed: $phase ($($p.ExitCode)). Inspect $data" }
@@ -22,7 +22,7 @@ try {
         if (Get-Process -Id $p.Id -ErrorAction SilentlyContinue) { throw 'Application process survived exit.' }
         Write-Output "PASS packaged process: $phase; exited cleanly"
     }
-    $report = @{ passed = $true; singleExecutable = $true; processExited = $true; phases = @('seed','verify','voice','flow'); evidenceDirectory = (Split-Path -Leaf $data) }
+    $report = @{ passed = $true; singleExecutable = $true; processExited = $true; phases = @('seed','verify','voice','flow','timed','study','replay'); evidenceDirectory = (Split-Path -Leaf $data) }
     $report | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'artifacts\smoke-tests.json')
     Write-Output "Evidence: $data"
 } finally {

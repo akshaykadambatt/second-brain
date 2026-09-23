@@ -24,7 +24,7 @@ Test("Missing settings use defaults without writing", () =>
 Test("Settings round-trip across independent store instances", () =>
 {
     var path = Folder("roundtrip");
-    var value = new AppSettings { RememberReaderPosition = false, ReaderPlacement = new(100, 120, 520, 280) };
+    var value = new AppSettings { RememberReaderPosition = false, ReaderPlacement = new(100, 120, 520, 280), TimedWordsPerMinute = 210 };
     new SettingsStore(path).Save(value);
     Assert(JsonSerializer.Serialize(new SettingsStore(path).Load(out var warning)) == JsonSerializer.Serialize(value) && warning is null, "Round-trip mismatch");
 });
@@ -254,6 +254,67 @@ Test("Glide distance is consistent at 30, 60 and 120 Hz", () =>
         offsets.Add(motion.Position);
     }
     Assert(offsets.Max() - offsets.Min() < .05, "Motion depends on refresh rate");
+});
+Test("Timed clock is refresh-rate independent and accelerates toward WPM", () =>
+{
+    var positions = new List<double>();
+    foreach (var hz in new[] { 30, 60, 120 })
+    {
+        var session = new ReaderSession(); session.Load(ReaderSession.Sample); var player = new ReaderPlayback(session);
+        player.SetSpeed(150); player.Play();
+        for (var i = 0; i < hz * 10; i++) player.Tick(1d / hz);
+        positions.Add(player.Cursor);
+        Assert(player.Cursor > 24 && player.Cursor < 25 && session.Position == 24, "Incorrect integrated WPM");
+    }
+    Assert(positions.Max() - positions.Min() < .0001, "Timed playback depends on frame count");
+});
+Test("Timed pause, same-word override, speed changes, stalls and end are bounded", () =>
+{
+    var session = new ReaderSession(); session.Load("one two three four five six seven eight nine ten");
+    var player = new ReaderPlayback(session); player.Play();
+    for (var i = 0; i < 60; i++) player.Tick(1d / 60);
+    var before = player.Cursor; player.Pause(); player.Tick(10);
+    Assert(player.Cursor == before, "Pause moved position");
+    player.Play(); player.SetSpeed(300); player.Tick(10);
+    Assert(player.Cursor - before < .17, "Render stall jumped forward");
+    session.Select(session.Position); Assert(!player.Playing, "Same-word click did not pause");
+    player.Play(); for (var i = 0; i < 600; i++) player.Tick(1d / 60);
+    Assert(session.Position == 10 && !player.Playing && player.Cursor == 10, "End of script did not stop");
+    player.Play(); Assert(player.Playing && player.Cursor == 0, "Replay from end failed");
+    player.UseVoice(); before = player.Cursor; player.Tick(1);
+    Assert(!player.TimedMode && !player.Playing && player.Cursor == before, "Clock advanced in voice mode");
+});
+Test("Sentence navigation handles punctuation, abbreviations, decimals and paragraphs", () =>
+{
+    var session = new ReaderSession(); session.Load("Dr. Green measured 1.5 volts. \"Is it ready?\" Yes!\n\nNext section without punctuation\n\nFinal paragraph.");
+    var starts = ReaderPlayback.SentenceStarts(session.Words);
+    Assert(starts.SequenceEqual(new[] { 0, 5, 8, 9, 13 }), "Incorrect sentence boundaries: " + string.Join(',', starts));
+    var player = new ReaderPlayback(session); player.Play(); player.Sentence(1);
+    Assert(!player.Playing && session.Position == 5, "Next sentence did not pause at boundary");
+    session.Select(7); player.Sentence(-1); Assert(session.Position == 5, "Previous should return to current sentence start mid-sentence");
+    player.Sentence(-1); Assert(session.Position == 0, "Previous at start should return to prior sentence");
+});
+Test("Reading study varies order, covers all presets and requires ten distinct trials", () =>
+{
+    var first = Enumerable.Range(1, 5).Select(n => ReadingStudy.Trial(1, n, 36)).ToArray();
+    var second = Enumerable.Range(1, 5).Select(n => ReadingStudy.Trial(2, n, 36)).ToArray();
+    Assert(first.Take(3).Select(t => t.Width).Order().SequenceEqual(new[] { 28, 36, 48 }), "Missing comparison width");
+    Assert(!first.Select(t => (t.Width, t.Font)).SequenceEqual(second.Select(t => (t.Width, t.Font))), "Session order did not vary");
+    Assert(first.Skip(3).Select(t => t.Font).Order().SequenceEqual(new[] { 32, 38 }), "Missing comparison font");
+    var row = new ReadingResult(DateTimeOffset.UtcNow, 1, 1, "Width", 36, 32, 150, 0, 0, 0, 3, 1, true, 60);
+    Assert(!ReadingStudy.Complete(Enumerable.Repeat(row, 10)), "Repeated save falsely completed study");
+    Assert(ReadingStudy.RecommendedWidth(new[] { row with { Width = 28, Mistakes = 2, Comfort = 5 }, row, row with { Width = 48, Comfort = 4 } }) == 48, "Recommendation did not rank errors before comfort");
+});
+Test("Dummy speech replays pauses, repeats, delays and skipped words through live progress adapter", () =>
+{
+    var session = new ReaderSession(); session.Load(ReaderSession.Sample);
+    var source = new ScriptedSpeechSource(session);
+    var events = new List<(string Label, int Position)>();
+    source.Heard += (_, label) => events.Add((label, session.Position));
+    for (var i = 0; i < 480; i++) source.Tick(1d / 60);
+    Assert(!source.Running && session.Position == 15, "Replay did not reach expected final word");
+    Assert(events.Count == 7 && events[2].Position == events[3].Position && events[4].Position == events[5].Position, "Duplicate or uncertain speech advanced");
+    Assert(events.Zip(events.Skip(1)).All(pair => pair.Second.Position >= pair.First.Position), "Replay moved backwards");
 });
 var report = Path.Combine(root, "artifacts", "unit-tests.json");
 File.WriteAllText(report, JsonSerializer.Serialize(new { passed = failures == 0, results }, new JsonSerializerOptions { WriteIndented = true }));

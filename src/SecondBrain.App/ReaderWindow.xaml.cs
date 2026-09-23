@@ -13,6 +13,10 @@ namespace SecondBrain.App;
 public partial class ReaderWindow : Window
 {
     private readonly ReaderSession session;
+    private readonly ReaderPlayback playback;
+    private readonly List<(int Word, double Offset)> lines = [];
+    private int paintedPosition = -1;
+    private bool paintedTimed;
     private readonly List<Run> runs = [];
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly ReaderMotion motion = new();
@@ -30,11 +34,16 @@ public partial class ReaderWindow : Window
     internal double WordLine(int index) => runs[index].ContentStart.GetCharacterRect(LogicalDirection.Forward).Top;
     internal double AnchorError => runs.Count == 0 ? 0 : Math.Abs(WordTop(Math.Min(session.Position, runs.Count - 1)) - ReadingArea.ActualHeight * session.Style.ReadingBand);
     public event Action? ResetRequested;
+    public event Action? PlaybackRequested;
+    public event Action<int>? SentenceRequested;
 
-    public ReaderWindow(ReaderSession session)
+    public ReaderWindow(ReaderSession session, ReaderPlayback playback)
     {
         this.session = session;
+        this.playback = playback;
         InitializeComponent();
+        playback.StateChanged += PlaybackChanged;
+        PlaybackChanged();
         session.Changed += SessionChanged;
         SourceInitialized += (_, _) =>
         {
@@ -45,7 +54,7 @@ public partial class ReaderWindow : Window
         };
         Loaded += (_, _) => { Rebuild(); CompositionTarget.Rendering += RenderFrame; };
         SizeChanged += (_, _) => { layoutDirty = true; QueueAlignment(false); };
-        Closed += (_, _) => { closed = true; session.Changed -= SessionChanged; CompositionTarget.Rendering -= RenderFrame; };
+        Closed += (_, _) => { closed = true; session.Changed -= SessionChanged; playback.StateChanged -= PlaybackChanged; CompositionTarget.Rendering -= RenderFrame; };
     }
 
     private IntPtr WindowHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -55,6 +64,7 @@ public partial class ReaderWindow : Window
     }
     private void SessionChanged(ReaderChange change)
     {
+        if (change == ReaderChange.TimedPosition) { PaintCounter(); return; }
         if (change == ReaderChange.Document) Rebuild();
         else
         {
@@ -65,6 +75,7 @@ public partial class ReaderWindow : Window
     private void Rebuild()
     {
         layoutDirty = true;
+        paintedPosition = -1;
         runs.Clear(); ScriptText.Inlines.Clear();
         foreach (var word in session.Words)
         {
@@ -76,10 +87,21 @@ public partial class ReaderWindow : Window
     }
     private void PaintProgress()
     {
-        for (var i = 0; i < runs.Count; i++)
+        if (playback.TimedMode)
+        {
+            if (!paintedTimed || paintedPosition < 0) foreach (var run in runs) run.Foreground = UnreadBrush;
+            paintedTimed = true; paintedPosition = session.Position; PaintCounter(); return;
+        }
+        if (paintedTimed) paintedPosition = -1;
+        paintedTimed = false;
+        var first = paintedPosition < 0 ? 0 : Math.Min(paintedPosition, session.Position);
+        var last = paintedPosition < 0 ? runs.Count - 1 : Math.Min(runs.Count - 1, Math.Max(paintedPosition, session.Position));
+        for (var i = first; i <= last; i++)
             runs[i].Foreground = i < session.Position ? ReadBrush : i == session.Position ? CurrentBrush : UnreadBrush;
-        ProgressText.Text = session.Position >= runs.Count ? "Complete · reset to read again" : $"Word {session.Position + 1} / {runs.Count}";
+        paintedPosition = session.Position;
+        PaintCounter();
     }
+    private void PaintCounter() => ProgressText.Text = session.Position >= runs.Count ? "Complete · reset to read again" : $"Word {session.Position + 1} / {runs.Count}";
     private void QueueAlignment(bool smooth)
     {
         // Manual/layout requests win if a voice update arrives in the same dispatch turn.
@@ -101,6 +123,13 @@ public partial class ReaderWindow : Window
                 TopSpace.Height = band;
                 System.Windows.Controls.Canvas.SetTop(Band, band + style.FontSize * .55);
                 UpdateLayout();
+                lines.Clear();
+                for (var i = 0; i < runs.Count; i++)
+                {
+                    var offset = motion.Position + WordTop(i) - band;
+                    if (lines.Count == 0 || offset > lines[^1].Offset + 1) lines.Add((i, offset));
+                }
+                if (lines.Count > 0) lines.Add((runs.Count, lines[^1].Offset));
                 layoutDirty = false;
             }
             var target = Math.Max(0, motion.Position + WordTop(Math.Min(session.Position, runs.Count - 1)) - band);
@@ -121,9 +150,32 @@ public partial class ReaderWindow : Window
     private void RenderFrame(object? sender, EventArgs args)
     {
         var now = clock.Elapsed.TotalSeconds; var dt = now - lastFrame; lastFrame = now;
+        if (playback.TimedMode)
+        {
+            if (!playback.Playing || alignmentQueued) return;
+            motion.Follow(FlowOffset(playback.Cursor));
+        }
         if (!motion.Moving || alignmentQueued) return;
         TextTranslation.Y = -motion.Step(dt, LineHeight);
     }
+    private double FlowOffset(double cursor)
+    {
+        if (lines.Count < 2) return motion.Position;
+        var left = 0; var right = lines.Count - 1;
+        while (right - left > 1)
+        { var middle = (left + right) / 2; if (lines[middle].Word <= cursor) left = middle; else right = middle; }
+        var start = lines[left]; var end = lines[right];
+        return start.Offset + (end.Offset - start.Offset) * Math.Clamp((cursor - start.Word) / Math.Max(1, end.Word - start.Word), 0, 1);
+    }
+    private void PlaybackChanged()
+    {
+        ReaderPlay.Content = playback.Playing ? "Pause" : "Play timed";
+        if (paintedTimed != playback.TimedMode) PaintProgress();
+        if (!playback.Playing) motion.Reset(motion.Position);
+    }
+    private void Play_Click(object sender, RoutedEventArgs e) => PlaybackRequested?.Invoke();
+    private void Previous_Click(object sender, RoutedEventArgs e) => SentenceRequested?.Invoke(-1);
+    private void Next_Click(object sender, RoutedEventArgs e) => SentenceRequested?.Invoke(1);
     private static Brush FrozenBrush(byte red, byte green, byte blue)
     { var brush = new SolidColorBrush(Color.FromRgb(red, green, blue)); brush.Freeze(); return brush; }
     private void Title_MouseDown(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
@@ -135,6 +187,8 @@ public partial class ReaderWindow : Window
     { session.Select(session.Position + (e.Delta < 0 ? 3 : -3)); e.Handled = true; }
     private void Reader_KeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Space) { PlaybackRequested?.Invoke(); e.Handled = true; return; }
+        if (e.Key is Key.Left or Key.Right) { SentenceRequested?.Invoke(e.Key == Key.Left ? -1 : 1); e.Handled = true; return; }
         var next = e.Key switch { Key.Down => session.Position + 1, Key.Up => session.Position - 1, Key.PageDown => session.Position + 10, Key.PageUp => session.Position - 10, Key.Home => 0, Key.End => session.Words.Count - 1, _ => -1 };
         if (next >= 0) { session.Select(next); e.Handled = true; }
     }

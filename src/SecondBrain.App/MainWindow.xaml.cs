@@ -17,7 +17,13 @@ public partial class MainWindow : Window
     private readonly bool hiddenTestMode;
     private readonly DispatcherTimer saveTimer;
     private readonly List<ReaderWindow> panels = [];
+    private readonly string dataDirectory;
+    private ReadingStudyWindow? study;
+    private ScriptedSpeechSource? replay;
     internal ReaderSession Session { get; } = new();
+    internal ReaderPlayback Playback { get; }
+    private readonly System.Diagnostics.Stopwatch playbackClock = System.Diagnostics.Stopwatch.StartNew();
+    private double playbackFrame;
     internal VoiceService Voice { get; }
     internal IReadOnlyList<ReaderWindow> Panels => panels;
     internal AppSettings Settings => settings;
@@ -25,7 +31,16 @@ public partial class MainWindow : Window
     public MainWindow(SettingsStore store, AppSettings settings, DiagnosticLog log, string dataDirectory, bool hiddenTestMode = false)
     {
         this.store = store; this.settings = settings; this.log = log;
+        this.dataDirectory = dataDirectory;
         InitializeComponent();
+        Playback = new ReaderPlayback(Session);
+        Playback.SetSpeed(settings.TimedWordsPerMinute);
+        SpeedSlider.Value = settings.TimedWordsPerMinute;
+        Playback.StateChanged += () =>
+        {
+            TimedPlay.Content = Playback.Playing ? "Pause" : "Play timed";
+            PlaybackLabel.Text = Playback.Playing ? "Timed scrolling · Space in reader to pause" : "Timed scrolling paused";
+        };
         this.hiddenTestMode = hiddenTestMode;
         if (hiddenTestMode) { ShowActivated = false; ShowInTaskbar = false; Opacity = 0; }
         Session.Load(string.IsNullOrWhiteSpace(settings.ScriptText) ? ReaderSession.Sample : settings.ScriptText);
@@ -41,9 +56,18 @@ public partial class MainWindow : Window
         Voice = new VoiceService(Dispatcher, Session, keys, log);
         Voice.Status += text => SetStatus(text); Voice.Heard += text => HeardText.Text = "Heard: " + text; Voice.Level += level => MicLevel.Value = level;
         Voice.Stopped += () => { MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true; ListenButton.Content = "Start listening"; MicLabel.Text = "Mic off"; MicLevel.Value = 0; };
-        Session.Changed += change => { if (change is ReaderChange.Position or ReaderChange.Document) Voice.Reanchor(); };
+        Session.Changed += change =>
+        {
+            if (change is ReaderChange.Position or ReaderChange.Document)
+            { replay?.Stop(); Voice.Reanchor(); if (Voice.Running || startingVoice) _ = StopListening(); }
+        };
         SourceInitialized += (_, _) => HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);
-        Loaded += (_, _) => { if (settings.RememberReaderPosition) foreach (var saved in settings.Panels.ToArray()) AddReader(saved); };
+        Loaded += (_, _) =>
+        {
+            CompositionTarget.Rendering += PlaybackFrame;
+            if (settings.RememberReaderPosition) foreach (var saved in settings.Panels.ToArray()) AddReader(saved);
+        };
+        Closed += (_, _) => CompositionTarget.Rendering -= PlaybackFrame;
         initialized = true;
         RefreshMicrophones();
         if (!keys.Exists) SetStatus("Deepgram key is not configured yet. Ask Codex to finish setup.", true);
@@ -61,10 +85,12 @@ public partial class MainWindow : Window
     }
     internal ReaderWindow AddReader(PanelPlacement? placement = null)
     {
-        var panel = new ReaderWindow(Session); panels.Add(panel);
+        var panel = new ReaderWindow(Session, Playback); panels.Add(panel);
+        panel.PlaybackRequested += async () => await ToggleTimed();
+        panel.SentenceRequested += direction => Playback.Sentence(direction);
         if (hiddenTestMode) { panel.ShowActivated = false; panel.ShowInTaskbar = false; panel.Opacity = 0; }
         panel.ResetRequested += ResetPosition; panel.LocationChanged += (_, _) => ScheduleSave(); panel.SizeChanged += (_, _) => ScheduleSave();
-        panel.Closed += (_, _) => { panels.Remove(panel); UpdatePanelCount(); if (!closing) { ScheduleSave(); if (panels.Count == 0) _ = StopListening(); } };
+        panel.Closed += (_, _) => { panels.Remove(panel); UpdatePanelCount(); if (!closing) { ScheduleSave(); if (panels.Count == 0) { Playback.Pause(); _ = StopListening(); } } };
         panel.Show();
         if (placement is not null) NativeWindows.Restore(panel, placement);
         else if (panels.Count > 1)
@@ -99,6 +125,8 @@ public partial class MainWindow : Window
     {
         if (startingVoice) return;
         if (Voice.Running) { await StopListening(); return; }
+        replay?.Stop();
+        Playback.UseVoice();
         if (ScriptEditor.Text.Trim() != Session.Text && !await ApplyText()) return;
         if (panels.Count == 0) AddReader();
         if (Session.Position >= Session.Words.Count) ResetPosition();
@@ -111,9 +139,61 @@ public partial class MainWindow : Window
     }
     internal async Task StopListening()
     {
+        replay?.Stop();
         await Voice.StopAsync(); ListenButton.Content = "Start listening"; MicLabel.Text = "Mic off";
         MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true;
         if (!closing) SetStatus("Microphone off. Your reading position is preserved.");
+    }
+    private void PlaybackFrame(object? sender, EventArgs e)
+    {
+        var now = playbackClock.Elapsed.TotalSeconds;
+        Playback.Tick(now - playbackFrame);
+        var replayWasRunning = replay?.Running == true;
+        replay?.Tick(now - playbackFrame);
+        if (replayWasRunning && replay?.Running == false) SetStatus("Dummy speech replay complete · microphone off. Reset or resume when ready.");
+        playbackFrame = now;
+    }
+    private async void TimedPlay_Click(object sender, RoutedEventArgs e) => await ToggleTimed();
+    internal async Task ToggleTimed()
+    {
+        if (Playback.Playing) { Playback.Pause(); return; }
+        replay?.Stop();
+        // Cancel even an in-flight voice startup before allowing the timed clock to own progress.
+        await StopListening();
+        if (closing) return;
+        if (ScriptEditor.Text.Trim() != Session.Text && !await ApplyText()) return;
+        if (panels.Count == 0) AddReader();
+        Playback.Play(); playbackFrame = playbackClock.Elapsed.TotalSeconds;
+        SetStatus("Timed mode · microphone off. Click a word or choose a sentence to pause and reposition.");
+    }
+    private void PreviousSentence_Click(object sender, RoutedEventArgs e) => Playback.Sentence(-1);
+    private void NextSentence_Click(object sender, RoutedEventArgs e) => Playback.Sentence(1);
+    private void Speed_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    { if (!initialized) return; Playback.SetSpeed(SpeedSlider.Value); ScheduleSave(); }
+    private async void ReplaySpeech_Click(object sender, RoutedEventArgs e)
+    {
+        replay?.Stop(); Playback.UseVoice(); await StopListening();
+        if (closing) return;
+        if (ScriptEditor.Text.Trim() != Session.Text && !await ApplyText()) return;
+        if (Session.Words.Count < 15) { SetStatus("Use at least 15 words for the dummy-speech replay.", true); return; }
+        Session.Select(0);
+        if (panels.Count == 0) AddReader();
+        replay = new ScriptedSpeechSource(Session);
+        replay.Heard += (text, label) => { HeardText.Text = "Demo heard: " + text; SetStatus("Dummy speech · " + label + " · no microphone or network"); };
+        playbackFrame = playbackClock.Elapsed.TotalSeconds;
+        SetStatus("Dummy speech replay: pauses, delays, repeats and skipped words. Manual navigation stops the replay.");
+    }
+    private void ReadingStudy_Click(object sender, RoutedEventArgs e)
+    {
+        if (study is not null) { study.Activate(); return; }
+        try
+        {
+            study = new ReadingStudyWindow(this, System.IO.Path.Combine(dataDirectory, "reading-study"));
+            study.Closed += (_, _) => study = null;
+            study.Show();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.IO.IOException or UnauthorizedAccessException)
+        { SetStatus("Reading comparison could not open. Existing results are preserved; check the data folder.", true); }
     }
     private void Appearance_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -144,7 +224,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            settings = settings with { RememberReaderPosition = RememberPosition.IsChecked == true, ScriptText = Session.Text, ReaderStyle = Session.Style,
+            settings = settings with { RememberReaderPosition = RememberPosition.IsChecked == true, ScriptText = Session.Text, ReaderStyle = Session.Style, TimedWordsPerMinute = Playback.WordsPerMinute,
                 Panels = RememberPosition.IsChecked == true ? panels.Select(NativeWindows.GetBounds).ToList() : [] };
             store.Save(settings);
         }
@@ -155,7 +235,7 @@ public partial class MainWindow : Window
     {
         if (allowClose) { base.OnClosing(e); return; }
         e.Cancel = true; if (closing) return;
-        closing = true; saveTimer.Stop(); SaveSettings(); await Voice.StopAsync();
+        closing = true; replay?.Stop(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync();
         foreach (var panel in panels.ToArray()) panel.Close();
         allowClose = true;
         await Dispatcher.InvokeAsync(Close);

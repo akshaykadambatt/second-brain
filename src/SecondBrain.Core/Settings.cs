@@ -14,6 +14,7 @@ public sealed record AppSettings
     public int SchemaVersion { get; init; } = 1;
     public bool RememberReaderPosition { get; init; } = true;
     public string? MicrophoneId { get; init; }
+    public double TimedWordsPerMinute { get; init; } = 150;
     public WindowPlacement? ReaderPlacement { get; init; }
     public string ScriptText { get; init; } = ReaderSession.Sample;
     public ReaderStyle ReaderStyle { get; init; } = new();
@@ -36,7 +37,8 @@ public sealed class SettingsStore(string directory)
             if (result.SchemaVersion != 1) throw new JsonException("Unsupported settings version.");
             if (result.ReaderPlacement is { IsValid: false })
                 throw new JsonException("Invalid reader position.");
-            if (result.ScriptText is null || result.ScriptText.Length > 20000 || result.ReaderStyle is null
+            if (!double.IsFinite(result.TimedWordsPerMinute) || result.TimedWordsPerMinute is < 60 or > 300
+                || result.ScriptText is null || result.ScriptText.Length > 20000 || result.ReaderStyle is null
                 || !result.ReaderStyle.IsValid || result.Panels is null
                 || result.Panels.Any(p => p is null || !p.IsValid))
                 throw new JsonException("Invalid reader settings.");

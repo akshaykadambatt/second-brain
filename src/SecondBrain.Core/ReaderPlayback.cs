@@ -1,0 +1,71 @@
+using System.Text.RegularExpressions;
+
+namespace SecondBrain.Core;
+
+public sealed class ReaderPlayback
+{
+    private readonly ReaderSession session;
+    private double velocity;
+    public bool TimedMode { get; private set; }
+    public bool Playing { get; private set; }
+    public double Cursor { get; private set; }
+    public double WordsPerMinute { get; private set; } = 150;
+    public event Action? StateChanged;
+
+    public ReaderPlayback(ReaderSession session)
+    {
+        this.session = session;
+        session.Changed += change =>
+        {
+            if (change is ReaderChange.Document or ReaderChange.Position)
+            { Cursor = session.Position; Pause(); }
+            else if (change == ReaderChange.VoicePosition) Cursor = session.Position;
+        };
+    }
+    public void SetSpeed(double wordsPerMinute)
+    {
+        if (!double.IsFinite(wordsPerMinute) || wordsPerMinute is < 60 or > 300) throw new ArgumentOutOfRangeException(nameof(wordsPerMinute));
+        WordsPerMinute = wordsPerMinute;
+    }
+    public void Play()
+    {
+        if (session.Words.Count == 0) return;
+        if (Cursor >= session.Words.Count) session.Select(0);
+        TimedMode = true; Playing = true; velocity = 0; StateChanged?.Invoke();
+    }
+    public void Pause() { Playing = false; velocity = 0; StateChanged?.Invoke(); }
+    public void UseVoice() { Playing = false; TimedMode = false; Cursor = session.Position; velocity = 0; StateChanged?.Invoke(); }
+    public void Tick(double elapsedSeconds)
+    {
+        if (!Playing || !double.IsFinite(elapsedSeconds) || elapsedSeconds <= 0) return;
+        var dt = Math.Min(elapsedSeconds, 1d / 30);
+        const double smoothing = .3;
+        var goal = WordsPerMinute / 60;
+        var decay = Math.Exp(-dt / smoothing);
+        Cursor = Math.Min(session.Words.Count, Cursor + goal * dt + (velocity - goal) * smoothing * (1 - decay));
+        velocity = goal + (velocity - goal) * decay;
+        session.SelectTimed((int)Cursor);
+        if (Cursor >= session.Words.Count) Pause();
+    }
+    public void Sentence(int direction)
+    {
+        var starts = SentenceStarts(session.Words);
+        var current = session.Position;
+        var next = direction > 0 ? starts.FirstOrDefault(i => i > current, session.Words.Count)
+            : starts.LastOrDefault(i => i < current, 0);
+        session.Select(next);
+    }
+    public static IReadOnlyList<int> SentenceStarts(IReadOnlyList<ScriptWord> words)
+    {
+        var starts = new List<int> { 0 };
+        for (var i = 0; i + 1 < words.Count; i++)
+        {
+            var word = words[i];
+            var plain = word.Text.TrimEnd('"', '\'', '”', '’', ')', ']');
+            var abbreviation = new[] { "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "e.g.", "i.e." }.Contains(plain, StringComparer.OrdinalIgnoreCase)
+                || Regex.IsMatch(plain, @"^[A-Z]\.$");
+            if (word.Suffix.Contains("\n\n", StringComparison.Ordinal) || !abbreviation && Regex.IsMatch(plain, @"[.!?]$")) starts.Add(i + 1);
+        }
+        return starts;
+    }
+}

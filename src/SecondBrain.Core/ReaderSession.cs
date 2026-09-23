@@ -20,7 +20,7 @@ public sealed record PanelPlacement(int Left, int Top, int Width, int Height)
         Math.Min(Width, workArea.Width), Math.Min(Height, workArea.Height));
 }
 
-public enum ReaderChange { Document, Appearance, Position, VoicePosition }
+public enum ReaderChange { Document, Appearance, Position, VoicePosition, TimedPosition }
 public sealed record ScriptWord(int Id, string Text, string Suffix);
 
 public sealed class ReaderSession
@@ -62,8 +62,14 @@ public sealed class ReaderSession
     public void Select(int word, bool fromVoice = false)
     {
         var next = Math.Clamp(word, 0, Words.Count);
-        if (next == Position) return;
+        if (next == Position && fromVoice) return;
         Position = next;
         Changed?.Invoke(fromVoice ? ReaderChange.VoicePosition : ReaderChange.Position);
+    }
+    public void SelectTimed(int word)
+    {
+        var next = Math.Clamp(word, 0, Words.Count);
+        if (next == Position) return;
+        Position = next; Changed?.Invoke(ReaderChange.TimedPosition);
     }
 }
