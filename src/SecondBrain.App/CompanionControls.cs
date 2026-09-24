@@ -78,6 +78,9 @@ public partial class MainWindow
             if (Recorder.State != RecordingState.Recording) throw new InvalidOperationException(Recorder.Message);
             var recordingDirectory = Recorder.LastDirectory ?? throw new IOException("Recording directory is unavailable.");
             SessionContextStore.SaveSnapshot(recordingDirectory, RecordingSession.ReadManifest(recordingDirectory).Id, meetingContext);
+            NameHints.Start(RecordingSession.ReadManifest(recordingDirectory).Id, Recorder.ClockOrigin,
+                meetingContext.Participants.Where(p => !p.Equals(LocalParticipantName.Text.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray());
+            Transcriber.ResolveNameHint = NameHints.Resolve;
             Visuals.Listen(true);
             MeetingBriefExpander.IsExpanded = false;
             if (LiveTab.Content is System.Windows.Controls.ScrollViewer liveView) liveView.ScrollToTop();
@@ -85,7 +88,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            companionError = true; Visuals.Listen(false);
+            companionError = true; Visuals.Listen(false); NameHints.End(); Transcriber.ResolveNameHint = null;
             if (Companion is { } companion) { await companion.Stop(); companion.Changed -= RefreshCompanion; }
             await Recorder.StopAsync();
             CompanionStatus.Text = ex is InvalidOperationException or IOException ? ex.Message : "The session could not start. Check settings and audio devices.";
@@ -98,7 +101,7 @@ public partial class MainWindow
         await companionControls.WaitAsync(); companionBusy = true; companionPhase = "SAVING"; RefreshCompanionControls();
         try
         {
-            Visuals.Listen(false);
+            NameHints.StopSampling(); Visuals.Listen(false);
             if (Companion is { Active: true } companion)
             {
                 var answers = companion.Stop(); // Disable new questions before flushing transcript finals.
@@ -108,13 +111,14 @@ public partial class MainWindow
                 if (Recorder.LastDirectory is { } folder && !await SaveCompanionTiming(folder))
                     CompanionStatus.Text += " Timing report could not be saved; audio is unaffected.";
             }
+            NameHints.End(); Transcriber.ResolveNameHint = null;
             Playback.Pause(); RefreshCompanionControls();
         }
         finally { companionBusy = false; companionControls.Release(); RefreshCompanionControls(); }
     }
     private void DrainCompanion()
     {
-        Visuals.Tick();
+        Visuals.Tick(); NameHints.Tick();
         var entries = Transcriber.DrainAssistantEvents(out var dropped);
         foreach (var entry in entries.Where(e => e.Kind == "RunStart")) AssistantContext.Observe(entry);
         var speeches = Transcriber.DrainSpeech();

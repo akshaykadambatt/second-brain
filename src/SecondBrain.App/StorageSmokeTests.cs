@@ -26,6 +26,8 @@ internal static class StorageSmokeTests
         using (var transcript = new TranscriptLog(recording, transcriptId)) transcript.Append(detailEntry);
         new SpeakerSettings(directory).Save(new(true, "Morgan"));
         using (var details = new TranscriptDetails(recording, transcriptId)) details.Append(new AudioSpeakers(transcriptId, new()).Label(TranscriptDetails.From(detailEntry, [new("Saved.", 0, .2, .9f, 0)], "Word timing available")));
+        var hinted = TranscriptDetails.Read(recording).Single();
+        new SpeakerNameHints(recording, transcriptId).Append(hinted, new(1, transcriptId, hinted.SegmentId, SpeakerNameHints.Binding(hinted), "Screen fixture", 0, .2));
         var backupParent = Path.Combine(Path.GetDirectoryName(directory)!, "storage-snapshots");
         var review = new TranscriptReview(recording, TranscriptDetails.Read(recording)); review.Assign([review.Words[0].Id], "Taylor"); review.Bookmark(review.Words[0].Id);
         var backup = await main.StorageOperation(root => LocalBackup.Create(directory, root, Environment.ProcessPath!, backupParent));
@@ -48,6 +50,7 @@ internal static class StorageSmokeTests
         var restoredRecording = Path.Combine(restored!, "data/recordings", Path.GetFileName(recording));
         var restoredReview = new TranscriptReview(restoredRecording, TranscriptDetails.Read(restoredRecording));
         check(restoredReview.Words[0].Speaker == "Taylor" && restoredReview.Bookmarks.Count == 1 && restoredReview.CanUndo, "Backup restore retains reversible review corrections and bookmarks");
+        check(SpeakerNameHints.Read(restoredRecording, TranscriptDetails.Read(restoredRecording), out var hintWarning).Count == 1 && hintWarning.Length == 0, "Backup restores source-bound screen-name hints with manual correction priority intact");
         check(deleted is not null && !Directory.Exists(recording) && File.Exists(Path.Combine(restored!, "data/recordings", Path.GetFileName(recording), "session.json")), "Deletion removes only the selected source recording; the restored copy remains");
         await main.RefreshStorage();
         check(main.Knowledge is not null && main.WorkspaceGrid.IsEnabled && main.StorageUsage.Text.Contains("Total:"), "Storage operations reconnect knowledge and leave controls usable with measured usage");

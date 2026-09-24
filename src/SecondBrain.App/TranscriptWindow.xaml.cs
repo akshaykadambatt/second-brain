@@ -25,9 +25,9 @@ public partial class TranscriptWindow : Window
         InitializeComponent(); Owner = owner;
         if (hidden) { Opacity = 0; ShowActivated = false; }
         try { review = new(directory, records); }
-        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException or UnauthorizedAccessException)
         { review = new(directory, records, false); editable = false; warning += " Correction journal unavailable; original transcript shown read-only."; }
-        Summary.Text = $"{records.Length} finalized segments · {records.Sum(r => r.Words.Length)} timed words. Original transcript text is read-only. " + warning;
+        Summary.Text = $"{records.Length} finalized segments · {records.Sum(r => r.Words.Length)} timed words. Original transcript text is read-only. " + warning + " " + review.HintWarning;
         EditControls.IsEnabled = BookmarkButton.IsEnabled = editable;
         ready = true; Refresh();
         replayTimer.Tick += (_, _) => { if (audio is null || audio.CurrentTime.TotalSeconds >= replayEnd) StopPlayback(); };

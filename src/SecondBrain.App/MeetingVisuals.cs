@@ -9,6 +9,7 @@ internal sealed class MeetingVisuals(Dispatcher dispatcher) : IDisposable
     public bool Enabled { get; private set; }
     public bool Listening { get; private set; }
     public bool Running => capture is not null;
+    public long Generation => generation;
     public DateTimeOffset? LastFrame { get; private set; }
     public int FrameWidth { get; private set; }
     public int FrameHeight { get; private set; }

@@ -5,10 +5,12 @@ namespace SecondBrain.App;
 
 public partial class MainWindow
 {
+    internal TeamsHintSession NameHints { get; private set; } = null!;
     internal MeetingVisuals Visuals { get; private set; } = null!;
     private void InitializeVisuals()
     {
         Visuals = new(Dispatcher);
+        NameHints = new(Visuals, status => TeamsHintsStatus.Text = status);
         Visuals.Changed += () => { VisualCaptureStatus.Text = Visuals.Status; VisualWindowLabel.Text = Visuals.Target?.Label ?? "No window selected"; };
     }
     private void VisualEnable_Click(object sender, RoutedEventArgs e) => Visuals.Enable(VisualHintsCheck.IsChecked == true);

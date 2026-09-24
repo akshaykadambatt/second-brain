@@ -38,6 +38,9 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
         lock (gate) { var result = assistantEvents.ToArray(); assistantEvents.Clear(); dropped = assistantOverflow; assistantOverflow = false; return result; }
     }
     public SpeakerOptions SpeakerOptions { get; set; } = new();
+    public Func<TranscriptDetail, SpeakerNameHint?>? ResolveNameHint { get; set; }
+    private SpeakerNameHints? nameHints;
+    private volatile string? nameHintFailure;
     public string[] Vocabulary { get; set; } = [];
     private SpeakerOptions activeSpeakerOptions = new();
     private string[] activeVocabulary = [];
@@ -56,7 +59,7 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
     public bool Enabled { get; set; }
     public TranscriptView View
     {
-        get { lock (gate) return new((failure ?? (sources.Length == 0 ? idle : string.Join(" · ", sources.Select(s => s.Track.Source + ": " + s.Status)))) + vocabularyStatus + (detailFailure is null ? "" : " · " + detailFailure),
+        get { lock (gate) return new((failure ?? (sources.Length == 0 ? idle : string.Join(" · ", sources.Select(s => s.Track.Source + ": " + s.Status)))) + vocabularyStatus + (detailFailure is null ? "" : " · " + detailFailure) + (nameHintFailure is null ? "" : " · " + nameHintFailure),
             sources.FirstOrDefault(s => s.Track.Source == AudioSource.Microphone)?.Interim ?? "",
             sources.FirstOrDefault(s => s.Track.Source == AudioSource.System)?.Interim ?? "", recent.ToArray()); }
     }
@@ -81,7 +84,7 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
                         + (activeVocabulary.Length < Vocabulary.Length ? $" · vocabulary {activeVocabulary.Length}/{Vocabulary.Length} terms sent (provider budget)" : "");
                 }
                 journal = new(directory, manifest.Id); cancellation = new();
-                detailFailure = null;
+                detailFailure = null; nameHintFailure = null; nameHints = new(directory, manifest.Id);
                 try { details = new(directory, manifest.Id); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
                 { detailFailure = "Word details unavailable; original transcript continues"; log.Write("Word-detail setup failure=" + ex.GetType().Name); }
@@ -243,7 +246,14 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
                                     var entry = Record("Final", source.Track.Source, start, end, segment.Text, epoch, segmentId, attribution);
                                     if (entry is not null) lock (detailsGate)
                                     {
-                                        try { details?.Append(labeled!); }
+                                        try
+                                        {
+                                            if (details?.Append(labeled!) == true && nameHintFailure is null)
+                                            {
+                                                try { if (ResolveNameHint?.Invoke(labeled!) is { } hint) nameHints?.Append(labeled!, hint); }
+                                                catch (Exception ex) { nameHintFailure = "Screen names could not be saved; audio labels retained"; log.Write("Speaker-hint write failure=" + ex.GetType().Name); }
+                                            }
+                                        }
                                         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
                                         {
                                             details?.Dispose(); details = null; detailFailure = "Word details could not be saved; original transcript continues";
