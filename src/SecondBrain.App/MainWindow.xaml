@@ -34,6 +34,7 @@
 <TextBox x:Name="VaultFolder" ToolTip="Vault folder"/>
 <WrapPanel Margin="0,8,0,8"><Button x:Name="VaultChoose" Content="Choose folder…" Click="VaultChoose_Click" Padding="8,6" Margin="0,0,6,6"/><Button Content="Open folder" Click="VaultExplorer_Click" Padding="8,6" Margin="0,0,6,6"/><Button Content="Open in Obsidian" Click="VaultObsidian_Click" Padding="8,6" Margin="0,0,6,6"/></WrapPanel>
 <CheckBox x:Name="SemanticCheck"><TextBlock Text="Semantic search: sends Markdown passages to OpenAI for embeddings (API usage)" TextWrapping="Wrap"/></CheckBox>
+<CheckBox x:Name="AutoUpdates" Margin="0,8,0,0"><TextBlock Text="Automatically update notes after meetings (OpenAI API use; local history and undo)" TextWrapping="Wrap"/></CheckBox>
 <TextBlock Text="Project filter (exact project: frontmatter value; blank means all)" TextWrapping="Wrap" Margin="0,12,0,4"/><TextBox x:Name="VaultProject" MaxLength="120"/>
 <TextBlock Text="Date range · YYYY-MM-DD (blank means unrestricted)" Margin="0,8,0,4"/><UniformGrid Columns="2"><TextBox x:Name="VaultFrom" ToolTip="From date" Margin="0,0,6,0"/><TextBox x:Name="VaultUntil" ToolTip="Until date"/></UniformGrid>
 <WrapPanel Margin="0,8,0,10"><Button x:Name="VaultApply" Content="Apply vault and filters" Click="VaultApply_Click" Padding="8,6" Margin="0,0,6,6"/><Button Content="Rebuild index" Click="VaultRebuild_Click" Padding="8,6" Margin="0,0,6,6"/><Button x:Name="VaultImport" Content="Import saved meetings" Click="VaultImport_Click" Padding="8,6" Margin="0,0,6,6"/></WrapPanel>
@@ -43,6 +44,22 @@
 <TextBlock x:Name="VaultSearchStatus" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,6"/>
 <ListBox x:Name="VaultResults" Height="200" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
 <Button Content="Open selected note in Obsidian" Click="VaultOpenResult_Click" Padding="8,6" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+</StackPanel></ScrollViewer></TabItem>
+<TabItem x:Name="HistoryTab" Header="History"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="18">
+<TextBlock Text="Your notes, with a history" FontSize="22" FontWeight="SemiBold"/>
+<TextBlock Text="Meeting updates add dated sections with transcript sources. Manual edits are saved before AI changes. This history stays locally inside your vault; nothing is pushed online." TextWrapping="Wrap" Margin="0,8,0,12"/>
+<TextBlock x:Name="MaintenanceStatus" Text="Opening local history…" TextWrapping="Wrap"/>
+<WrapPanel Margin="0,8,0,8"><Button Content="Refresh history" Click="HistoryRefresh_Click" Padding="8,6" Margin="0,0,6,6"/><Button x:Name="HistoryScan" Content="Update saved meetings" Click="HistoryScan_Click" Padding="8,6" Margin="0,0,6,6"/><Button x:Name="HistoryRetry" Content="Retry pending" Click="HistoryRetry_Click" Padding="8,6" Margin="0,0,6,6"/><Button x:Name="HistoryRecover" Content="Recover interrupted update" Click="HistoryRecover_Click" Padding="8,6" Margin="0,0,6,6"/></WrapPanel>
+<TextBlock x:Name="HistoryMessage" TextWrapping="Wrap" Margin="0,0,0,8"/>
+<Expander Header="Update jobs"><TextBlock x:Name="HistoryJobs" TextWrapping="Wrap" FontSize="11" Margin="0,8,0,8"/></Expander>
+<TextBlock Text="Applied meeting updates" FontWeight="SemiBold" Margin="0,10,0,5"/>
+<ListBox x:Name="HistoryUpdates" Height="100"/>
+<Button x:Name="HistoryUndo" Content="Undo selected meeting update" Click="HistoryUndo_Click" HorizontalAlignment="Left" Padding="8,6" Margin="0,6,0,6"/>
+<TextBlock Text="Undo removes only that generated section. If you edited the section itself, a conflict is shown and your file is preserved." TextWrapping="Wrap" FontSize="11"/>
+<TextBlock Text="Saved revisions · newest first" FontWeight="SemiBold" Margin="0,12,0,5"/>
+<ListBox x:Name="HistoryRevisions" Height="120"/>
+<Button Content="Show selected changes" Click="HistoryDiff_Click" HorizontalAlignment="Left" Padding="8,6" Margin="0,6,0,6"/>
+<TextBox x:Name="HistoryDiff" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="11" Height="240" Text="Select a revision to inspect its changes."/>
 </StackPanel></ScrollViewer></TabItem>
 <TabItem x:Name="PracticeTab" Header="Practice and diagnostics">
 <Border Background="White" BorderBrush="#DFE4DA" BorderThickness="1" CornerRadius="12" Padding="20">
@@ -81,6 +98,6 @@
         </StackPanel></ScrollViewer>
       </Border>
     </Grid></ScrollViewer>
-    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.11.1" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
+    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.12.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
   </Grid>
 </Window>

@@ -14,6 +14,18 @@ void Test(string name, Action action)
 void Assert(bool condition, string message) { if (!condition) throw new Exception(message); }
 string Folder(string name) { var path = Path.Combine(run, name); Directory.CreateDirectory(path); return path; }
 
+HistoryTests.Run(Test, Assert, Folder);
+
+Test("Appended meeting facts retain their own dates during filtered retrieval", () =>
+{
+    var vault = Folder("history-dates");
+    File.WriteAllText(Path.Combine(vault, "Cedar.md"), "---\nproject: Cedar\ndate: 2026-01-01\n---\n# Cedar\nThe old budget was undecided.\n\n## Meeting update · 2026-09-24\nThe release is scheduled for Friday.\n");
+    var index = new VaultIndex(); index.Rebuild(vault);
+    var result = index.Search("release", new("Cedar", new DateOnly(2026, 9, 1)), new Dictionary<string, float[]>());
+    Assert(result.Hits.Single().Chunk.Date == new DateOnly(2026, 9, 24), "New section inherited an old note date");
+    Assert(index.Chunks.First().Date == new DateOnly(2026, 1, 1), "Earlier dated context was rewritten");
+});
+
 Test("Vault setup creates linked templates and preserves manual notes", () =>
 {
     var root = Folder("vault-seed"); VaultFiles.Initialize(root);

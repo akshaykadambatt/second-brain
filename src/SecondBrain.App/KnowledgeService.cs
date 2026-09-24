@@ -4,7 +4,7 @@ using SecondBrain.Core;
 
 namespace SecondBrain.App;
 
-internal sealed record VaultOptions(string Folder = "Vault", bool Semantic = true, string Project = "", DateOnly? From = null, DateOnly? Until = null);
+internal sealed record VaultOptions(string Folder = "Vault", bool Semantic = true, string Project = "", DateOnly? From = null, DateOnly? Until = null, bool AutomaticUpdates = true);
 internal sealed class VaultSettings(string data, string home)
 {
     private readonly string path = Path.Combine(data, "vault-settings.json");

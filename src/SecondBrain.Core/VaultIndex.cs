@@ -74,6 +74,7 @@ public sealed class VaultIndex
             }
         }
         if (date is null && DateOnly.TryParseExact(Path.GetFileName(file)[..Math.Min(10, Path.GetFileName(file).Length)], "yyyy-MM-dd", out var dated)) date = dated;
+        var fileDate = date;
         var chunks = new List<NoteChunk>(); var title = Path.GetFileNameWithoutExtension(file); var buffer = new StringBuilder(); var start = first + 1;
         void Flush()
         {
@@ -82,7 +83,12 @@ public sealed class VaultIndex
         }
         for (var i = first; i < lines.Length; i++)
         {
-            if (lines[i].StartsWith('#')) { Flush(); title = lines[i].TrimStart('#', ' '); }
+            if (lines[i].StartsWith('#'))
+            {
+                Flush(); title = lines[i].TrimStart('#', ' '); date = fileDate;
+                var meetingDate = Regex.Match(lines[i], @"^## Meeting update · (\d{4}-\d{2}-\d{2})$");
+                if (meetingDate.Success && DateOnly.TryParseExact(meetingDate.Groups[1].Value, "yyyy-MM-dd", out var sectionDate)) date = sectionDate;
+            }
             if (buffer.Length + lines[i].Length > 1400) Flush();
             if (buffer.Length == 0) start = i + 1;
             // Split very long lines explicitly; no content is silently truncated.

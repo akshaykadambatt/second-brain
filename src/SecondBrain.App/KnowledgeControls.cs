@@ -24,6 +24,7 @@ public partial class MainWindow
         vaultSettings = new(dataDirectory, home);
         try { vaultOptions = vaultSettings.Load(); } catch (Exception) { VaultStatus.Text = "Invalid vault settings; using the adjacent Vault folder."; }
         VaultFolder.Text = vaultSettings.Resolve(vaultOptions); SemanticCheck.IsChecked = vaultOptions.Semantic;
+        AutoUpdates.IsChecked = vaultOptions.AutomaticUpdates;
         VaultProject.Text = vaultOptions.Project; VaultFrom.Text = vaultOptions.From?.ToString("yyyy-MM-dd") ?? ""; VaultUntil.Text = vaultOptions.Until?.ToString("yyyy-MM-dd") ?? "";
         try { ConnectKnowledge(); } catch (Exception ex) { VaultStatus.Text = "Vault unavailable: " + ex.Message; }
     }
@@ -31,7 +32,7 @@ public partial class MainWindow
     {
         var root = Path.GetFullPath(VaultFolder.Text); VaultFiles.Initialize(root);
         DateOnly? Date(string value) => string.IsNullOrWhiteSpace(value) ? null : DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", out var date) ? date : throw new InvalidOperationException("Use YYYY-MM-DD dates or leave dates empty.");
-        var options = new VaultOptions(vaultSettings!.Portable(root), SemanticCheck.IsChecked == true, VaultProject.Text.Trim(), Date(VaultFrom.Text), Date(VaultUntil.Text));
+        var options = new VaultOptions(vaultSettings!.Portable(root), SemanticCheck.IsChecked == true, VaultProject.Text.Trim(), Date(VaultFrom.Text), Date(VaultUntil.Text), AutoUpdates.IsChecked == true);
         vaultSettings.Save(options); vaultOptions = options;
         if (Knowledge is { } previous)
         {
@@ -41,17 +42,19 @@ public partial class MainWindow
         Knowledge = new(root, dataDirectory, new(options.Project, options.From, options.Until), !hiddenTestMode && options.Semantic ? new OpenAiEmbeddings(new ApiKeyStore(dataDirectory, "OpenAI").Load) : null);
         VaultResults.Items.Clear();
         _ = Knowledge.Refresh(true); VaultStatus.Text = "Vault connected · indexing Markdown…";
+        historyConnection = ConnectMaintenance(root, options.AutomaticUpdates);
     }
     private void TickKnowledge()
     {
         if (Knowledge is null || closing) return;
         _ = Knowledge.Refresh(); VaultStatus.Text = Knowledge.Status;
-        VaultApply.IsEnabled = VaultChoose.IsEnabled = !companionBusy && Companion?.Active != true && vaultImport.IsCompleted;
+        VaultApply.IsEnabled = VaultChoose.IsEnabled = !companionBusy && Companion?.Active != true && vaultImport.IsCompleted && historyConnection.IsCompleted && Maintenance?.Busy != true;
         VaultImport.IsEnabled = !Recorder.HasSession && !Recorder.Busy && vaultImport.IsCompleted;
+        TickMaintenance();
     }
     private void VaultApply_Click(object sender, RoutedEventArgs e)
     {
-        if (Companion?.Active == true || !vaultImport.IsCompleted) return;
+        if (Companion?.Active == true || !vaultImport.IsCompleted || !historyConnection.IsCompleted || Maintenance?.Busy == true) return;
         try { ConnectKnowledge(); } catch (Exception ex) { VaultSearchStatus.Text = "Could not connect vault: " + ex.Message; }
     }
     private void VaultChoose_Click(object sender, RoutedEventArgs e)
@@ -115,7 +118,8 @@ public partial class MainWindow
         if (Knowledge is not { } knowledge || Recorder.LastDirectory is not { } directory || !File.Exists(Path.Combine(directory, "transcript.jsonl"))) return;
         try
         {
-            await Task.Run(() => VaultFiles.ExportMeeting(knowledge.Root, directory, vaultOptions.Project));
+            var summary = await Task.Run(() => VaultFiles.ExportMeeting(knowledge.Root, directory, vaultOptions.Project));
+            await historyConnection; Maintenance?.Queue(summary);
             _ = knowledge.Refresh(true);
         }
         catch (Exception ex) { CompanionStatus.Text += " Vault export could not finish; original recording is safe. Use Import saved meetings to retry."; log.Write("Vault export failure=" + ex.GetType().Name); }
@@ -139,12 +143,15 @@ public partial class MainWindow
         {
             await vaultImport; await knowledge.Refresh(true);
             VaultSearchStatus.Text = $"Imported/preserved {imported} sessions; {failed} need stop/recovery or readable source files.";
+            Maintenance?.QueueSavedMeetings();
         }
         catch (Exception) { VaultSearchStatus.Text = "Could not read saved recordings. Original files are unchanged; check folder access and retry."; }
     }
     private async Task StopKnowledge()
     {
         try { await vaultImport; } catch (Exception) { /* Import already reported its failure; permit clean shutdown. */ }
+        await historyConnection;
+        if (Maintenance is { } maintenance) { await maintenance.Stop(); maintenance.Dispose(); Maintenance = null; }
         if (Knowledge is { } knowledge) { await knowledge.Stop(); knowledge.Dispose(); }
         await Task.WhenAll(knowledgeStops);
     }

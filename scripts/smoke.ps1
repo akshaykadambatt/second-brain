@@ -1,6 +1,6 @@
 param([string]$Executable = '',
-    [ValidateSet('seed','verify','voice','flow','timed','study','replay','audio','transcription','hybrid','assistant','knowledge','companion','stream')]
-    [string[]]$Phases = @('seed','verify','voice','flow','timed','study','replay','audio','transcription','hybrid','assistant','knowledge','companion','stream'))
+    [ValidateSet('seed','verify','voice','flow','timed','study','replay','audio','transcription','hybrid','assistant','knowledge','history','companion','stream')]
+    [string[]]$Phases = @('seed','verify','voice','flow','timed','study','replay','audio','transcription','hybrid','assistant','knowledge','history','companion','stream'))
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $Executable) { $Executable = Join-Path $root 'dist\single-file\SecondBrain.exe' }
@@ -17,9 +17,9 @@ try {
     $env:DOTNET_ROOT = Join-Path $data 'absent-runtime'
     $env:DOTNET_MULTILEVEL_LOOKUP = '0'
     foreach ($phase in $Phases) {
-        $phaseData = if ($phase -in @('voice','flow','timed','study','replay','stream','audio','transcription','hybrid','assistant','knowledge','companion')) { Join-Path $data $phase } else { $data }
+        $phaseData = if ($phase -in @('voice','flow','timed','study','replay','stream','audio','transcription','hybrid','assistant','knowledge','history','companion')) { Join-Path $data $phase } else { $data }
         $p = Start-Process -FilePath $isolatedExe -ArgumentList @('--data-dir', ('"' + $phaseData + '"'), '--smoke-test', $phase) -PassThru -WindowStyle Hidden
-        if (-not $p.WaitForExit(30000)) { $p.Kill(); throw "Smoke phase timed out: $phase" }
+        if (-not $p.WaitForExit($(if ($phase -eq 'history') { 90000 } else { 30000 }))) { $p.Kill(); throw "Smoke phase timed out: $phase" }
         if ($p.ExitCode -ne 0) { throw "Smoke phase failed: $phase ($($p.ExitCode)). Inspect $data" }
         $report = Get-Content -Raw -LiteralPath (Join-Path $phaseData "$phase.json") | ConvertFrom-Json
         if (-not $report.passed) { throw "Smoke assertions failed: $phase" }
