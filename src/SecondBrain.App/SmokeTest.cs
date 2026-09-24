@@ -25,7 +25,11 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "audio")
+            if (phase == "transcription-live")
+            { await TranscriptionTests.RunLive(window, directory, Check); }
+            else if (phase == "transcription")
+            { await TranscriptionTests.Run(window, directory, Check, Capture); }
+            else if (phase == "audio")
             { await AudioRecordingTests.Run(window, directory, Check, Capture); }
             else if (phase == "stream")
             {

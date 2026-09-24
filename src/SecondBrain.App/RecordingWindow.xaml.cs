@@ -48,6 +48,7 @@ public partial class RecordingWindow : Window
         var locked = recorder.HasSession || recorder.Busy || recovering || closing;
         StartButton.IsEnabled = !locked;
         MicrophonePicker.IsEnabled = OutputPicker.IsEnabled = RefreshButton.IsEnabled = !locked;
+        TranscribeCheck.IsEnabled = !locked;
         PauseButton.IsEnabled = !recovering && recorder.State is RecordingState.Recording or RecordingState.Paused;
         PauseButton.Content = recorder.State == RecordingState.Paused ? "Resume" : "Pause";
         StopButton.IsEnabled = recorder.HasSession && !recorder.Busy && !recovering;
@@ -62,12 +63,24 @@ public partial class RecordingWindow : Window
         MicrophoneMeter.Value = mic.Level; MicrophoneStatus.Text = mic.Status;
         OutputMeter.Value = system.Level; OutputStatus.Text = system.Status;
         ClockText.Text = TimeSpan.FromSeconds(recorder.Elapsed).ToString(@"hh\:mm\:ss");
+        var transcript = main.Transcriber.View;
+        TranscriptStatus.Text = transcript.Status;
+        MicInterim.Text = "Microphone · draft: " + transcript.Microphone;
+        SystemInterim.Text = "Computer audio · draft: " + transcript.System;
+        var text = string.Join(Environment.NewLine + Environment.NewLine, transcript.Recent);
+        if (TranscriptText.Text != text)
+        {
+            var atEnd = TranscriptText.VerticalOffset >= TranscriptText.ExtentHeight - TranscriptText.ViewportHeight - 5;
+            TranscriptText.Text = text;
+            if (atEnd) TranscriptText.ScrollToEnd();
+        }
     }
     internal async Task StartRecording()
     {
         if (MicrophonePicker.SelectedItem is not AudioDevice mic || OutputPicker.SelectedItem is not AudioDevice output)
         { StatusText.Text = "Select an available microphone and computer-audio output first."; return; }
         main.SaveRecordingDevices(mic.Id, output.Id);
+        main.Transcriber.Enabled = TranscribeCheck.IsChecked == true;
         await recorder.StartAsync(mic.Id, output.Id);
     }
     private async void Start_Click(object sender, RoutedEventArgs e) => await StartRecording();
@@ -106,7 +119,7 @@ public partial class RecordingWindow : Window
         if (recorder.HasSession || recorder.Busy || recovering) return;
         if (SessionsList.SelectedItem is not SessionItem item) { StatusText.Text = "Select an interrupted session first."; return; }
         recovering = true; Update(); StatusText.Text = "Recovering available chunks…";
-        try { RecoveryTask = Task.Run(() => RecordingSession.Recover(item.Path)); await RecoveryTask; RefreshSessions(); StatusText.Text = "Recovery complete. Open the recording folder to play the two tracks."; }
+        try { RecoveryTask = Task.Run(() => { var manifest = RecordingSession.Recover(item.Path); TranscriptLog.Recover(item.Path, manifest); }); await RecoveryTask; RefreshSessions(); StatusText.Text = "Recovery complete. Open the recording folder for audio and any saved transcript."; }
         catch (Exception ex) { StatusText.Text = "Recovery could not finish; existing chunks are retained. " + ex.Message; }
         finally { recovering = false; StartButton.IsEnabled = RecoverButton.IsEnabled = true; MicrophonePicker.IsEnabled = OutputPicker.IsEnabled = RefreshButton.IsEnabled = true; }
     }

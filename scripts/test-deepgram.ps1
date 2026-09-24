@@ -1,4 +1,5 @@
-param([Parameter(Mandatory=$true)][string]$ProtectedKeyPath)
+param([Parameter(Mandatory=$true)][string]$ProtectedKeyPath,
+    [ValidateSet('deepgram','transcription-live')][string]$Phase = 'deepgram')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $data = Join-Path $root ('artifacts\live-deepgram-' + [guid]::NewGuid().ToString('N'))
@@ -8,9 +9,9 @@ $process = $null
 try {
     Copy-Item -LiteralPath $ProtectedKeyPath -Destination $keyCopy
     $exe = Join-Path $root 'dist\single-file\SecondBrain.exe'
-    $process = Start-Process -FilePath $exe -ArgumentList @('--data-dir', ('"' + $data + '"'), '--smoke-test', 'deepgram') -PassThru -WindowStyle Hidden
-    if (-not $process.WaitForExit(30000)) { $process.Kill(); $process.WaitForExit(); throw "Live test timed out. Inspect $data" }
-    $report = Get-Content -Raw -LiteralPath (Join-Path $data 'deepgram.json') | ConvertFrom-Json
+    $process = Start-Process -FilePath $exe -ArgumentList @('--data-dir', ('"' + $data + '"'), '--smoke-test', $Phase) -PassThru -WindowStyle Hidden
+    if (-not $process.WaitForExit(45000)) { $process.Kill(); $process.WaitForExit(); throw "Live test timed out. Inspect $data" }
+    $report = Get-Content -Raw -LiteralPath (Join-Path $data ($Phase + '.json')) | ConvertFrom-Json
     if ($process.ExitCode -ne 0 -or -not $report.passed) { throw "Live test failed. Inspect $data" }
     Write-Output 'PASS live Deepgram transcription of synthetic WAV; microphone never opened'
     Write-Output "Evidence: $data"

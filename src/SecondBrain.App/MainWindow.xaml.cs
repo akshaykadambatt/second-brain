@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     private double playbackFrame;
     internal VoiceService Voice { get; }
     internal RecordingService Recorder { get; }
+    internal RecordingTranscriber Transcriber { get; }
     private RecordingWindow? recordingWindow;
     internal IReadOnlyList<ReaderWindow> Panels => panels;
     internal AppSettings Settings => settings;
@@ -57,7 +58,8 @@ public partial class MainWindow : Window
         saveTimer.Tick += (_, _) => { saveTimer.Stop(); SaveSettings(); };
         var keys = new ApiKeyStore(dataDirectory);
         Voice = new VoiceService(Dispatcher, Session, keys, log);
-        Recorder = new RecordingService(System.IO.Path.Combine(dataDirectory, "recordings"), log, hiddenTestMode ? AudioRecordingTests.CreateSource : null);
+        Transcriber = new RecordingTranscriber(keys.Load, log, hiddenTestMode ? TranscriptionTests.CreateConnection : null);
+        Recorder = new RecordingService(System.IO.Path.Combine(dataDirectory, "recordings"), log, hiddenTestMode ? AudioRecordingTests.CreateSource : null, Transcriber);
         Voice.Status += text => SetStatus(text); Voice.Heard += text => HeardText.Text = "Heard: " + text; Voice.Level += level => MicLevel.Value = level;
         Voice.Stopped += () => { MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true; ListenButton.Content = "Start listening"; MicLabel.Text = "Mic off"; MicLevel.Value = 0; };
         Session.Changed += change =>

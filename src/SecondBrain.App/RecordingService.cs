@@ -5,7 +5,7 @@ using SecondBrain.Core;
 namespace SecondBrain.App;
 
 internal enum RecordingState { Idle, Starting, Recording, Paused, Stopping, Completed, Failed }
-internal sealed class RecordingService(string root, DiagnosticLog log, Func<AudioSource, string, IAudioCaptureSource>? factory = null)
+internal sealed class RecordingService(string root, DiagnosticLog log, Func<AudioSource, string, IAudioCaptureSource>? factory = null, RecordingTranscriber? transcriber = null)
 {
     private sealed class CaptureRun
     {
@@ -96,9 +96,10 @@ internal sealed class RecordingService(string root, DiagnosticLog log, Func<Audi
                     throw new InvalidOperationException("A device changed audio format. Stop this session and start a new recording.");
                 session.Mark("Recording", AudioClock.Now - origin, "Resume");
             }
+            transcriber?.Begin(session.DirectoryPath, session.Manifest, AudioClock.Now - origin);
             writer = Task.Run(async () =>
             {
-                try { await foreach (var packet in run.Queue.Reader.ReadAllAsync()) session.Write(packet); }
+                try { await foreach (var packet in run.Queue.Reader.ReadAllAsync()) { session.Write(packet); transcriber?.Offer(packet); } }
                 catch (Exception ex)
                 {
                     run.Code = ex is not InvalidDataException && ex is (IOException or UnauthorizedAccessException) ? "DiskWriteFailure" : "RecordingDataFailure";
@@ -138,9 +139,11 @@ internal sealed class RecordingService(string root, DiagnosticLog log, Func<Audi
         { run.Error ??= ex.Message; run.Code ??= "CaptureFailure"; log.Write("Recording failure type=" + ex.GetType().Name); }
         finally
         {
+            var captureEnded = Math.Max(0, AudioClock.Now - origin);
             foreach (var source in sources)
                 try { source.Dispose(); } catch (Exception ex) { log.Write("Audio device release failure type=" + ex.GetType().Name); run.Error ??= "Audio device release failed. Restart the app before recording again."; }
             run.Queue.Writer.TryComplete(); writer.GetAwaiter().GetResult();
+            transcriber?.Finish(run.Error is null ? "Capture stopped or paused" : "Capture failed", captureEnded).GetAwaiter().GetResult();
             if (run.Error is not null && session is not null)
             {
                 try { session.Mark("Failed", Math.Max(0, AudioClock.Now - origin), run.Code ?? "CaptureFailure"); }
@@ -163,9 +166,10 @@ internal sealed class RecordingService(string root, DiagnosticLog log, Func<Audi
         try
         {
             if (State != RecordingState.Recording) return;
+            var pausedAt = Math.Max(0, AudioClock.Now - origin);
             SetState(RecordingState.Stopping, "Pausing and releasing audio devices…");
             await EndRun();
-            await Task.Run(() => session!.Mark("Paused", AudioClock.Now - origin));
+            await Task.Run(() => session!.Mark("Paused", pausedAt));
             SetState(RecordingState.Paused, "Paused · neither source is being captured. Resume reopens the same devices.");
         }
         catch (Exception ex) { FailControl(ex); }
@@ -183,8 +187,9 @@ internal sealed class RecordingService(string root, DiagnosticLog log, Func<Audi
         try
         {
             if (!HasSession) return;
+            stoppedAt = Math.Max(0, AudioClock.Now - origin);
             SetState(RecordingState.Stopping, "Stopping devices and assembling the two WAV tracks…");
-            await EndRun(); stoppedAt = Math.Max(0, AudioClock.Now - origin);
+            await EndRun();
             if (session is not null) await Task.Run(() => session.Complete(stoppedAt));
             session?.Dispose(); session = null;
             SetState(RecordingState.Completed, "Saved microphone.wav and system.wav with a session manifest.");

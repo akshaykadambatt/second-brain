@@ -14,6 +14,48 @@ void Test(string name, Action action)
 void Assert(bool condition, string message) { if (!condition) throw new Exception(message); }
 string Folder(string name) { var path = Path.Combine(run, name); Directory.CreateDirectory(path); return path; }
 
+Test("Transcription maps sample time across idle output and reconnect epochs", () =>
+{
+    var map = new TranscriptTimeline(16000);
+    map.Add(1, 16000); map.Add(2, 16000); map.Add(10, 16000);
+    Assert(map.Map(1.5) == 2.5 && map.Map(2, true) == 3 && map.Map(2) == 10 && map.Map(2.5) == 10.5, "Idle output compressed the session clock or broke boundary mapping");
+    var reconnect = new TranscriptTimeline(48000); reconnect.Add(30, 48000);
+    Assert(reconnect.Map(.25) == 30.25, "Reconnect clock did not restart against its new source anchor");
+    try { map.Map(500); throw new Exception("Invalid provider timestamp accepted"); } catch (InvalidDataException) { }
+});
+Test("Transcript journal deduplicates, preserves provenance and exports readable audio links", () =>
+{
+    var folder = Folder("transcripts"); var id = Guid.NewGuid();
+    var entry = new TranscriptEntry(id, "Final", AudioSource.Microphone, 1.5, 2.5, "Deepgram and WASAPI", Guid.NewGuid(), "stable-id");
+    using (var journal = new TranscriptLog(folder, id))
+    {
+        Assert(journal.Append(entry) && !journal.Append(entry), "Final replay duplicated a segment");
+        journal.Append(new(id, "Gap", AudioSource.System, 2, 5, "Connection lost"));
+        journal.ExportMarkdown();
+        Assert(TranscriptLog.Read(folder).Length == 2 && File.ReadAllText(Path.Combine(folder, "transcript.md")).Contains("microphone.wav#t=1.500", StringComparison.Ordinal), "Missing provenance/audio link");
+        try { using var collision = new TranscriptLog(folder, id); throw new Exception("Concurrent writer allowed"); } catch (IOException) { }
+    }
+    using var reopened = new TranscriptLog(folder, id);
+    Assert(!reopened.Append(entry) && TranscriptLog.Read(folder)[0] == entry, "Restart lost final identity or source clocks");
+});
+Test("Interrupted transcript recovery preserves complete lines and marks unconfirmed tails", () =>
+{
+    var folder = Folder("transcript-recovery"); var id = Guid.NewGuid();
+    using (var journal = new TranscriptLog(folder, id))
+    {
+        journal.Append(new(id, "RunStart", null, 0, 0, "Started"));
+        journal.Append(new(id, "Final", AudioSource.System, 1, 2, "Saved", Id: "saved"));
+    }
+    File.AppendAllText(Path.Combine(folder, "transcript.jsonl"), "{\"partial\":");
+    var manifest = new RecordingManifest { Id = id, DurationSeconds = 5 };
+    TranscriptLog.Recover(folder, manifest); var recovered = TranscriptLog.Read(folder);
+    Assert(recovered.Count(e => e.Kind == "Final") == 1 && recovered.Any(e => e.Kind == "Gap" && e.Source == AudioSource.System && e.Start == 2 && e.End == 5), "Saved words or explicit lost tail missing");
+    TranscriptLog.Recover(folder, manifest);
+    Assert(TranscriptLog.Read(folder).Length == recovered.Length, "Recovery duplicated records");
+    File.AppendAllText(Path.Combine(folder, "transcript.jsonl"), "not-json\n");
+    try { using var broken = new TranscriptLog(folder, id); throw new Exception("Corrupt complete record silently hidden"); } catch (JsonException) { }
+});
+
 Test("Missing settings use defaults without writing", () =>
 {
     var store = new SettingsStore(Folder("defaults"));
