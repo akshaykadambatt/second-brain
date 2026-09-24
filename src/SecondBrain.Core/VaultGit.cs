@@ -58,7 +58,7 @@ public sealed class VaultGit
         info.Environment["GIT_AUTHOR_NAME"] = info.Environment["GIT_COMMITTER_NAME"] = "Second Brain";
         info.Environment["GIT_AUTHOR_EMAIL"] = info.Environment["GIT_COMMITTER_EMAIL"] = "local@secondbrain.invalid";
         info.Environment["GIT_TERMINAL_PROMPT"] = "0";
-        foreach (var arg in new[] { "-c", "core.hooksPath=" + Path.Combine(DirectoryPath, "disabled-hooks"), "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false", "-c", "core.quotePath=false", "-c", "safe.directory=" + DirectoryPath.Replace('\\', '/') }) info.ArgumentList.Add(arg);
+        foreach (var arg in new[] { "-c", "core.hooksPath=" + Path.Combine(DirectoryPath, "disabled-hooks"), "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false", "-c", "core.longpaths=true", "-c", "core.quotePath=false", "-c", "safe.directory=" + DirectoryPath.Replace('\\', '/') }) info.ArgumentList.Add(arg);
         if (repository) { info.ArgumentList.Add("--git-dir=" + DirectoryPath); info.ArgumentList.Add("--work-tree=" + Root); }
         foreach (var arg in args) info.ArgumentList.Add(arg);
         using var process = Process.Start(info) ?? throw new IOException("Git could not start. Install Git for Windows to enable local history.");

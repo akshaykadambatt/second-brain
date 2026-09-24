@@ -26,7 +26,7 @@ public partial class App : Application
                 else if (e.Args[i] == "--setup-vault") setupVault = true;
                 else throw new ArgumentException("Expected --data-dir <directory> or --smoke-test <seed|verify|voice>.");
             }
-            if (smokePhase is not null and not "seed" and not "verify" and not "voice" and not "deepgram" and not "flow" and not "timed" and not "study" and not "replay" and not "stream" and not "audio" and not "transcription" and not "companion" and not "companion-live" and not "knowledge" and not "knowledge-live" and not "history" and not "history-live" and not "assistant" and not "assistant-live" and not "hybrid" and not "transcription-live" and not "performance" and not "performance30") throw new ArgumentException("Unknown smoke phase.");
+            if (smokePhase is not null and not "seed" and not "verify" and not "voice" and not "deepgram" and not "flow" and not "timed" and not "study" and not "replay" and not "stream" and not "audio" and not "transcription" and not "companion" and not "companion-live" and not "knowledge" and not "knowledge-live" and not "history" and not "history-live" and not "storage" and not "assistant" and not "assistant-live" and not "hybrid" and not "transcription-live" and not "performance" and not "performance30") throw new ArgumentException("Unknown smoke phase.");
             Directory.CreateDirectory(dataDirectory);
             if (importOpenAi is not null)
             {
@@ -50,7 +50,7 @@ public partial class App : Application
                 Shutdown(0); return;
             }
             log = new DiagnosticLog(dataDirectory);
-            var loggingAvailable = log.Write("Application started v0.12.0");
+            var loggingAvailable = log.Write("Application started v0.13.0");
             var store = new SettingsStore(dataDirectory);
             var settings = store.Load(out var warning);
             var window = new MainWindow(store, settings, log, dataDirectory, hiddenTestMode: smokePhase is not null);

@@ -61,6 +61,20 @@
 <Button Content="Show selected changes" Click="HistoryDiff_Click" HorizontalAlignment="Left" Padding="8,6" Margin="0,6,0,6"/>
 <TextBox x:Name="HistoryDiff" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="11" Height="240" Text="Select a revision to inspect its changes."/>
 </StackPanel></ScrollViewer></TabItem>
+<TabItem x:Name="StorageTab" Header="Storage"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="18">
+<TextBlock Text="Keep your second brain safe" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"/>
+<TextBlock Text="Back up after stopping your session. Pause editing in Obsidian while the snapshot is made. Each backup includes the EXE, settings, recordings, transcripts, vault and private Git history." TextWrapping="Wrap" Margin="0,8,0,12"/>
+<WrapPanel><Button Content="Create backup…" Click="Backup_Click" Padding="8,6" Margin="0,0,6,6"/><Button Content="Restore backup…" Click="Restore_Click" Padding="8,6" Margin="0,0,6,6"/><Button Content="Open result folder" Click="StorageOpen_Click" Padding="8,6" Margin="0,0,6,6"/></WrapPanel>
+<TextBlock Text="Folder backups use file hashes to detect missing or changed files. Restore creates a separate runnable copy. API keys remain protected for this Windows account on this PC; another PC or account needs keys configured again. Logs and runtime locks are excluded." TextWrapping="Wrap" FontSize="11" Margin="0,4,0,12"/>
+<TextBlock x:Name="StorageMessage" Text="Choose a different drive for protection against drive failure." TextWrapping="Wrap" Margin="0,0,0,12"/>
+<Button Content="Refresh storage usage" Click="StorageRefresh_Click" Padding="8,6" HorizontalAlignment="Left"/>
+<TextBlock x:Name="StorageUsage" Text="Refresh to measure local usage. Backups stored elsewhere are not included." TextWrapping="Wrap" Margin="0,8,0,16"/>
+<TextBlock Text="Saved recordings" FontWeight="SemiBold"/><ListBox x:Name="StorageRecordings" Height="130" Margin="0,6,0,6"/>
+<WrapPanel><Button Content="Recover selected recording" Click="StorageRecover_Click" Padding="8,6" Margin="0,0,6,6"/><Button Content="Delete selected recording…" Click="DeleteRecording_Click" Padding="8,6" Margin="0,0,6,6"/></WrapPanel>
+<TextBlock Text="Deletion removes only that recording folder. Exported vault transcripts, generated notes, history and backups remain; this is not a complete erasure of a meeting." TextWrapping="Wrap" FontSize="11" Margin="0,8,0,16"/>
+<TextBlock Text="Release qualification · preview" FontWeight="SemiBold"/>
+<TextBlock Text="Still needs your setup: a two-hour meeting, device changes, mixed monitor scaling, actual shared-screen exclusion and daily-use acceptance. Passing automated replays does not certify these checks." TextWrapping="Wrap" Margin="0,6,0,0"/>
+</StackPanel></ScrollViewer></TabItem>
 <TabItem x:Name="PracticeTab" Header="Practice and diagnostics">
 <Border Background="White" BorderBrush="#DFE4DA" BorderThickness="1" CornerRadius="12" Padding="20">
         <Grid>
@@ -98,6 +112,6 @@
         </StackPanel></ScrollViewer>
       </Border>
     </Grid></ScrollViewer>
-    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.12.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
+    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.13.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
   </Grid>
 </Window>

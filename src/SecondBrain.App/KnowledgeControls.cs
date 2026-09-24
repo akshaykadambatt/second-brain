@@ -34,6 +34,10 @@ public partial class MainWindow
         DateOnly? Date(string value) => string.IsNullOrWhiteSpace(value) ? null : DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", out var date) ? date : throw new InvalidOperationException("Use YYYY-MM-DD dates or leave dates empty.");
         var options = new VaultOptions(vaultSettings!.Portable(root), SemanticCheck.IsChecked == true, VaultProject.Text.Trim(), Date(VaultFrom.Text), Date(VaultUntil.Text), AutoUpdates.IsChecked == true);
         vaultSettings.Save(options); vaultOptions = options;
+        OpenKnowledge(root, options);
+    }
+    private void OpenKnowledge(string root, VaultOptions options)
+    {
         if (Knowledge is { } previous)
         {
             async Task Finish() { await previous.Stop(); previous.Dispose(); }

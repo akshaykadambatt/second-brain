@@ -279,22 +279,23 @@ public partial class MainWindow : Window
         if (initialized && MicrophonePicker.SelectedItem is Microphone microphone)
         { settings = settings with { MicrophoneId = microphone.Id }; ScheduleSave(); }
     }
-    private void SaveSettings()
+    private bool SaveSettings()
     {
         try
         {
             settings = settings with { RememberReaderPosition = RememberPosition.IsChecked == true, ScriptText = Session.Answer is null ? Session.Text : settings.ScriptText, ReaderStyle = Session.Style, TimedWordsPerMinute = Playback.WordsPerMinute,
                 Panels = RememberPosition.IsChecked == true ? panels.Select(NativeWindows.GetBounds).ToList() : [] };
             store.Save(settings);
+            return true;
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
-        { log.Write("Settings save failed: " + ex.Message); SetStatus("Settings could not be saved. Check folder permissions.", true); }
+        { log.Write("Settings save failed: " + ex.Message); SetStatus("Settings could not be saved. Check folder permissions.", true); return false; }
     }
     protected override async void OnClosing(CancelEventArgs e)
     {
         if (allowClose) { base.OnClosing(e); return; }
         e.Cancel = true; if (closing) return;
-        closing = true; contextTimer.Stop(); await StopCompanion(); Assistant?.Close(); replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
+        closing = true; contextTimer.Stop(); await storageTask; await StopCompanion(); Assistant?.Close(); replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
         await Task.WhenAll(assistantShutdowns);
         await StopKnowledge();
         if (recordingWindow is { } captureWindow) { try { await captureWindow.RecoveryTask; } catch (Exception) { } if (captureWindow.IsVisible) captureWindow.Close(); }
