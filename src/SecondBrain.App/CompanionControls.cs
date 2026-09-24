@@ -72,6 +72,8 @@ public partial class MainWindow
             if (Recorder.State != RecordingState.Recording) throw new InvalidOperationException(Recorder.Message);
             var recordingDirectory = Recorder.LastDirectory ?? throw new IOException("Recording directory is unavailable.");
             SessionContextStore.SaveSnapshot(recordingDirectory, RecordingSession.ReadManifest(recordingDirectory).Id, meetingContext);
+            MeetingBriefExpander.IsExpanded = false;
+            if (LiveTab.Content is System.Windows.Controls.ScrollViewer liveView) liveView.ScrollToTop();
             RefreshCompanion(); return true;
         }
         catch (Exception ex)

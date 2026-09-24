@@ -25,7 +25,9 @@ internal static class ContextSmokeTests
         var key = Path.Combine(directory, "synthetic-key.txt"); File.WriteAllText(key, "synthetic-deepgram-key-for-offline-tests");
         try { new ApiKeyStore(directory).Import(key); } finally { File.Delete(key); }
         var provider = new Provider();
+        main.MeetingBriefExpander.IsExpanded = true;
         check(await main.StartCompanion(provider), "The selected client brief starts with the integrated session");
+        check(!main.MeetingBriefExpander.IsExpanded, "Starting a meeting returns attention to the answer workspace");
         check(!main.ClientPicker.IsEnabled && !main.ContextEditor.IsEnabled, "Client context is fixed while the session is active");
         using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
             while (main.AssistantContext.SessionId == Guid.Empty) await Task.Delay(20, timeout.Token);
