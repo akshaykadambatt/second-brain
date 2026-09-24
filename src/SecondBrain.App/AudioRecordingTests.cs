@@ -43,8 +43,14 @@ internal static class AudioRecordingTests
     {
         var recording = main.OpenRecording();
         while (main.Panels.Count < 4) main.AddReader();
+        // Finish the four freshly-created layouts before measuring recording/render concurrency.
+        for (var i = 0; i < 3; i++) await main.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         await main.ToggleTimed(); var cursor = main.Playback.Cursor;
+        var frames = 0; void Render(object? sender, EventArgs args) => frames++;
+        System.Windows.Media.CompositionTarget.Rendering += Render;
         await recording.StartRecording(); await Task.Delay(1300);
+        System.Windows.Media.CompositionTarget.Rendering -= Render;
+        File.WriteAllText(Path.Combine(directory, "audio-reader-timing.json"), JsonSerializer.Serialize(new { frames, before = cursor, after = main.Playback.Cursor, main.Playback.Playing, main.Playback.WordsPerMinute, main.Playback.TimedMode, main.Voice.Running }));
         check(main.Recorder.State == RecordingState.Recording && SyntheticSource.OpenCount == 2, "Start opens two distinct synthetic capture sources through the production recorder");
         check(main.Recorder.Meter(AudioSource.Microphone).Level > 0 && main.Recorder.Meter(AudioSource.System).Level > 0, "Microphone and computer audio have independent live meters");
         check(main.Playback.Cursor > cursor + 1 && !main.Voice.Running, "Four-panel reader keeps advancing while local recording performs disk I/O; Deepgram remains off");
