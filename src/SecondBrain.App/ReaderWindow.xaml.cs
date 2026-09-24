@@ -297,6 +297,7 @@ public partial class ReaderWindow : Window
     { session.Select(session.Position + (e.Delta < 0 ? 3 : -3)); e.Handled = true; }
     private void Reader_KeyDown(object sender, KeyEventArgs e)
     {
+        if (Keyboard.Modifiers != ModifierKeys.None || e.OriginalSource is ButtonBase or TextBoxBase) return;
         if (e.Key == Key.Space) { PlaybackRequested?.Invoke(); e.Handled = true; return; }
         if (e.Key is Key.Left or Key.Right) { SentenceRequested?.Invoke(e.Key == Key.Left ? -1 : 1); e.Handled = true; return; }
         var next = e.Key switch { Key.Down => session.Position + 1, Key.Up => session.Position - 1, Key.PageDown => session.Position + 10, Key.PageUp => session.Position - 10, Key.Home => 0, Key.End => session.Words.Count - 1, _ => -1 };

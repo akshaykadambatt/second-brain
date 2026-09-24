@@ -232,7 +232,14 @@
                   </StackPanel>
                 </ScrollViewer>
               </TabItem>
-              <TabItem x:Name="StorageTab" Header="Storage">
+              <TabItem x:Name="ShortcutsTab" Header="Shortcuts"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="20">
+<TextBlock Text="Reader shortcuts" Style="{StaticResource PageTitle}"/>
+<TextBlock Text="Use these commands from any app. Include Ctrl or Alt, for example Ctrl+Alt+R. Leave a field blank to disable it." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,20"/>
+<StackPanel x:Name="ShortcutRows"/>
+<WrapPanel><Button Content="Save shortcuts" Click="SaveShortcuts_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0"/><Button Content="Restore defaults" Click="DefaultShortcuts_Click"/></WrapPanel>
+<TextBlock x:Name="ShortcutStatus" TextWrapping="Wrap" Margin="0,16,0,16"/>
+<TextBlock Text="Inside a reader: Left / Right move by sentence; Up / Down move by word; Space pauses or resumes following. Global Previous / Next answer commands move between answers." TextWrapping="Wrap" Foreground="{StaticResource Muted}"/>
+</StackPanel></ScrollViewer></TabItem><TabItem x:Name="StorageTab" Header="Storage">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                   <StackPanel Margin="18">
                     <TextBlock Text="Keep your second brain safe" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -321,7 +328,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.17.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.18.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

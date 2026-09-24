@@ -32,9 +32,9 @@
         <TextBlock x:Name="CaptureText" Grid.Row="1" Grid.ColumnSpan="2" Foreground="#ABC3B3" FontSize="10" Text="Checking capture exclusion…" TextTrimming="CharacterEllipsis" ToolTip="{Binding RelativeSource={RelativeSource Self}, Path=Text}" />
         <TextBlock Grid.Column="1" Text="Click a word to reposition" Foreground="#B5CDBD" FontSize="10" VerticalAlignment="Center" />
         <WrapPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,5,0,0">
-          <Button Content="Previous" Click="Previous_Click" Padding="8,3" FontSize="11" ToolTip="Previous sentence (Left arrow)"/>
+          <Button Content="← Sentence" Click="Previous_Click" Padding="8,3" FontSize="11" ToolTip="Previous sentence (Left arrow)" AutomationProperties.Name="Previous sentence"/>
           <Button x:Name="ReaderPlay" Content="Play timed" Click="Play_Click" Padding="8,3" FontSize="11" Margin="6,0" ToolTip="Pause voice following, or play/pause timed scrolling (Space)"/>
-          <Button Content="Next" Click="Next_Click" Padding="8,3" FontSize="11" ToolTip="Next sentence (Right arrow)"/>
+          <Button Content="Sentence →" Click="Next_Click" Padding="8,3" FontSize="11" ToolTip="Next sentence (Right arrow)" AutomationProperties.Name="Next sentence"/>
         </WrapPanel>
       </Grid>
       <Thumb x:Name="ResizeGrip" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="22" Height="22" Cursor="SizeNWSE" DragDelta="Resize_DragDelta" AutomationProperties.Name="Resize reader">

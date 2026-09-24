@@ -80,18 +80,19 @@ public partial class MainWindow : Window
             if (change is ReaderChange.Position or ReaderChange.Document)
             { replay?.Stop(); Voice.Reanchor(); if (Voice.Running || startingVoice) _ = StopListening(); }
         };
-        SourceInitialized += (_, _) => HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);
+        SourceInitialized += (_, _) => { HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook); InitializeShortcuts(); };
         Loaded += (_, _) =>
         {
             CompositionTarget.Rendering += PlaybackFrame;
             if (settings.RememberReaderPosition) foreach (var saved in settings.Panels.ToArray()) AddReader(saved);
         };
         StateChanged += (_, _) => { if (tray is not null && WindowState == WindowState.Minimized && !closing) Hide(); };
-        Closed += (_, _) => { CompositionTarget.Rendering -= PlaybackFrame; DisposeTray(); ShutdownCompleted = true; };
+        Closed += (_, _) => { CompositionTarget.Rendering -= PlaybackFrame; globalShortcuts?.Dispose(); DisposeTray(); ShutdownCompleted = true; };
         initialized = true;
         RefreshMicrophones();
         InitializeCompanion(); RefreshCompanionControls();
         InitializeKnowledge();
+        InitializeShortcutFields();
         if (!keys.Exists) SetStatus("Deepgram key is not configured yet. Ask Codex to finish setup.", true);
         UpdatePanelCount();
     }
@@ -122,6 +123,7 @@ public partial class MainWindow : Window
 
     private IntPtr WindowHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (globalShortcuts?.Handle(message, wParam) == true) { handled = true; return IntPtr.Zero; }
         if (message == 0x007E) Dispatcher.BeginInvoke(() => { if (!closing) NativeWindows.Restore(this, NativeWindows.GetBounds(this)); });
         return IntPtr.Zero;
     }
@@ -158,7 +160,7 @@ public partial class MainWindow : Window
     private async void OpenReader_Click(object sender, RoutedEventArgs e)
     {
         if (Session.Answer is null && ScriptEditor.Text.Trim() != Session.Text && !await ApplyText()) return;
-        if (panels.Count == 0) AddReader(); else panels[0].Activate();
+        if (panels.Count == 0) AddReader(); else { panels[0].Show(); panels[0].Activate(); }
     }
     private void AddPanel_Click(object sender, RoutedEventArgs e) => AddReader();
     private void CloseReader_Click(object sender, RoutedEventArgs e) { foreach (var panel in panels.ToArray()) panel.Close(); }
