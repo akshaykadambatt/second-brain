@@ -16,7 +16,7 @@ public partial class MainWindow
     private void InitializeCompanion()
     {
         companionSettings = new(dataDirectory);
-        InitializeSpeakers();
+        InitializeSpeakers(); InitializeVisuals();
         LiveFastEffort.ItemsSource = LiveDeepEffort.ItemsSource = new[] { "none", "low", "medium", "high" };
         AssistantOptions options = new();
         try { options = companionSettings.Load(); } catch (Exception) { CompanionStatus.Text = "AI settings could not be loaded; review and save the defaults."; }
@@ -78,13 +78,14 @@ public partial class MainWindow
             if (Recorder.State != RecordingState.Recording) throw new InvalidOperationException(Recorder.Message);
             var recordingDirectory = Recorder.LastDirectory ?? throw new IOException("Recording directory is unavailable.");
             SessionContextStore.SaveSnapshot(recordingDirectory, RecordingSession.ReadManifest(recordingDirectory).Id, meetingContext);
+            Visuals.Listen(true);
             MeetingBriefExpander.IsExpanded = false;
             if (LiveTab.Content is System.Windows.Controls.ScrollViewer liveView) liveView.ScrollToTop();
             RefreshCompanion(); return true;
         }
         catch (Exception ex)
         {
-            companionError = true;
+            companionError = true; Visuals.Listen(false);
             if (Companion is { } companion) { await companion.Stop(); companion.Changed -= RefreshCompanion; }
             await Recorder.StopAsync();
             CompanionStatus.Text = ex is InvalidOperationException or IOException ? ex.Message : "The session could not start. Check settings and audio devices.";
@@ -97,6 +98,7 @@ public partial class MainWindow
         await companionControls.WaitAsync(); companionBusy = true; companionPhase = "SAVING"; RefreshCompanionControls();
         try
         {
+            Visuals.Listen(false);
             if (Companion is { Active: true } companion)
             {
                 var answers = companion.Stop(); // Disable new questions before flushing transcript finals.
@@ -112,6 +114,7 @@ public partial class MainWindow
     }
     private void DrainCompanion()
     {
+        Visuals.Tick();
         var entries = Transcriber.DrainAssistantEvents(out var dropped);
         foreach (var entry in entries.Where(e => e.Kind == "RunStart")) AssistantContext.Observe(entry);
         var speeches = Transcriber.DrainSpeech();

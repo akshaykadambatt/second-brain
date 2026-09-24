@@ -87,7 +87,7 @@ public partial class MainWindow : Window
             if (settings.RememberReaderPosition) foreach (var saved in settings.Panels.ToArray()) AddReader(saved);
         };
         StateChanged += (_, _) => { if (tray is not null && WindowState == WindowState.Minimized && !closing) Hide(); };
-        Closed += (_, _) => { CompositionTarget.Rendering -= PlaybackFrame; globalShortcuts?.Dispose(); DisposeTray(); ShutdownCompleted = true; };
+        Closed += (_, _) => { CompositionTarget.Rendering -= PlaybackFrame; globalShortcuts?.Dispose(); Visuals.Dispose(); DisposeTray(); ShutdownCompleted = true; };
         initialized = true;
         RefreshMicrophones();
         InitializeCompanion(); RefreshCompanionControls();
