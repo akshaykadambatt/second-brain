@@ -30,12 +30,17 @@ internal static class StorageSmokeTests
         new SpeakerNameHints(recording, transcriptId).Append(hinted, new(1, transcriptId, hinted.SegmentId, SpeakerNameHints.Binding(hinted), "Screen fixture", 0, .2));
         var backupParent = Path.Combine(Path.GetDirectoryName(directory)!, "storage-snapshots");
         var review = new TranscriptReview(recording, TranscriptDetails.Read(recording)); review.Assign([review.Words[0].Id], "Taylor"); review.Bookmark(review.Words[0].Id);
+        var importSource = Path.Combine(directory, "Backup source.txt"); File.WriteAllText(importSource, "Preserved document fixture.");
+        var imported = (await main.ImportDocuments([importSource], "Cedar")).Single();
+        check(imported.State == "Imported", "A source document is imported before the backup");
         var backup = await main.StorageOperation(root => LocalBackup.Create(directory, root, Environment.ProcessPath!, backupParent));
         check(backup is not null, "Packaged UI quiesces writers and creates a verified snapshot");
         var manifest = LocalBackup.Verify(backup!);
         check(manifest.Files.Any(f => f.Path.Contains("history.git/objects/")) && manifest.Files.Any(f => f.Path.EndsWith("session.json")), "Snapshot contains the private Git repository and saved recording");
         var restored = await main.StorageOperation(_ => LocalBackup.Restore(backup!, backupParent));
         check(restored is not null && File.Exists(Path.Combine(restored, "SecondBrain.exe")) && new VaultSettings(Path.Combine(restored, "data"), restored).Resolve(new("Vault")) == Path.Combine(restored, "Vault"), "Restore creates an adjacent EXE, data and portable vault");
+        var restoredImport = DocumentImports.List(Path.Combine(restored!, "Vault")).Single().Document!;
+        check(restoredImport.Sha256 == imported.Document!.Sha256 && File.ReadAllBytes(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), restoredImport.Original)).SequenceEqual(File.ReadAllBytes(importSource)), "Backup restore retains original document bytes, searchable note and metadata");
         check(new SessionContextStore(Path.Combine(restored!, "data")).Load().SelectedProfileId == brief.ProfileId
             && SessionContextStore.ReadSnapshot(Path.Combine(restored!, "data/recordings", Path.GetFileName(recording)))?.Context.Goal == brief.Goal,
             "Backup and restore retain client profiles and per-meeting context snapshots");

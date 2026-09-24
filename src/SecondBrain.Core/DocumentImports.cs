@@ -116,7 +116,7 @@ public static class DocumentImports
         }
         Flush(); return new(passages.ToArray(), []);
     }
-    private static string Plain(string value) => Regex.Replace(value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;"), @"([\\`*_{}\[\]()#+!|])", @"\$1");
+    private static string Plain(string value) => Regex.Replace(value, @"([\\`*_{}\[\]()#+!|<>])", @"\$1");
     private static string Render(ImportManifest manifest, ImportExtraction extraction)
     {
         var title = Plain(manifest.Name[..Math.Min(100, manifest.Name.Length)]);

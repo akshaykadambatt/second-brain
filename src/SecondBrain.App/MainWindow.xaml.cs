@@ -329,7 +329,7 @@ public partial class MainWindow : Window
         if (allowClose) { base.OnClosing(e); return; }
         if (tray is not null && !exitRequested) { e.Cancel = true; Hide(); return; }
         e.Cancel = true; if (closing) return;
-        closing = true; contextTimer.Stop(); await storageTask; await StopCompanion(); Assistant?.Close(); replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
+        closing = true; documentImportCancellation?.Cancel(); contextTimer.Stop(); await storageTask; await StopCompanion(); Assistant?.Close(); replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
         await Task.WhenAll(assistantShutdowns);
         await StopKnowledge();
         if (recordingWindow is { } captureWindow) { try { await captureWindow.RecoveryTask; } catch (Exception) { } if (captureWindow.IsVisible) captureWindow.Close(); }

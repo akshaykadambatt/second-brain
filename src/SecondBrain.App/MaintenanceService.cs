@@ -103,6 +103,13 @@ internal sealed class MaintenanceService : IDisposable
     public Task<HistoryView> ReadHistory() => Exclusive(() =>
     { MaintenanceJob[] snapshot; lock (jobsGate) snapshot = jobs.Values.ToArray(); return new HistoryView(engine.Git.Log(), engine.Receipts(), snapshot); }, stop.Token);
     public Task<string> Diff(string commit) => Exclusive(() => engine.Git.Diff(commit), stop.Token);
+    public async Task<ImportResult[]> ImportDocuments(string[] paths, string project, CancellationToken cancellation)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop.Token, cancellation);
+        await gate.WaitAsync(linked.Token);
+        try { return await Task.Run(() => paths.Select(path => DocumentImports.Import(Root, path, project, linked.Token)).ToArray(), linked.Token); }
+        finally { gate.Release(); Revision++; }
+    }
     public async Task Revert(Guid meeting)
     { await Exclusive(() => { engine.Revert(meeting); return true; }, stop.Token); Status = "Selected update reverted; later unrelated edits retained."; Revision++; }
     public async Task Recover()

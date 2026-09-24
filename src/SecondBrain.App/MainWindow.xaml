@@ -168,6 +168,26 @@
                 </WrapPanel>
                 <TextBlock Text="New sessions export transcripts and linked excerpt summaries when stopped. Import saved meetings brings earlier sessions into this vault without changing original recordings." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
                 <TextBlock x:Name="VaultStatus" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <Expander Header="Import documents" IsExpanded="True" Margin="0,0,0,12">
+                  <StackPanel Margin="0,8,0,0">
+                    <TextBlock Text="Bring Markdown and text into your knowledge. Originals are preserved; changed files become separate versions." TextWrapping="Wrap" />
+                    <TextBlock Text="Project for these imports (optional)" Margin="0,8,0,4" />
+                    <TextBox x:Name="ImportProject" MaxLength="120" ToolTip="Project saved with imported passages; blank means unscoped" />
+                    <WrapPanel Margin="0,8,0,0">
+                      <Button x:Name="DocumentChoose" Content="Choose files…" Click="DocumentChoose_Click" Margin="0,0,6,6" />
+                      <Button Content="Saved imports" Click="DocumentHistory_Click" Margin="0,0,6,6" />
+                      <Button x:Name="DocumentCancel" Content="Cancel import" IsEnabled="False" Click="DocumentCancel_Click" Margin="0,0,6,6" />
+                    </WrapPanel>
+                    <TextBlock x:Name="DocumentImportStatus" Text="UTF-8 or BOM-marked UTF-16 · up to 2 MB / 500,000 characters per file · 20 files per batch" TextWrapping="Wrap" FontSize="11" />
+                    <ListBox x:Name="DocumentImportResults" Height="120" Margin="0,6,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                      <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ListBox.ItemTemplate>
+                    </ListBox>
+                    <WrapPanel Margin="0,6,0,0">
+                      <Button Content="Open preserved original" Click="DocumentOriginal_Click" Margin="0,0,6,0" />
+                      <Button Content="Open searchable note" Click="DocumentNote_Click" />
+                    </WrapPanel>
+                  </StackPanel>
+                </Expander>
                 <DockPanel>
                   <Button x:Name="VaultSearch" Content="Search" Click="VaultSearch_Click" DockPanel.Dock="Right" Padding="10,6" />
                   <TextBox x:Name="VaultQuery" MaxLength="2000" ToolTip="Search notes and previous meetings" />
@@ -368,7 +388,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.27.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.28.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>
