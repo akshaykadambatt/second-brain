@@ -121,6 +121,8 @@ public sealed class TranscriptLog : IDisposable
     public static void Recover(string directory, RecordingManifest manifest)
     {
         if (!File.Exists(Path.Combine(directory, "transcript.jsonl"))) return;
+        if (File.Exists(Path.Combine(directory, TranscriptDetails.FileName)))
+        { using var details = new TranscriptDetails(directory, manifest.Id); }
         using var journal = new TranscriptLog(directory, manifest.Id);
         var records = Read(directory);
         if (records.Count(e => e.Kind == "RunStart") > records.Count(e => e.Kind == "RunEnd"))

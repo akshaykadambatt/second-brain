@@ -21,6 +21,10 @@ internal static class StorageSmokeTests
         contextStore.SaveProfile(contextStore.Load(), brief);
         SessionContextStore.SaveSnapshot(recording, RecordingSession.ReadManifest(recording).Id, brief);
         LatencyReport.Create([]).Save(Path.Combine(recording, "latency.json"));
+        var transcriptId = RecordingSession.ReadManifest(recording).Id;
+        var detailEntry = new TranscriptEntry(transcriptId, "Final", AudioSource.System, 0, .2, "Saved.", Id: "backup-word-fixture");
+        using (var transcript = new TranscriptLog(recording, transcriptId)) transcript.Append(detailEntry);
+        using (var details = new TranscriptDetails(recording, transcriptId)) details.Append(TranscriptDetails.From(detailEntry, [new("Saved.", 0, .2, .9f)], "Word timing available"));
         var backupParent = Path.Combine(Path.GetDirectoryName(directory)!, "storage-snapshots");
         var backup = await main.StorageOperation(root => LocalBackup.Create(directory, root, Environment.ProcessPath!, backupParent));
         check(backup is not null, "Packaged UI quiesces writers and creates a verified snapshot");
@@ -33,6 +37,8 @@ internal static class StorageSmokeTests
             "Backup and restore retain client profiles and per-meeting context snapshots");
         check(File.ReadAllText(Path.Combine(restored!, "data/recordings", Path.GetFileName(recording), "latency.json")) == File.ReadAllText(Path.Combine(recording, "latency.json")),
             "Backup and restore retain meeting latency reports");
+        check(TranscriptDetails.Read(Path.Combine(restored!, "data/recordings", Path.GetFileName(recording))).Single().Words.Single().Id == "backup-word-fixture:w0",
+            "Backup and restore retain word sidecars and their source-segment identities");
         var deleted = await main.StorageOperation(_ => { LocalBackup.DeleteRecording(directory, recording); return "Fixture recording deleted"; });
         check(deleted is not null && !Directory.Exists(recording) && File.Exists(Path.Combine(restored!, "data/recordings", Path.GetFileName(recording), "session.json")), "Deletion removes only the selected source recording; the restored copy remains");
         await main.RefreshStorage();

@@ -77,7 +77,10 @@ internal static class TranscriptionTests
             {
                 var end = seconds;
                 results.Writer.TryWrite(new(finalized, end - finalized, "incorrect provisional draft", false, false, .5f));
-                var final = new SpeechSegment(finalized, end - finalized, source + " finalized sentence.", true, true, .98f);
+                var duration = end - finalized;
+                var final = new SpeechSegment(finalized, duration, source + " finalized sentence.", true, true, .98f)
+                { LastWordEnd = end, WordTimingStatus = "Word timing available", Words = [new(source.ToString(), finalized, finalized + duration / 3, .98f),
+                    new("finalized", finalized + duration / 3, finalized + 2 * duration / 3, .98f), new("sentence.", finalized + 2 * duration / 3, end, .98f)] };
                 results.Writer.TryWrite(final); results.Writer.TryWrite(final);
                 results.Writer.TryWrite(final with { Text = "stale provisional draft", Final = false });
                 finalized = end;
@@ -115,6 +118,9 @@ internal static class TranscriptionTests
         await Task.Delay(150); await main.Recorder.ResumeAsync(); await Task.Delay(450); await main.Recorder.StopAsync();
         var folder = main.Recorder.LastDirectory!; var manifest = RecordingSession.ReadManifest(folder); var entries = TranscriptLog.Read(folder);
         var finals = entries.Where(e => e.Kind == "Final").ToArray();
+        var rich = TranscriptDetails.Read(folder);
+        check(rich.Length == finals.Length && rich.Any(e => e.Words.Length == 3) && rich.All(e => e.Words.All(w => w.Start >= e.Start && w.End <= e.End + .001)),
+            "Word sidecars retain final segment identity and mapped recording timestamps through reconnect and pause/resume");
         check(finals.Length >= 8 && finals.Select(e => e.Source).Distinct().Count() == 2, "Both labeled sources save final segments through the production recording/transcription path");
         check(finals.Select(e => e.Id).Distinct().Count() == finals.Length && finals.All(e => !e.Text.Contains("draft", StringComparison.Ordinal)), "Duplicate finals and revised/stale drafts do not pollute durable transcript history");
         check(entries.Any(e => e.Kind == "Gap" && e.Source == AudioSource.System && e.End > e.Start) && entries.Any(e => e.Kind == "Gap" && e.Source is null), "Network gaps and recording pauses are explicit timestamped records");
@@ -136,6 +142,17 @@ internal static class TranscriptionTests
         await saveRecorder.StopAsync();
         check(saveRecorder.State == RecordingState.Completed && saveFault.View.Status.Contains("unable to save", StringComparison.Ordinal) && TranscriptLog.Read(saveRecorder.LastDirectory!).Any(e => e.Kind == "Final"), "Transcript export failure is visible, retains durable JSON lines and does not fail the audio recording");
         var slow = new RecordingTranscriber(() => "synthetic", new DiagnosticLog(directory), source => new FakeConnection(source, false, 1000)) { Enabled = true };
+        var detailTranscriber = new RecordingTranscriber(() => "synthetic", new(directory), source => new FakeConnection(source, false)) { Enabled = true };
+        var detailRecorder = new RecordingService(Path.Combine(directory, "word-detail-failure"), new(directory), AudioRecordingTests.CreateSource, detailTranscriber);
+        await detailRecorder.StartAsync("test", "test"); await Task.Delay(400); await detailRecorder.PauseAsync();
+        var detailFile = Path.Combine(detailRecorder.LastDirectory!, TranscriptDetails.FileName);
+        using (var locked = new FileStream(detailFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            await detailRecorder.ResumeAsync(); await Task.Delay(400); await detailRecorder.StopAsync();
+            check(detailRecorder.State == RecordingState.Completed && detailTranscriber.View.Status.Contains("Word details unavailable")
+                && TranscriptLog.Read(detailRecorder.LastDirectory!).Count(e => e.Kind == "Final") > 2,
+                "Unavailable word sidecar is visible while original transcription and audio continue saving");
+        }
         var slowRecorder = new RecordingService(Path.Combine(directory, "slow-finalization"), new DiagnosticLog(directory), AudioRecordingTests.CreateSource, slow);
         await slowRecorder.StartAsync("test", "test"); await Task.Delay(350); var beforeStop = slowRecorder.Elapsed;
         await slowRecorder.StopAsync();
