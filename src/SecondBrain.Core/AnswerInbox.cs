@@ -48,7 +48,7 @@ public sealed class AnswerInbox
     public event Action<StreamAnswer>? Changed;
     public StreamAnswer Begin(Guid requestId, Guid answerId, string title, Guid? parent = null)
     {
-        if (answers.Count >= Capacity) throw new InvalidOperationException("Demo history is full (100 answers). Close the demo to clear it before starting another run.");
+        if (answers.Count >= Capacity) throw new InvalidOperationException("Answer history is full (100 answers). Close and reopen the answer window to clear it.");
         if (requestId == Guid.Empty || answerId == Guid.Empty || answers.Any(a => a.Id == answerId)) throw new ArgumentException("Answer identifiers must be unique and non-empty.");
         if (parent is not null && !answers.Any(a => a.Id == parent)) throw new ArgumentException("The parent answer is missing.");
         var answer = new StreamAnswer(requestId, answerId, title, parent);
@@ -102,6 +102,11 @@ public sealed class AnswerInbox
     {
         foreach (var answer in answers.Where(a => a.RequestId == requestId && a.State == AnswerState.Receiving))
         { answer.State = AnswerState.Superseded; answer.Detail = "Superseded · displayed paragraphs retained"; answer.Buffer = ""; answer.Pending.Clear(); Changed?.Invoke(answer); }
+    }
+    public void Fail(Guid answerId, string message)
+    {
+        var answer = answers.FirstOrDefault(a => a.Id == answerId);
+        if (answer is not null && answer.State == AnswerState.Receiving) Fail(answer, message);
     }
     private void Fail(StreamAnswer answer, string message)
     { answer.State = AnswerState.Failed; answer.Detail = message; answer.Buffer = ""; answer.Pending.Clear(); Changed?.Invoke(answer); }

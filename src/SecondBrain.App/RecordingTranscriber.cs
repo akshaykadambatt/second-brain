@@ -22,6 +22,12 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
     }
     private readonly object gate = new();
     private readonly Queue<string> recent = new();
+    private readonly Queue<TranscriptEntry> assistantEvents = new();
+    private bool assistantOverflow;
+    public TranscriptEntry[] DrainAssistantEvents(out bool dropped)
+    {
+        lock (gate) { var result = assistantEvents.ToArray(); assistantEvents.Clear(); dropped = assistantOverflow; assistantOverflow = false; return result; }
+    }
     private readonly Func<AudioSource, ITranscriptConnection> connect = connectionFactory ?? (_ => new TranscriptConnection());
     private SourceRun[] sources = [];
     private CancellationTokenSource? cancellation;
@@ -101,6 +107,11 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
         try
         {
             if (!journal.Append(entry)) return;
+            lock (gate)
+            {
+                assistantEvents.Enqueue(entry);
+                while (assistantEvents.Count > 256) { assistantEvents.Dequeue(); assistantOverflow = true; }
+            }
             if (kind is "Final" or "Gap") lock (gate)
             {
                 recent.Enqueue($"{TimeSpan.FromSeconds(entry.Start):hh\\:mm\\:ss} {source?.ToString() ?? "Session"} · {(kind == "Gap" ? "GAP: " : "")}{text}");

@@ -1,0 +1,30 @@
+<Window x:Class="SecondBrain.App.AssistantWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="AI answers · Second Brain" Width="820" Height="850" MinWidth="570" MinHeight="500" Background="#F5F3EF">
+ <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="24">
+  <TextBlock Text="AI answers" FontSize="26" FontWeight="SemiBold"/>
+  <TextBlock Text="Ask a question. Choose a completed passage to send it to your reader." TextWrapping="Wrap" Margin="0,6,0,12"/>
+  <TextBlock x:Name="KeyStatus" TextWrapping="Wrap" Margin="0,0,0,8"/>
+  <TextBox x:Name="Question" Height="70" MaxLength="2000" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" ToolTip="Type your question"/>
+  <WrapPanel Margin="0,10,0,8">
+   <Button Content="Ask" Click="Ask_Click" Padding="20,8" Margin="0,0,10,0"/>
+   <Button Content="Cancel pending" Click="Cancel_Click" Padding="12,8" Margin="0,0,12,0"/>
+   <CheckBox x:Name="Deeper" Content="Also generate a deeper answer" IsChecked="True" VerticalAlignment="Center"/>
+  </WrapPanel>
+  <CheckBox x:Name="Automatic" Checked="Automatic_Changed" Unchecked="Automatic_Changed" Margin="0,5,0,8"><TextBlock Text="Automatically answer questions from computer audio (sends recent context to OpenAI)" TextWrapping="Wrap"/></CheckBox>
+  <TextBlock x:Name="ConversationStatus" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,10"/>
+  <Expander Header="Context and model settings" Margin="0,0,0,12"><StackPanel Margin="0,10,0,0">
+   <TextBlock Text="Context notes · sent with each question; saved locally"/>
+   <TextBox x:Name="ContextNotes" Height="120" MaxLength="16000" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+   <Button Content="Load a Markdown context file…" Click="Markdown_Click" HorizontalAlignment="Left" Padding="10,6" Margin="0,6,0,10"/>
+   <TextBlock Text="Quick model / reasoning effort"/>
+   <DockPanel><ComboBox x:Name="FastEffort" Width="100" DockPanel.Dock="Right"/><TextBox x:Name="FastModel" MaxLength="101"/></DockPanel>
+   <TextBlock Text="Deeper model / reasoning effort" Margin="0,6,0,0"/>
+   <DockPanel><ComboBox x:Name="DeepEffort" Width="100" DockPanel.Dock="Right"/><TextBox x:Name="DeepModel" MaxLength="101"/></DockPanel>
+   <Button Content="Save settings" Click="Save_Click" HorizontalAlignment="Left" Padding="10,6" Margin="0,8,0,0"/>
+  </StackPanel></Expander>
+  <TextBlock x:Name="Status" Text="Ready for a question." TextWrapping="Wrap" Margin="0,0,0,10"/>
+  <ListBox x:Name="Answers" Height="150" SelectionChanged="Answers_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+  <TextBox x:Name="Preview" Height="140" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,8,0,8"/>
+  <WrapPanel><Button Content="Read selected" Click="Read_Click" Padding="12,8" Margin="0,0,8,0"/><Button Content="Previous answer" Click="Previous_Click" Padding="10,8" Margin="0,0,8,0"/><Button Content="Next answer" Click="Next_Click" Padding="10,8" Margin="0,0,8,0"/><Button Content="Return to script" Click="Return_Click" Padding="10,8"/></WrapPanel>
+ </StackPanel></ScrollViewer>
+</Window>

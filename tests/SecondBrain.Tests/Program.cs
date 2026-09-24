@@ -14,6 +14,52 @@ void Test(string name, Action action)
 void Assert(bool condition, string message) { if (!condition) throw new Exception(message); }
 string Folder(string name) { var path = Path.Combine(run, name); Directory.CreateDirectory(path); return path; }
 
+Test("AI detector gates source, provisional speech, duplicate questions and generated echoes", () =>
+{
+    var entry = new TranscriptEntry(Guid.NewGuid(), "Final", AudioSource.System, 0, 1, "What should we do next?");
+    Assert(QuestionGate.Detect(entry) == entry.Text, "System question missed");
+    Assert(QuestionGate.Detect(entry with { Source = AudioSource.Microphone }) is null && QuestionGate.Detect(entry with { Kind = "Provisional" }) is null, "Wrong source triggered");
+    var gate = new QuestionGate();
+    Assert(gate.Accept(entry.Text, 0, true) && !gate.Accept("WHAT should we do next", 20, false), "Duplicate not suppressed");
+    Assert(!gate.Accept("Why is this important?", 2, true) && gate.Accept("Why is this important?", 11, true), "Cooldown failed");
+    gate.RememberAnswer("How can we improve reliability? We should verify the changes.");
+    Assert(!gate.Accept("How can we improve reliability?", 30, true), "Generated echo triggered");
+    gate.Forget(entry.Text); Assert(gate.Accept(entry.Text, 40, false), "Failed question cannot be retried");
+});
+Test("AI context bounds history, retains source and gap markers, and resets sessions", () =>
+{
+    var context = new AssistantContext(); var id = Guid.NewGuid(); var delivered = 0;
+    context.Received += _ => delivered++;
+    var item = new TranscriptEntry(id, "Final", AudioSource.Microphone, 1, 2, "A known fact.", Id: "one");
+    context.Observe(item); context.Observe(item);
+    Assert(delivered == 1 && context.Snapshot().Contains("Microphone"), "Duplicate or source failure");
+    for (var i = 0; i < 150; i++) context.Observe(item with { Id = i.ToString(), Text = new string('a', 200) });
+    Assert(context.Truncated && context.Snapshot().Length < 20000, "History unbounded");
+    context.Observe(item with { SessionId = Guid.NewGuid(), Kind = "RunStart" });
+    Assert(context.Snapshot() == "" && !context.Truncated, "Previous meeting context leaked");
+    context.Observe(item with { SessionId = context.SessionId, Kind = "Gap", Text = "Network gap." });
+    Assert(context.Snapshot().Contains("Gap"), "Gap missing");
+});
+Test("AI readable buffer withholds partial sentences and preserves complete blocks", () =>
+{
+    var buffer = new ReadableAnswerBuffer();
+    Assert(buffer.Push("This is a partial").Count == 0, "Partial sentence displayed");
+    Assert(buffer.Push(" sentence.\n\nNext").Single() == "This is a partial sentence.", "Readable block missing");
+    Assert(buffer.Push(" paragraph.", true).Single() == "Next paragraph.", "Final paragraph missing");
+    try { new ReadableAnswerBuffer().Push("Unfinished words", true); throw new Exception("Incomplete final accepted"); } catch (InvalidDataException) { }
+});
+Test("Responses events reject gaps, conflicts, failures and response identity changes", () =>
+{
+    var parser = new ResponsesEvents();
+    var created = "{\"type\":\"response.created\",\"sequence_number\":0,\"response\":{\"id\":\"a\"}}";
+    parser.Read(created); Assert(parser.Read(created) is null, "Duplicate created delivered");
+    Assert(parser.Read("{\"type\":\"response.output_text.delta\",\"sequence_number\":1,\"delta\":\"Hello.\"}")?.Text == "Hello.", "Delta missing");
+    foreach (var bad in new[] { "{\"type\":\"response.output_text.delta\",\"sequence_number\":1,\"delta\":\"Wrong.\"}", "{\"type\":\"response.completed\",\"sequence_number\":3}", "{\"type\":\"response.completed\",\"response\":{\"id\":\"b\"}}" })
+        try { parser.Read(bad); throw new Exception("Invalid event accepted"); } catch (InvalidDataException) { }
+    try { parser.Read("{\"type\":\"response.incomplete\"}"); throw new Exception("Incomplete response accepted"); } catch (InvalidOperationException) { }
+    Assert(parser.Read("{\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"id\":\"a\"}}")?.Complete == true, "Completion missing");
+});
+
 Test("Transcription maps sample time across idle output and reconnect epochs", () =>
 {
     var map = new TranscriptTimeline(16000);
@@ -206,7 +252,7 @@ Test("Requirements have unique IDs, sprint assignments and completion evidence",
 });
 Test("Audio sprint excludes recognition fallback and unrelated AI capabilities", () =>
 {
-    var forbidden = new[] { "SpeechRecognitionEngine", "DictationGrammar", "api.openai.com", "api.anthropic.com" };
+    var forbidden = new[] { "SpeechRecognitionEngine", "DictationGrammar", "api.anthropic.com" };
     foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
         .Where(p => !p.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)))
     {

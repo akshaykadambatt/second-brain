@@ -20,6 +20,10 @@ public partial class MainWindow : Window
     private readonly string dataDirectory;
     private ReadingStudyWindow? study;
     internal StreamDemoWindow? StreamDemo { get; private set; }
+    internal AssistantWindow? Assistant { get; private set; }
+    internal AssistantContext AssistantContext { get; } = new();
+    private readonly DispatcherTimer contextTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private readonly List<Task> assistantShutdowns = [];
     private ScriptedSpeechSource? replay;
     internal ReaderSession Session { get; } = new();
     internal ReaderPlayback Playback { get; }
@@ -59,6 +63,13 @@ public partial class MainWindow : Window
         var keys = new ApiKeyStore(dataDirectory);
         Voice = new VoiceService(Dispatcher, Session, Playback, keys, log);
         Transcriber = new RecordingTranscriber(keys.Load, log, hiddenTestMode ? TranscriptionTests.CreateConnection : null);
+        contextTimer.Tick += (_, _) =>
+        {
+            var entries = Transcriber.DrainAssistantEvents(out var dropped);
+            foreach (var entry in entries) AssistantContext.Observe(entry);
+            if (dropped) AssistantContext.MarkGap();
+        };
+        contextTimer.Start();
         Recorder = new RecordingService(System.IO.Path.Combine(dataDirectory, "recordings"), log, hiddenTestMode ? AudioRecordingTests.CreateSource : null, Transcriber);
         Voice.Status += text => SetStatus(text); Voice.Heard += text => HeardText.Text = "Heard: " + text; Voice.Level += level => MicLevel.Value = level;
         Voice.Stopped += () => { MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true; ListenButton.Content = "Start listening"; MicLabel.Text = "Mic off"; MicLevel.Value = 0; };
@@ -125,7 +136,7 @@ public partial class MainWindow : Window
     internal async Task<bool> ApplyText()
     {
         if (string.IsNullOrWhiteSpace(ScriptEditor.Text)) { SetStatus("Enter a sentence first.", true); return false; }
-        await StopListening(); StreamDemo?.Close(); Session.Load(ScriptEditor.Text); SaveSettings(); SetStatus("Script loaded. Open a reader or start listening."); return true;
+        await StopListening(); Assistant?.Close(); StreamDemo?.Close(); Session.Load(ScriptEditor.Text); SaveSettings(); SetStatus("Script loaded. Open a reader or start listening."); return true;
     }
     private async void Listen_Click(object sender, RoutedEventArgs e)
     {
@@ -179,7 +190,7 @@ public partial class MainWindow : Window
     { if (!initialized) return; Playback.SetSpeed(SpeedSlider.Value); ScheduleSave(); }
     private async void ReplaySpeech_Click(object sender, RoutedEventArgs e)
     {
-        StreamDemo?.Close(); replay?.Stop(); Playback.UseVoice(); await StopListening();
+        Assistant?.Close(); StreamDemo?.Close(); replay?.Stop(); Playback.UseVoice(); await StopListening();
         if (closing) return;
         if (Session.Answer is null && ScriptEditor.Text.Trim() != Session.Text && !await ApplyText()) return;
         if (Session.Words.Count < 15) { SetStatus("Use at least 15 words for the dummy-speech replay.", true); return; }
@@ -193,6 +204,7 @@ public partial class MainWindow : Window
     }
     private void ReadingStudy_Click(object sender, RoutedEventArgs e)
     {
+        Assistant?.Close();
         StreamDemo?.Close();
         if (study is not null) { study.Activate(); return; }
         try
@@ -217,9 +229,20 @@ public partial class MainWindow : Window
         settings = settings with { RecordingMicrophoneId = microphone, RecordingOutputId = output }; SaveSettings();
     }
     private void StreamDemo_Click(object sender, RoutedEventArgs e) => OpenStreamDemo();
+    private void Assistant_Click(object sender, RoutedEventArgs e) => OpenAssistant();
+    internal AssistantWindow OpenAssistant(IAnswerProvider? provider = null)
+    {
+        if (Assistant is not null) { if (!hiddenTestMode) Assistant.Activate(); return Assistant; }
+        StreamDemo?.Close(); study?.Close(); replay?.Stop(); Playback.Pause(); _ = StopListening();
+        var window = new AssistantWindow(this, AssistantContext, dataDirectory, log, hiddenTestMode, provider);
+        Assistant = window;
+        window.Closed += (_, _) => { Assistant = null; assistantShutdowns.RemoveAll(t => t.IsCompleted); assistantShutdowns.Add(window.ShutdownTask); };
+        window.Show(); return window;
+    }
     internal StreamDemoWindow OpenStreamDemo()
     {
         if (StreamDemo is not null) { if (!hiddenTestMode) StreamDemo.Activate(); return StreamDemo; }
+        Assistant?.Close();
         study?.Close();
         Playback.Pause(); _ = StopListening();
         StreamDemo = new StreamDemoWindow(this, hiddenTestMode);
@@ -266,7 +289,8 @@ public partial class MainWindow : Window
     {
         if (allowClose) { base.OnClosing(e); return; }
         e.Cancel = true; if (closing) return;
-        closing = true; replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
+        closing = true; contextTimer.Stop(); Assistant?.Close(); replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
+        await Task.WhenAll(assistantShutdowns);
         if (recordingWindow is { } captureWindow) { try { await captureWindow.RecoveryTask; } catch (Exception) { } if (captureWindow.IsVisible) captureWindow.Close(); }
         foreach (var panel in panels.ToArray()) panel.Close();
         allowClose = true;

@@ -14,19 +14,26 @@ public partial class App : Application
         base.OnStartup(e);
         var dataDirectory = Path.Combine(AppContext.BaseDirectory, "data");
         string? smokePhase = null;
+        string? importOpenAi = null;
         try
         {
             for (var i = 0; i < e.Args.Length; i++)
             {
                 if (e.Args[i] == "--data-dir" && i + 1 < e.Args.Length) dataDirectory = Path.GetFullPath(e.Args[++i]);
                 else if (e.Args[i] == "--smoke-test" && i + 1 < e.Args.Length) smokePhase = e.Args[++i];
+                else if (e.Args[i] == "--import-openai-key" && i + 1 < e.Args.Length) importOpenAi = Path.GetFullPath(e.Args[++i]);
                 else throw new ArgumentException("Expected --data-dir <directory> or --smoke-test <seed|verify|voice>.");
             }
-            if (smokePhase is not null and not "seed" and not "verify" and not "voice" and not "deepgram" and not "flow" and not "timed" and not "study" and not "replay" and not "stream" and not "audio" and not "transcription" and not "hybrid" and not "transcription-live" and not "performance" and not "performance30") throw new ArgumentException("Unknown smoke phase.");
+            if (smokePhase is not null and not "seed" and not "verify" and not "voice" and not "deepgram" and not "flow" and not "timed" and not "study" and not "replay" and not "stream" and not "audio" and not "transcription" and not "assistant" and not "assistant-live" and not "hybrid" and not "transcription-live" and not "performance" and not "performance30") throw new ArgumentException("Unknown smoke phase.");
             Directory.CreateDirectory(dataDirectory);
+            if (importOpenAi is not null)
+            {
+                new ApiKeyStore(dataDirectory, "OpenAI").Import(importOpenAi);
+                File.Delete(importOpenAi); Shutdown(0); return;
+            }
             instanceLock = new FileStream(Path.Combine(dataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             log = new DiagnosticLog(dataDirectory);
-            var loggingAvailable = log.Write("Application started v0.8.0");
+            var loggingAvailable = log.Write("Application started v0.9.0");
             var store = new SettingsStore(dataDirectory);
             var settings = store.Load(out var warning);
             var window = new MainWindow(store, settings, log, dataDirectory, hiddenTestMode: smokePhase is not null);
