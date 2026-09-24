@@ -81,7 +81,7 @@ public partial class MainWindow
                 { return (Records: TranscriptDetails.Read(path, false), Warning: "Word details unavailable or damaged; showing original transcript text."); }
             });
             if (closing) return null;
-            var window = new TranscriptWindow(this, loaded.Records, loaded.Warning, hiddenTestMode); window.Show(); return window;
+            var window = new TranscriptWindow(this, path, loaded.Records, loaded.Warning, hiddenTestMode); window.Show(); return window;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         { MeetingListStatus.Text = "No readable transcript is available for this recording. Its audio remains in the meeting folder."; return null; }

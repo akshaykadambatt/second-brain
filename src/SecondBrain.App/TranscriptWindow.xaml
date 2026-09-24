@@ -1,16 +1,40 @@
 <Window x:Class="SecondBrain.App.TranscriptWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Second Brain · Transcript" Style="{StaticResource ShellWindowStyle}" Width="920" Height="720" MinWidth="620" MinHeight="480" ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+        Title="Second Brain · Transcript" Style="{StaticResource ShellWindowStyle}" Width="1080" Height="820" MinWidth="780" MinHeight="620" ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
   <Grid Margin="20">
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="150"/></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="170"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <TextBlock Text="Meeting transcript" Style="{StaticResource PageTitle}" />
     <TextBlock x:Name="Summary" Grid.Row="1" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,8,0,12" />
-    <ListBox x:Name="Segments" Grid.Row="2" SelectionChanged="Segments_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Transcript segments">
+    <DockPanel Grid.Row="2" Margin="0,0,0,10">
+      <CheckBox x:Name="BookmarksOnly" Content="Bookmarks only" DockPanel.Dock="Right" Margin="12,0" Click="Filter_Changed"/>
+      <TextBox x:Name="Search" TextChanged="Search_Changed" AutomationProperties.Name="Search transcript or speaker" ToolTip="Search transcript or speaker"/>
+    </DockPanel>
+    <ListBox x:Name="Segments" Grid.Row="3" SelectionChanged="Segments_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Transcript turns">
       <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4,7">
         <TextBlock Text="{Binding Meta}" FontWeight="Bold" Foreground="{StaticResource Muted}" />
         <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,5,0,0" />
       </StackPanel></DataTemplate></ListBox.ItemTemplate>
     </ListBox>
-    <TextBlock Grid.Row="3" Text="Selected segment · word timing" FontWeight="Bold" Margin="0,14,0,8" />
-    <TextBox x:Name="WordDetails" Grid.Row="4" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Word timestamps" />
+    <WrapPanel Grid.Row="4" Margin="0,10,0,8">
+      <Button Content="Replay from timestamp" Click="Replay_Click" Margin="0,0,6,0"/>
+      <Button Content="Stop playback" Click="Stop_Click" Margin="0,0,6,0"/>
+      <Button x:Name="BookmarkButton" Content="Toggle bookmark" Click="Bookmark_Click" Margin="0,0,6,0"/>
+      <Button x:Name="UndoButton" Content="Undo last change" Click="Undo_Click" Margin="0,0,6,0"/>
+      <Button Content="Reload review" Click="Reload_Click"/>
+    </WrapPanel>
+    <Grid Grid.Row="5"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <ListBox x:Name="WordSelection" SelectionMode="Extended" DisplayMemberPath="Text" AutomationProperties.Name="Words to split into a speaker" ToolTip="Select words with Shift or Ctrl to split part of a turn" Margin="0,0,10,0"/>
+      <TextBox x:Name="WordDetails" Grid.Column="1" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Word timestamps"/>
+    </Grid>
+    <StackPanel Grid.Row="6" Margin="0,10,0,0">
+      <WrapPanel x:Name="EditControls">
+        <TextBox x:Name="SpeakerName" Width="140" MaxLength="100" AutomationProperties.Name="Correct speaker name" Margin="0,0,6,6"/>
+        <Button Content="Name this turn" Click="Assign_Click" Margin="0,0,6,6"/>
+        <Button Content="Rename speaker" Click="Rename_Click" Margin="0,0,6,6"/>
+        <Button Content="Split selected words" Click="Split_Click" Margin="0,0,6,6"/>
+        <ComboBox x:Name="MergeTarget" Width="130" DisplayMemberPath="Speaker" AutomationProperties.Name="Merge destination speaker" Margin="0,0,6,6"/>
+        <Button Content="Merge speaker" Click="Merge_Click" Margin="0,0,0,6"/>
+      </WrapPanel>
+      <TextBlock x:Name="ReviewStatus" Text="Original transcript remains unchanged. Select a turn to correct its speaker." TextWrapping="Wrap" Foreground="{StaticResource Muted}"/>
+    </StackPanel>
   </Grid>
 </Window>

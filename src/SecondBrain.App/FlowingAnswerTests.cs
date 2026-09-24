@@ -9,6 +9,31 @@ namespace SecondBrain.App;
 
 internal static class FlowingAnswerTests
 {
+    internal static async Task RunLive(MainWindow main, string directory, Action<bool, string> check)
+    {
+        using var provider = new OpenAiAnswerProvider(new ApiKeyStore(directory, "OpenAI").Load);
+        var saved = new AssistantSettings(directory).Load();
+        var options = saved with { AllowGeneralGuidance = true, Context = "Synthetic fixture: the team's only supplied fact is that it reviews work every Friday. No other private team facts are known." };
+        var answers = new AssistantService(main.Dispatcher, provider, new(directory));
+        using var companion = new CompanionSession(main.Session, main.Playback, new(), answers, options);
+        main.AddReader();
+        try
+        {
+            var run = companion.Ask("How can limiting work in progress help a team deliver more predictably?")!; await run.Work;
+            check(run.Fast.State == AnswerState.Complete && run.Fast.WordCount > 0, "Real model produces a readable opening and initial detail from synthetic context");
+            var added = new List<int>();
+            for (var i = 0; i < 2; i++)
+            {
+                var before = run.Fast.WordCount; main.Session.Select(before - 1); companion.Tick(); await run.Work;
+                added.Add(run.Fast.WordCount - before);
+                check(run.Fast.State == AnswerState.Complete && added[^1] > 0 && main.Session.Answer == run.Fast && answers.Inbox.Answers.Count == 1,
+                    "Real model appends useful general guidance to the same answer, extension " + (i + 1));
+            }
+            System.IO.File.WriteAllText(System.IO.Path.Combine(directory, "continuation-live-output.json"), System.Text.Json.JsonSerializer.Serialize(new
+            { suppliedFacts = options.Context, run.Question, addedWords = added, text = main.Session.Text, physicalAudioUsed = false, generalGuidanceApproved = true }));
+        }
+        finally { await companion.Stop(); }
+    }
     private sealed class Provider : IAnswerProvider
     {
         internal readonly List<AssistantPrompt> Extensions = [];

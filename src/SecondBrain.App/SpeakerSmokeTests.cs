@@ -33,7 +33,7 @@ internal static class SpeakerSmokeTests
         check(remote.Select(w => w.ConnectionId).Distinct().Count() >= 2 && remote.SelectMany(w => w.Words.Select(x => (w.ConnectionId, x.SpeakerId))).GroupBy(x => x.SpeakerId).All(g => g.Select(x => x.ConnectionId).Distinct().Count() == 1),
             "Reconnect cannot reuse an earlier connection's session speaker identity");
         check(remote.SelectMany(w => w.Words).All(w => w.SpeakerConfidence is null), "Streaming labels do not fabricate unavailable speaker confidence");
-        var viewer = await main.OpenTranscript(path); viewer!.Segments.SelectedIndex = Array.FindIndex(words, w => w.Source == AudioSource.System && w.Words.Any(x => x.SpeakerId is not null));
+        var viewer = await main.OpenTranscript(path); viewer!.Segments.SelectedItem = viewer.Segments.Items.Cast<ReviewTurn>().First(t => t.Words[0].Source == AudioSource.System && t.Words.Any(w => w.SpeakerId is not null));
         check(viewer.WordDetails.Text.Contains("Speaker "), "Meeting review exposes persisted speaker labels beside word times");
         capture(viewer, Path.Combine(directory, "speaker-transcript.png")); viewer.Close();
         main.SettingsTab.IsSelected = true; main.DevicesTab.IsSelected = true;

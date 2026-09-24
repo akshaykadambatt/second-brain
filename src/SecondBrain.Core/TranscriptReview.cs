@@ -29,7 +29,7 @@ public sealed class TranscriptReview
     public int Revision => edits.Length;
     public bool RecoveredTail { get; private set; }
     public bool CanUndo => ActiveEdits().Any();
-    public TranscriptReview(string directory, TranscriptDetail[] records)
+    public TranscriptReview(string directory, TranscriptDetail[] records, bool loadEdits = true)
     {
         this.directory = directory;
         sessionId = records.FirstOrDefault()?.SessionId ?? Guid.Empty;
@@ -39,7 +39,7 @@ public sealed class TranscriptReview
             : r.Words.Select(w => new ReviewWord(w.Id, r.SegmentId, r.Source, w.Start, w.End, w.Text, w.SpeakerId, w.SpeakerLabel ?? "Unknown", true)))
             .OrderBy(w => w.Start).ThenBy(w => w.Source).ToArray();
         byId = originals.ToDictionary(w => w.Id);
-        Reload();
+        if (loadEdits) Reload(); else Project();
     }
     private string Binding(IEnumerable<string> ids) => VaultIndex.Hash(JsonSerializer.Serialize(ids.Select(id => byId[id]).ToArray()));
     private ReviewEdit[] Read(Stream stream, out long validLength)
