@@ -19,6 +19,19 @@ StorageTests.Run(Test, Assert, Folder);
 SessionContextTests.Run(Test, Assert, Folder);
 LatencyTests.Run(Test, Assert);
 
+Test("Continuing a completed answer retains identities and sequence protection", () =>
+{
+    var inbox = new AnswerInbox(); var request = Guid.NewGuid(); var answer = inbox.Begin(request, Guid.NewGuid(), "Question");
+    inbox.Accept(new(request, answer.Id, 0, "Existing grounded opening.", AnswerEventKind.Complete));
+    var original = answer.Blocks[0];
+    Assert(!inbox.Resume(Guid.NewGuid(), answer.Id) && inbox.Resume(request, answer.Id), "Resume did not validate request identity");
+    Assert(!inbox.Resume(request, answer.Id), "Concurrent continuation accepted");
+    Assert(inbox.Accept(new(request, answer.Id, 1, "Additional grounded detail.", AnswerEventKind.Complete)), "Next sequence was rejected");
+    Assert(inbox.Answers.Count == 1 && ReferenceEquals(original, answer.Blocks[0]) && answer.Blocks.Count == 2, "Continuation replaced the answer or existing words");
+    inbox.Resume(request, answer.Id); inbox.Supersede(request);
+    Assert(!inbox.Resume(request, answer.Id) && !inbox.Accept(new(request, answer.Id, 2, "Late data")), "Canceled answer was revived");
+});
+
 Test("Appended meeting facts retain their own dates during filtered retrieval", () =>
 {
     var vault = Folder("history-dates");

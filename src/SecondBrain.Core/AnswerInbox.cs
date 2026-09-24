@@ -46,6 +46,13 @@ public sealed class AnswerInbox
     private readonly List<StreamAnswer> answers = [];
     public IReadOnlyList<StreamAnswer> Answers => answers.AsReadOnly();
     public event Action<StreamAnswer>? Changed;
+    public bool Resume(Guid requestId, Guid answerId)
+    {
+        var answer = answers.FirstOrDefault(a => a.Id == answerId && a.RequestId == requestId);
+        if (answer is not { State: AnswerState.Complete } || answer.ReceivedCharacters >= 16000 || answer.Blocks.Count >= 110) return false;
+        answer.State = AnswerState.Receiving; answer.Detail = "Continuing this answer…";
+        Changed?.Invoke(answer); return true;
+    }
     public StreamAnswer Begin(Guid requestId, Guid answerId, string title, Guid? parent = null)
     {
         if (answers.Count >= Capacity) throw new InvalidOperationException("Answer history is full (100 answers). Close and reopen the answer window to clear it.");

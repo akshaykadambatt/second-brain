@@ -16,6 +16,11 @@ public interface IKnowledgeSearch
 {
     Task<KnowledgeResult> Search(string question, CancellationToken cancellation);
 }
+public interface IStagedKnowledgeSearch : IKnowledgeSearch
+{
+    Task<KnowledgeResult> SearchOpening(string question, CancellationToken cancellation);
+    Task Prewarm(string context, CancellationToken cancellation);
+}
 public interface IEmbeddingProvider
 {
     Task<float[][]> Embed(IReadOnlyList<string> text, CancellationToken cancellation);
