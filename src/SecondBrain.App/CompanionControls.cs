@@ -60,7 +60,7 @@ public partial class MainWindow
             Transcriber.DrainAssistantEvents(out _); Transcriber.DrainSpeech();
             Companion?.Dispose();
             var provider = testProvider ?? new OpenAiAnswerProvider(new ApiKeyStore(dataDirectory, "OpenAI").Load);
-            Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log, Knowledge?.ForProject(meetingContext.Project)), options, testProvider is null ? provider as IDisposable : null);
+            Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log, Knowledge?.ForProject(meetingContext.Project)), options, testProvider is null ? provider as IDisposable : null, () => Recorder.ClockOrigin);
             companionVaultRoot = Knowledge?.Root;
             sourcesRequest = Guid.Empty; LiveSources.Items.Clear(); SourceStatus.Text = "Waiting for retrieved sources.";
             Companion.Changed += RefreshCompanion;

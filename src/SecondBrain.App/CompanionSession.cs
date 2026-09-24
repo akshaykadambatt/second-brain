@@ -12,7 +12,9 @@ internal sealed class CompanionSession : IDisposable
     private readonly AssistantOptions options;
     private readonly IDisposable? provider;
     private readonly Queue<(string Text, double Time)> microphone = new();
-    private readonly Queue<(string Question, string Context, Guid Session)> pending = new();
+    private readonly Queue<(string Question, string Context, Guid Session, QuestionTiming Timing)> pending = new();
+    private readonly Func<double>? sessionClockOrigin;
+    private double? transcriptReceivedAt, speechEndedAt;
     private readonly HashSet<Guid> readableAnswers = [];
     private Guid microphoneConnection;
     private readonly QuestionUtterance utterance = new();
@@ -25,24 +27,30 @@ internal sealed class CompanionSession : IDisposable
     public int PendingCount => pending.Count;
     public event Action? Changed;
     public CompanionSession(ReaderSession reader, ReaderPlayback playback, AssistantContext context,
-        AssistantService answers, AssistantOptions options, IDisposable? provider = null)
+        AssistantService answers, AssistantOptions options, IDisposable? provider = null, Func<double>? sessionClockOrigin = null)
     {
         this.reader = reader; this.playback = playback; this.context = context; Answers = answers; this.options = options; this.provider = provider;
+        this.sessionClockOrigin = sessionClockOrigin;
         context.SessionChanged += SessionChanged;
         Answers.Inbox.Changed += Updated; Answers.Changed += AnswerChanged;
         var waiting = new AnswerInbox().Begin(Guid.NewGuid(), Guid.NewGuid(), "Listening for a question…");
         reader.ShowAnswer(waiting);
     }
     private void SessionChanged()
-    { pending.Clear(); microphone.Clear(); Answers.CancelAll(); Answers.Questions.Reset(); microphoneConnection = systemConnection = Guid.Empty; utterance.Reset(); }
+    { pending.Clear(); microphone.Clear(); Answers.CancelAll(); Answers.Questions.Reset(); microphoneConnection = systemConnection = Guid.Empty; utterance.Reset(); transcriptReceivedAt = speechEndedAt = null; }
     public void Observe(LiveSpeech speech)
     {
         if (!Active || AudioClock.Now - speech.ReceivedAt > 1) return;
         if (speech.Source == AudioSource.System)
         {
-            if (systemConnection != speech.ConnectionId) { systemConnection = speech.ConnectionId; utterance.Reset(); }
+            if (systemConnection != speech.ConnectionId) { systemConnection = speech.ConnectionId; utterance.Reset(); transcriptReceivedAt = speechEndedAt = null; }
+            if (speech.Segment.Final && !string.IsNullOrWhiteSpace(speech.Segment.Text))
+            {
+                transcriptReceivedAt = speech.ReceivedAt;
+                speechEndedAt = sessionClockOrigin is not null && speech.SpeechEndedSeconds is { } end ? sessionClockOrigin() + end : null;
+            }
             if (utterance.Observe(speech.Segment, AudioClock.Now) is { } question)
-                Received(new(speech.SessionId, "Final", AudioSource.System, speech.Segment.Start, speech.Segment.Start + speech.Segment.Duration, question));
+                Received(new(speech.SessionId, "Final", AudioSource.System, speech.Segment.Start, speech.Segment.Start + speech.Segment.Duration, question), TakeTiming());
             return;
         }
         if (!string.IsNullOrWhiteSpace(speech.Segment.Text))
@@ -56,7 +64,13 @@ internal sealed class CompanionSession : IDisposable
         { if (microphoneConnection != Guid.Empty) playback.Voice.Reanchor(); microphoneConnection = speech.ConnectionId; }
         playback.Voice.Observe(speech.Segment, AudioSource.Microphone);
     }
-    private void Received(TranscriptEntry entry)
+    private QuestionTiming TakeTiming()
+    {
+        var result = new QuestionTiming(AudioClock.Now, transcriptReceivedAt, speechEndedAt);
+        transcriptReceivedAt = speechEndedAt = null;
+        return result;
+    }
+    private void Received(TranscriptEntry entry, QuestionTiming timing)
     {
         if (!Active) return;
         var question = QuestionGate.Detect(entry); if (question is null) return;
@@ -65,7 +79,7 @@ internal sealed class CompanionSession : IDisposable
         if (microphone.Any(m => Echo(m.Text, normalized))) return;
         if (pending.Any(p => QuestionGate.Normalize(p.Question) == normalized)) return;
         if (pending.Count >= 3) { Status = "Question queue full. Use the question box for a missed question."; Changed?.Invoke(); return; }
-        pending.Enqueue((question, context.Snapshot(), entry.SessionId)); Tick();
+        pending.Enqueue((question, context.Snapshot(), entry.SessionId, timing)); Tick();
     }
     private static bool Echo(string mic, string system)
     {
@@ -75,12 +89,12 @@ internal sealed class CompanionSession : IDisposable
         var spoken = micWords.ToHashSet();
         return words.Length >= 4 && words.Count(spoken.Contains) >= Math.Ceiling(words.Length * .85);
     }
-    public AnswerRequest? Ask(string question, bool automatic = false, string? snapshot = null, Guid? session = null)
+    public AnswerRequest? Ask(string question, bool automatic = false, string? snapshot = null, Guid? session = null, QuestionTiming? timing = null)
     {
         if (!Active) return null;
         try
         {
-            var request = Answers.Ask(question, options, snapshot ?? context.Snapshot(), session ?? context.SessionId, automatic, continuation: true);
+            var request = Answers.Ask(question, options, snapshot ?? context.Snapshot(), session ?? context.SessionId, automatic, continuation: true, timing: timing);
             Status = request.Status; Changed?.Invoke(); return request;
         }
         catch (InvalidOperationException ex) { Status = ex.Message; Changed?.Invoke(); return null; }
@@ -89,9 +103,9 @@ internal sealed class CompanionSession : IDisposable
     {
         if (!Active) return;
         if (utterance.Flush(AudioClock.Now) is { } question)
-            Received(new(context.SessionId, "Final", AudioSource.System, 0, 0, question));
+            Received(new(context.SessionId, "Final", AudioSource.System, 0, 0, question), TakeTiming());
         if (pending.Count > 0 && Answers.ActiveCount < 3)
-        { var next = pending.Dequeue(); Ask(next.Question, true, next.Context, next.Session); }
+        { var next = pending.Dequeue(); Ask(next.Question, true, next.Context, next.Session, next.Timing); }
     }
     private void Updated(StreamAnswer answer)
     {

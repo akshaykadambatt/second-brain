@@ -5,7 +5,11 @@ using SecondBrain.Core;
 namespace SecondBrain.App;
 
 internal sealed record TranscriptView(string Status, string Microphone, string System, string[] Recent);
-internal sealed record LiveSpeech(Guid SessionId, AudioSource Source, Guid ConnectionId, SpeechSegment Segment, double ReceivedAt);
+internal sealed record LiveSpeech(Guid SessionId, AudioSource Source, Guid ConnectionId, SpeechSegment Segment, double ReceivedAt)
+{
+    // Provider word timing for diagnostics only; reader alignment keeps its existing segment mapping.
+    public double? SpeechEndedSeconds { get; init; }
+}
 
 // Capture only offers packets; networking and transcript storage cannot block it.
 // This service has no ReaderSession reference: system speech cannot move a reader.
@@ -195,7 +199,9 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
                             lock (gate)
                             {
                                 liveSpeech.Enqueue(new(journal!.SessionId, source.Track.Source, epoch,
-                                    segment with { Start = start, Duration = Math.Max(0, end - start), LastWordEnd = end }, AudioClock.Now));
+                                    segment with { Start = start, Duration = Math.Max(0, end - start), LastWordEnd = end }, AudioClock.Now)
+                                { SpeechEndedSeconds = segment.LastWordEnd is { } wordEnd && double.IsFinite(wordEnd)
+                                    && wordEnd >= segment.Start && wordEnd <= segment.Start + segment.Duration + .001 ? map.Map(wordEnd, true) : null });
                                 while (liveSpeech.Count > 128) liveSpeech.Dequeue();
                             }
                             if (segment.Final)

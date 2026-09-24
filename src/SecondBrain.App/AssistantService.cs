@@ -14,6 +14,13 @@ internal sealed class AnswerRequest(Guid id, string question, Guid sessionId, St
     public StreamAnswer? Deeper { get; } = deeper;
     public CancellationTokenSource Cancellation { get; } = new();
     public Stopwatch Clock { get; } = Stopwatch.StartNew();
+    public double CreatedAt { get; } = AudioClock.Now;
+    public QuestionTiming? Trigger { get; init; }
+    public bool Automatic { get; init; }
+    public bool FirstInSession { get; init; }
+    public double? GenerationStartedMs { get; set; }
+    public AnswerLatency Latency => AnswerLatency.Measure(Id, SessionId, Automatic, FirstInSession, CreatedAt,
+        Trigger, RetrievalMs, GenerationStartedMs, FirstReadableMs, CompletedMs);
     public Task Work { get; set; } = Task.CompletedTask;
     public bool Active { get; set; } = true;
     public string Status { get; set; } = "Generating quick answer…";
@@ -33,7 +40,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
     public List<AnswerRequest> Requests { get; } = [];
     public event Action? Changed;
     public int ActiveCount => Requests.Count(r => r.Active);
-    public AnswerRequest Ask(string question, AssistantOptions options, string conversation, Guid sessionId, bool automatic = false, bool continuation = false)
+    public AnswerRequest Ask(string question, AssistantOptions options, string conversation, Guid sessionId, bool automatic = false, bool continuation = false, QuestionTiming? timing = null)
     {
         dispatcher.VerifyAccess(); question = question.Trim();
         if (!options.IsValid) throw new InvalidOperationException("Check the model names, reasoning settings and context length.");
@@ -45,7 +52,8 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
         var id = Guid.NewGuid(); var title = question.Length > 95 ? question[..95] + "…" : question;
         var fast = Inbox.Begin(id, Guid.NewGuid(), (continuation ? "" : "Quick · ") + title);
         var deeper = options.Deeper && !continuation ? Inbox.Begin(id, Guid.NewGuid(), "Deeper · " + title, fast.Id) : null;
-        var run = new AnswerRequest(id, question, sessionId, fast, deeper) { Continuation = continuation }; Requests.Add(run);
+        var run = new AnswerRequest(id, question, sessionId, fast, deeper) { Continuation = continuation, Trigger = timing,
+            Automatic = automatic, FirstInSession = !Requests.Any(r => r.SessionId == sessionId) }; Requests.Add(run);
         run.Work = Run(run, options, conversation); Changed?.Invoke(); return run;
     }
     private async Task Run(AnswerRequest run, AssistantOptions options, string conversation)
@@ -61,6 +69,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
                 if (!run.Active) return;
                 run.RetrievalMs = run.Clock.Elapsed.TotalMilliseconds; run.Status = "Generating opening with retrieved context…"; Changed?.Invoke();
             }
+            run.GenerationStartedMs = run.Clock.Elapsed.TotalMilliseconds;
             await Generate(run.Fast, options.FastModel, options.FastEffort, false, !(run.Continuation && options.Deeper));
             if (run.Continuation && options.Deeper && run.Active)
             { run.Status = "First sentence ready · thinking through the continuation…"; Changed?.Invoke(); await Generate(run.Fast, options.DeepModel, options.DeepEffort, true); }
@@ -81,6 +90,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
         finally
         {
             run.Active = false; run.CompletedMs ??= run.Clock.Elapsed.TotalMilliseconds;
+            log.Write("AI pipeline " + System.Text.Json.JsonSerializer.Serialize(run.Latency));
             log.Write($"AI timing request={run.Id}; firstTextMs={run.FirstTextMs:F0}; firstReadableMs={run.FirstReadableMs:F0}; firstContinuationMs={run.FirstContinuationMs:F0}; completedMs={run.CompletedMs:F0}; fastState={run.Fast.State}; deeperState={run.Deeper?.State}");
             run.Cancellation.Dispose(); Changed?.Invoke();
         }

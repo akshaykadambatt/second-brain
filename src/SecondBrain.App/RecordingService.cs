@@ -21,6 +21,7 @@ internal sealed class RecordingService(string root, DiagnosticLog log, Func<Audi
     private RecordingSession? session;
     private string microphone = "", output = "";
     private double origin, stoppedAt;
+    internal double ClockOrigin => origin;
     private readonly int[] levels = new int[2];
     private readonly long[] lastPackets = new long[2];
     public RecordingState State { get; private set; }
