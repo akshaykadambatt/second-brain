@@ -34,6 +34,8 @@ With your provider credentials configured, select your microphone and meeting ou
 
 Credentials use Windows account-bound protection. Recordings, knowledge, personal context, development notes and private evidence are not part of this public repository. Keep your own data backups separately.
 
+Expand **Answer timing** on Live to see transcription, detection, queue, retrieval and generation timing, plus first/later request percentiles. Export a JSON report, or find `latency.json` in a saved meeting folder after stopping. First/later requests are cold/warm session proxies; provider cache state is unknown. Speech-end timing requires provider word timestamps. These diagnostics measure readable text readiness, not physical screen presentation or verified live performance targets.
+
 ## Layout
 
 - `src/SecondBrain.App`: WPF interface and Windows/provider adapters.

@@ -52,6 +52,10 @@ internal static class ContextSmokeTests
             && File.ReadAllText(Path.Combine(recording, "latency.json")) == reportBeforeFailure,
             "Timing storage failure preserves the earlier report and leaves recording stopped");
         Directory.Delete(Path.Combine(recording, "latency.json.tmp"));
+        main.LatencyDetails.IsExpanded = true;
+        if (main.LiveTab.Content is System.Windows.Controls.ScrollViewer liveView) liveView.ScrollToBottom();
+        capture(main, Path.Combine(directory, "answer-timing.png"));
+        main.LatencyDetails.IsExpanded = false;
         check(main.ClientPicker.IsEnabled && main.ContextEditor.IsEnabled, "Stopping re-enables preparation for the next session");
         main.ContextGoal.Text = "Plan the next phase"; main.SaveMeetingContext();
         check(SessionContextStore.ReadSnapshot(recording)!.Context.Goal == "Confirm release scope", "Later profile edits preserve the original meeting brief");
