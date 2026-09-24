@@ -14,6 +14,8 @@ internal static class ShellSmokeTests
         var document = main.Session.DocumentId; var word = main.Session.Position;
         main.LiveTab.IsSelected = true; await Settle();
         check(main.ListenButton.IsVisible && !main.MicrophonePicker.IsVisible, "Live has its start action without persistent device controls");
+        check(main.SessionStateText.Text == "READY" && !main.LiveDetails.IsExpanded && !main.LiveEvidence.IsExpanded,
+            "Idle Live state is clear and transcript/evidence remain collapsed by default");
         capture(main, Path.Combine(directory, "live.png"));
         main.SettingsTab.IsSelected = true; main.DevicesTab.IsSelected = true; await Settle();
         check(main.MicrophonePicker.IsVisible && main.LiveOutputPicker.IsVisible, "Audio devices remain available in Settings");
@@ -39,5 +41,10 @@ internal static class ShellSmokeTests
         main.LiveTab.IsSelected = true; await Settle();
         check(!main.Recorder.HasSession && !main.Voice.Running && main.Companion?.Active != true, "Browsing and compacting navigation never starts capture");
         check(main.Session.DocumentId == document && main.Session.Position == word, "Page navigation preserves the reader document and position");
+        var selectedMic = main.MicrophonePicker.SelectedItem;
+        main.MicrophonePicker.SelectedItem = null;
+        check(!await main.StartCompanion() && main.SessionStateText.Text == "ATTENTION" && !main.Recorder.HasSession,
+            "Missing audio selection reports attention without starting capture");
+        main.MicrophonePicker.SelectedItem = selectedMic;
     }
 }

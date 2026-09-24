@@ -11,6 +11,8 @@ public partial class MainWindow
     private sealed record MeetingRow(string Path, string Label);
     private Task meetingsRefresh = Task.CompletedTask;
     private bool compactNavigation;
+    private void AudioSettings_Click(object sender, RoutedEventArgs e)
+    { SettingsTab.IsSelected = true; DevicesTab.IsSelected = true; }
     private void NavigationToggle_Click(object sender, RoutedEventArgs e)
     {
         compactNavigation = !compactNavigation;

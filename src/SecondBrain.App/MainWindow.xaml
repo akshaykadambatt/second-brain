@@ -6,7 +6,8 @@
       <RowDefinition Height="*" />
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
-    <DockPanel Margin="0,0,0,16"><Button x:Name="NavigationToggle" Content="Compact menu" Click="NavigationToggle_Click" DockPanel.Dock="Right" HorizontalAlignment="Right" Padding="10,4" Margin="12,0,0,0"/>
+    <DockPanel Margin="0,0,0,16">
+      <Button x:Name="NavigationToggle" Content="Compact menu" Click="NavigationToggle_Click" DockPanel.Dock="Right" HorizontalAlignment="Right" Padding="10,4" Margin="12,0,0,0" />
       <TextBlock Text="SECOND BRAIN" FontSize="18" FontWeight="Bold" />
       <TextBlock Text="LIVE MEETING COMPANION" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right" />
     </DockPanel>
@@ -15,34 +16,59 @@
         <TabControl x:Name="WorkspaceTabs" TabStripPlacement="Left" SelectionChanged="Workspace_SelectionChanged">
           <TabItem Header="Live" x:Name="LiveTab" MinWidth="112" ToolTip="Live" AutomationProperties.Name="Live">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-              <StackPanel Margin="18">
-                <TextBlock Text="Your meeting companion" FontSize="22" FontWeight="SemiBold" />
-                <TextBlock Text="Start once. The first short answer appears in the reader, then deeper detail continues below it." TextWrapping="Wrap" Margin="0,8,0,12" />
-                <Button x:Name="ListenButton" Content="Start listening" Click="Listen_Click" Padding="20,12" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
-                <TextBlock Text="Records microphone and selected computer audio locally. Sends both to Deepgram, and questions with recent context to OpenAI." TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,8,0,12" />
-                <TextBlock x:Name="CompanionStatus" Text="Ready. Choose your microphone and meeting output in Settings." TextWrapping="Wrap" Margin="0,0,0,10" />
-                <TextBlock x:Name="CaptureStatus" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
-                <TextBlock x:Name="LiveMic" Text="Microphone · waiting" TextWrapping="Wrap" MaxHeight="65" Margin="0,0,0,6" />
-                <TextBlock x:Name="LiveSystem" Text="Computer audio · waiting" TextWrapping="Wrap" MaxHeight="65" Margin="0,0,0,10" />
-                <TextBlock x:Name="CurrentQuestion" Text="Waiting for a question" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8" />
-                <TextBox x:Name="LiveAnswer" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="120" MaxHeight="230" FontSize="16" />
-                <Expander Header="Sources for this answer" Margin="0,8,0,0">
+              <StackPanel Margin="20">
+                <DockPanel Margin="0,0,0,16">
+                  <Border x:Name="SessionStateBadge" DockPanel.Dock="Right" HorizontalAlignment="Right" Background="{StaticResource Subtle}" BorderBrush="{StaticResource Ink}" BorderThickness="2" Padding="10,5" CornerRadius="2">
+                    <TextBlock x:Name="SessionStateText" Text="READY" FontWeight="Bold" FontSize="11" AutomationProperties.Name="Session state" />
+                  </Border>
+                  <TextBlock Text="Live" Style="{StaticResource PageTitle}" Margin="0" />
+                </DockPanel>
+                <WrapPanel Margin="0,0,0,10">
+                  <Button x:Name="ListenButton" Content="Start listening" Click="Listen_Click" Padding="20,12" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
+                  <Button Content="Open reader" Click="OpenReader_Click" Padding="16,12" Margin="10,0,0,0" />
+                </WrapPanel>
+                <DockPanel Margin="0,0,0,8">
+                  <Button Content="Audio settings" Click="AudioSettings_Click" DockPanel.Dock="Right" Padding="8,4" Margin="10,0,0,0" FontSize="12" />
+                  <TextBlock Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center">
+                    <TextBlock.Text>
+                      <MultiBinding StringFormat="Mic: {0} · Output: {1}">
+                        <Binding ElementName="MicrophonePicker" Path="SelectedItem.Name" TargetNullValue="Not selected" />
+                        <Binding ElementName="LiveOutputPicker" Path="SelectedItem.Name" TargetNullValue="Not selected" />
+                      </MultiBinding>
+                    </TextBlock.Text>
+                  </TextBlock>
+                </DockPanel>
+                <TextBlock x:Name="CompanionStatus" Text="Ready when you are. Start listening to get answers during your meeting." TextWrapping="Wrap" Margin="0,0,0,12" />
+                <Border Style="{StaticResource CardSurface}" Padding="16">
+                  <StackPanel>
+                    <TextBlock x:Name="CurrentQuestion" Text="Your next answer" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" FontSize="18" />
+                    <TextBox x:Name="LiveAnswer" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="190" MaxHeight="270" FontSize="20" BorderThickness="0" Padding="0" Text="Answers will appear here and in your reader when a question comes through." AutomationProperties.Name="Current answer" />
+                  </StackPanel>
+                </Border>
+                <WrapPanel Margin="0,10,0,10">
+                  <Button Content="Previous answer" Click="CompanionPrevious_Click" Padding="8,6" Margin="0,0,6,5" />
+                  <Button Content="Next answer" Click="CompanionNext_Click" Padding="8,6" Margin="0,0,6,5" />
+                  <Button Content="Resume following" Click="ResumeFollowing_Click" Padding="8,6" Margin="0,0,6,5" />
+                </WrapPanel>
+                <DockPanel Margin="0,0,0,8">
+                  <Button x:Name="LiveAsk" Content="Ask" DockPanel.Dock="Right" Click="LiveAsk_Click" Padding="12,6" />
+                  <TextBox x:Name="LiveQuestion" MaxLength="2000" ToolTip="Optional typed question while listening" AutomationProperties.Name="Ask about this meeting" />
+                </DockPanel>
+                <Expander Header="Evidence for this answer" Margin="0,4,0,0" x:Name="LiveEvidence" IsExpanded="False">
                   <StackPanel>
                     <TextBlock x:Name="SourceStatus" Text="Relevant vault passages will appear here, separate from the spoken answer." TextWrapping="Wrap" FontSize="11" />
                     <ListBox x:Name="LiveSources" MaxHeight="200" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
                     <Button Content="Open selected source in Obsidian" Click="SourceOpen_Click" HorizontalAlignment="Left" Padding="8,5" />
                   </StackPanel>
                 </Expander>
-                <WrapPanel Margin="0,8,0,12">
-                  <Button Content="Previous answer" Click="CompanionPrevious_Click" Padding="8,6" Margin="0,0,6,5" />
-                  <Button Content="Next answer" Click="CompanionNext_Click" Padding="8,6" Margin="0,0,6,5" />
-                  <Button Content="Resume following" Click="ResumeFollowing_Click" Padding="8,6" Margin="0,0,6,5" />
-                  <Button Content="Open reader" Click="OpenReader_Click" Padding="8,6" Margin="0,0,6,5" />
-                </WrapPanel>
-                <DockPanel>
-                  <Button x:Name="LiveAsk" Content="Ask" DockPanel.Dock="Right" Click="LiveAsk_Click" Padding="12,6" />
-                  <TextBox x:Name="LiveQuestion" MaxLength="2000" ToolTip="Optional typed question while listening" />
-                </DockPanel>
+                <Expander x:Name="LiveDetails" Header="Live transcript &amp; capture details" Margin="0,10,0,0" IsExpanded="False">
+                  <StackPanel Margin="0,8,0,0">
+                    <TextBlock x:Name="CaptureStatus" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
+                    <TextBlock x:Name="LiveMic" Text="Microphone · waiting" TextWrapping="Wrap" MaxHeight="65" Margin="0,0,0,6" />
+                    <TextBlock x:Name="LiveSystem" Text="Computer audio · waiting" TextWrapping="Wrap" MaxHeight="65" Margin="0,0,0,10" />
+                    <TextBlock Text="Listening records both sources locally and sends audio to Deepgram. Questions and selected context are sent to OpenAI." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" />
+                  </StackPanel>
+                </Expander>
               </StackPanel>
             </ScrollViewer>
           </TabItem>
@@ -295,7 +321,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.15.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.16.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

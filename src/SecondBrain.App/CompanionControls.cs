@@ -10,6 +10,8 @@ public partial class MainWindow
     internal CompanionSession? Companion { get; private set; }
     private readonly SemaphoreSlim companionControls = new(1);
     private bool companionBusy;
+    private string companionPhase = "WORKING";
+    private bool companionError;
     private AssistantSettings? companionSettings;
     private void InitializeCompanion()
     {
@@ -40,7 +42,7 @@ public partial class MainWindow
     { if (Companion?.Active == true) await StopCompanion(); else await StartCompanion(); }
     internal async Task<bool> StartCompanion(IAnswerProvider? testProvider = null)
     {
-        await companionControls.WaitAsync(); companionBusy = true; RefreshCompanionControls();
+        await companionControls.WaitAsync(); companionBusy = true; companionError = false; companionPhase = "STARTING"; RefreshCompanionControls();
         try
         {
             if (closing || Companion?.Active == true) return false;
@@ -68,6 +70,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
+            companionError = true;
             if (Companion is { } companion) { await companion.Stop(); companion.Changed -= RefreshCompanion; }
             await Recorder.StopAsync();
             CompanionStatus.Text = ex is InvalidOperationException or IOException ? ex.Message : "The session could not start. Check settings and audio devices.";
@@ -77,7 +80,7 @@ public partial class MainWindow
     }
     internal async Task StopCompanion()
     {
-        await companionControls.WaitAsync(); companionBusy = true; RefreshCompanionControls();
+        await companionControls.WaitAsync(); companionBusy = true; companionPhase = "SAVING"; RefreshCompanionControls();
         try
         {
             if (Companion is { Active: true } companion)
@@ -120,6 +123,8 @@ public partial class MainWindow
     {
         if (!initialized) return;
         var active = Companion?.Active == true;
+        SessionStateText.Text = companionBusy ? companionPhase : active ? "LISTENING" : companionError || Recorder.State == RecordingState.Failed ? "ATTENTION" : "READY";
+        SessionStateBadge.Background = (System.Windows.Media.Brush)FindResource(active ? "Accent" : "Subtle");
         ListenButton.IsEnabled = !companionBusy && !closing;
         ListenButton.Content = companionBusy ? "Please wait…" : active ? "Stop listening and save" : "Start listening";
         MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = LiveOutputPicker.IsEnabled = !active && !companionBusy;

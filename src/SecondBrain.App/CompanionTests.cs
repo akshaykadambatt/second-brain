@@ -31,6 +31,7 @@ internal static class CompanionTests
         await main.Knowledge.Refresh(true);
         var provider = new Provider();
         check(await main.StartCompanion(provider), "One Start listening starts the companion session");
+        check(main.SessionStateText.Text == "LISTENING", "Live state confirms that the integrated session is listening");
         await Until(() => main.AssistantContext.SessionId != Guid.Empty);
         var companion = main.Companion!; var id = main.AssistantContext.SessionId; var connection = Guid.NewGuid();
         check(main.Recorder.State == RecordingState.Recording && main.Transcriber.Enabled && !main.Voice.Running && main.Panels.Count > 0 && main.Assistant is null, "One session records both sources, transcribes and opens reader without separate AI or voice windows");
