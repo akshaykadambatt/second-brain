@@ -23,6 +23,8 @@ public sealed class TranscriptReview
     private readonly ReviewWord[] originals;
     private readonly Dictionary<string, ReviewWord> byId;
     private readonly Guid sessionId;
+    private readonly Dictionary<string, string> nameHints;
+    public string HintWarning { get; }
     private ReviewEdit[] edits = [];
     public ReviewWord[] Words { get; private set; } = [];
     public HashSet<string> Bookmarks { get; private set; } = [];
@@ -39,6 +41,7 @@ public sealed class TranscriptReview
             : r.Words.Select(w => new ReviewWord(w.Id, r.SegmentId, r.Source, w.Start, w.End, w.Text, w.SpeakerId, w.SpeakerLabel ?? "Unknown", true)))
             .OrderBy(w => w.Start).ThenBy(w => w.Source).ToArray();
         byId = originals.ToDictionary(w => w.Id);
+        nameHints = SpeakerNameHints.Read(directory, records, out var hintWarning); HintWarning = hintWarning;
         if (loadEdits) Reload(); else Project();
     }
     private string Binding(IEnumerable<string> ids) => VaultIndex.Hash(JsonSerializer.Serialize(ids.Select(id => byId[id]).ToArray()));
@@ -95,7 +98,7 @@ public sealed class TranscriptReview
             else if (e.Action == "bookmark") Bookmarks.Add(e.WordIds[0]);
             else Bookmarks.Remove(e.WordIds[0]);
         }
-        Words = originals.Select(w => changes.TryGetValue(w.Id, out var c) ? w with { SpeakerId = c.Id, Speaker = c.Label, Corrected = true } : w).ToArray();
+        Words = originals.Select(w => changes.TryGetValue(w.Id, out var c) ? w with { SpeakerId = c.Id, Speaker = c.Label, Corrected = true } : nameHints.TryGetValue(w.Id, out var hint) ? w with { Speaker = hint } : w).ToArray();
     }
     public ReviewTurn[] Turns(string search = "", bool bookmarksOnly = false)
     {
