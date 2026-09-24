@@ -25,7 +25,9 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "transcription-live")
+            if (phase == "hybrid")
+            { await HybridVoiceTests.Run(window, directory, Check, Capture); }
+            else if (phase == "transcription-live")
             { await TranscriptionTests.RunLive(window, directory, Check); }
             else if (phase == "transcription")
             { await TranscriptionTests.Run(window, directory, Check, Capture); }
@@ -244,6 +246,13 @@ internal static class SmokeTest
                 await window.Voice.StartAsync(waveFile: wave);
                 await completed.Task.WaitAsync(TimeSpan.FromSeconds(20));
                 Check(window.Session.Position >= 8, "Live Deepgram WAV recognition advances through at least eight script words: " + window.HeardText.Text + "; status=" + window.StatusText.Text);
+                using (var latency = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "voice-latency.json"))))
+                {
+                    var samples = latency.RootElement.GetProperty("samples").EnumerateArray().ToArray();
+                    Check(samples.Any(s => !s.GetProperty("Final").GetBoolean() && s.GetProperty("ApproximateInterimLagMs").ValueKind == JsonValueKind.Number)
+                        && samples.All(s => s.GetProperty("MatchMs").GetDouble() >= 0), "Real interim recognition lag is recorded separately from dispatcher and matcher timing");
+                }
+                File.WriteAllText(Path.Combine(directory, "voice-animation.json"), JsonSerializer.Serialize(new { firstMotionMs = window.Panels.Select(p => p.LastVoiceMotionLatencyMilliseconds).ToArray(), note = "WPF first visible movement after accepted speech; separate from provider lag. Hidden windows, not physical screen latency." }));
                 await window.StopListening();
                 Check(!window.Voice.Running, "Deepgram stops and releases input");
                 var restart = window.Voice.StartAsync(waveFile: wave);

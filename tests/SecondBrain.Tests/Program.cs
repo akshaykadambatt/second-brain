@@ -56,6 +56,69 @@ Test("Interrupted transcript recovery preserves complete lines and marks unconfi
     try { using var broken = new TranscriptLog(folder, id); throw new Exception("Corrupt complete record silently hidden"); } catch (JsonException) { }
 });
 
+Test("Voice acceptance replay covers silence, fillers, skips, jargon, repeats and source ownership", () =>
+{
+    var evidence = new List<object>();
+    foreach (var trial in VoiceReplayCorpus.Trials)
+    {
+        var session = new ReaderSession(); session.Load(trial.Script); var flow = new VoiceFlow(session); flow.Start();
+        var time = 0d; var lastCursor = 0d; var previous = 0;
+        foreach (var item in trial.Events)
+        {
+            while (time + 1d / 120 < item.At)
+            {
+                flow.Tick(1d / 120); time += 1d / 120;
+                Assert(flow.Cursor >= lastCursor, trial.Name + ": backward animation"); lastCursor = flow.Cursor;
+            }
+            var watch = System.Diagnostics.Stopwatch.StartNew(); flow.Observe(item.Segment, item.Source);
+            Assert(session.Position == item.Position, trial.Name + ": expected " + item.Position + " got " + session.Position);
+            Assert(session.Position >= previous, trial.Name + ": backward match"); previous = session.Position;
+            Assert(watch.Elapsed.TotalSeconds < 2, "Matcher missed the two-second reacquisition bound");
+            evidence.Add(new { trial.Name, item.At, item.Source, session.Position, flow.Cursor, flow.WordsPerMinute, flow.LastMatchMilliseconds });
+        }
+        for (var i = 0; i < 240; i++) flow.Tick(1d / 120);
+        var held = flow.Cursor; flow.Tick(10);
+        Assert(flow.Holding && flow.Cursor == held, trial.Name + ": silence drift after hold");
+    }
+    File.WriteAllText(Path.Combine(root, "artifacts", "voice-corpus.json"), JsonSerializer.Serialize(evidence, new JsonSerializerOptions { WriteIndented = true }));
+});
+Test("Voice pace uses stable progress; uncertainty and stalls cannot cause catch-up", () =>
+{
+    var session = new ReaderSession(); session.Load(ReaderSession.Sample); var flow = new VoiceFlow(session); flow.Start();
+    flow.Observe(new(0, 1, "today I want", true, true, .95f));
+    for (var i = 0; i < 20; i++) flow.Tick(1d / 60);
+    var pace = flow.WordsPerMinute;
+    flow.Observe(new(1, .5, "to talk about", true, true, .95f));
+    Assert(flow.WordsPerMinute > pace, "Stable faster speech did not influence pace");
+    var before = flow.Cursor;
+    flow.Tick(5);
+    Assert(flow.Cursor == before && flow.Holding, "Rendering stall caused catch-up movement");
+    var position = session.Position;
+    flow.Observe(new(1.5, .5, "the weather is sunny", true, true, .95f));
+    for (var i = 0; i < 90; i++) flow.Tick(1d / 60);
+    Assert(session.Position == position && flow.Holding, "Off-script words advanced or restarted movement");
+    flow.Stop(); flow.Observe(new(2, 1, "our next steps", true, true, .95f));
+    Assert(session.Position == position, "Stopped controller accepted delayed speech");
+});
+Test("Per-panel voice travel is bounded to one line even for a delayed recognition burst", () =>
+{
+    foreach (var hz in new[] { 30, 60, 120 })
+    {
+        var motion = new ReaderMotion(); motion.Reset(100); motion.FollowBounded(1000, 145);
+        for (var i = 0; i < hz; i++) motion.Step(1d / hz, 45);
+        for (var i = 0; i < hz; i++) motion.Brake(1d / hz);
+        Assert(motion.Position is >= 100 and <= 145, "Post-evidence line budget exceeded");
+        var held = motion.Position; motion.Brake(10); Assert(Math.Abs(motion.Position - held) < .01, "Brake did not settle");
+    }
+});
+Test("Manual recovery clears voice momentum and permits timed fallback", () =>
+{
+    var session = new ReaderSession(); session.Load(ReaderSession.Sample); var playback = new ReaderPlayback(session); playback.StartVoice();
+    playback.Voice.Observe(new(0, 1, "today I want to talk", true, true, .95f)); playback.Tick(.03);
+    session.Select(1); Assert(!playback.Voice.Active && playback.Cursor == 1, "Manual click retained voice ownership");
+    playback.Play(); playback.Tick(.03); Assert(playback.TimedMode && playback.Playing && !playback.Voice.Active, "Timed fallback failed");
+});
+
 Test("Missing settings use defaults without writing", () =>
 {
     var store = new SettingsStore(Folder("defaults"));

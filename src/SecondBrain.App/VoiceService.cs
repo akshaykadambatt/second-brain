@@ -11,8 +11,9 @@ using SecondBrain.Core;
 namespace SecondBrain.App;
 
 internal sealed record Microphone(string Id, string Name);
+internal sealed record VoiceLatency(bool Final, double SubmittedSeconds, double TranscriptSeconds, double? ApproximateInterimLagMs, double DispatchMs, double MatchMs, bool Advanced);
 
-internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session, ApiKeyStore keys, DiagnosticLog log)
+internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session, ReaderPlayback playback, ApiKeyStore keys, DiagnosticLog log)
 {
     private sealed class Run : IDisposable
     {
@@ -23,6 +24,8 @@ internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session,
         public Task Worker = Task.CompletedTask;
         public long LastAudio, LastSpeech, LastResult, Bytes;
         public int Peak, Results;
+        public int SampleRate;
+        public readonly System.Collections.Concurrent.ConcurrentQueue<VoiceLatency> Latencies = new();
         public string? Failure;
         public void Cancel() { Cancellation.Cancel(); Socket.Abort(); }
         public void Dispose() { Socket.Dispose(); Cancellation.Dispose(); }
@@ -30,7 +33,6 @@ internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session,
     private Run? active;
     private int generation;
     private Task pendingStop = Task.CompletedTask;
-    private DeepgramProgress progress = new(session);
     public bool Running { get; private set; }
     public event Action<string>? Status;
     public event Action<string>? Heard;
@@ -54,7 +56,7 @@ internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session,
     public void Reanchor()
     {
         if (!Running) return;
-        progress.Reanchor();
+        playback.Voice.Reanchor();
         Status?.Invoke("Position changed. Pause briefly, then read from the selected word.");
     }
 
@@ -64,7 +66,6 @@ internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session,
         var token = ++generation;
         await stopping;
         if (token != generation) return;
-        progress = new(session);
         Heard?.Invoke("Waiting for speech…");
         string key;
         try { key = keys.Load(); }
@@ -106,6 +107,7 @@ internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session,
             if (format is WaveFormatExtensible extensible && !floating && extensible.SubFormat != new Guid("00000001-0000-0010-8000-00aa00389b71"))
                 throw new InvalidOperationException("Unsupported microphone format. Choose another input device.");
             PcmAudio.ToMono16([], format.BitsPerSample, format.Channels, floating, out _);
+            run.SampleRate = format.SampleRate;
             run.Socket.Options.SetRequestHeader("Authorization", "Token " + key);
             var uri = new Uri($"wss://api.deepgram.com/v1/listen?model=nova-3&language=en&encoding=linear16&sample_rate={format.SampleRate}&channels=1&interim_results=true&endpointing=300&punctuate=true");
             using (var connect = CancellationTokenSource.CreateLinkedTokenSource(ct))
@@ -141,6 +143,7 @@ internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session,
             {
                 if (token != generation) return;
                 Running = true;
+                playback.StartVoice();
                 Status?.Invoke("Listening · Deepgram Nova-3 · microphone audio is streamed to Deepgram");
             });
             run.Started.TrySetResult();
@@ -167,7 +170,22 @@ internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session,
             try { capture?.Dispose(); wave?.Dispose(); device?.Dispose(); enumerator?.Dispose(); }
             catch (Exception ex) { log.Write("Voice cleanup failure type=" + ex.GetType().Name); }
             log.Write($"Voice stopped; bytesSent={run.Bytes}; results={run.Results}; reason={run.Failure ?? "user stop"}");
-            Dispatch(token, () => { Running = false; Level?.Invoke(0); Status?.Invoke(run.Failure ?? "Listening stopped."); Stopped?.Invoke(); });
+            if (!run.Latencies.IsEmpty)
+            {
+                try
+                {
+                    var samples = await dispatcher.InvokeAsync(() => run.Latencies.ToArray());
+                    var path = Path.Combine(Path.GetDirectoryName(keys.FilePath)!, "voice-latency.json");
+                    File.WriteAllText(path + ".tmp", System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        note = "Approximate interim lag = submitted PCM duration minus provider start+duration. Includes buffering/network/recognition, not precise acoustic or server-only latency. Finals excluded from lag. Dispatch/matching are measured separately. No speech text stored.",
+                        samples
+                    }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+                    File.Move(path + ".tmp", path, true);
+                }
+                catch (Exception ex) { log.Write("Voice latency report unavailable type=" + ex.GetType().Name); }
+            }
+            Dispatch(token, () => { Running = false; playback.StopVoice(); Level?.Invoke(0); Status?.Invoke(run.Failure ?? "Listening stopped."); Stopped?.Invoke(); });
             run.Started.TrySetResult();
         }
     }
@@ -196,12 +214,19 @@ internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session,
             var segment = DeepgramProtocol.Parse(Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length));
             message.SetLength(0);
             if (segment is null) continue;
+            var receivedAt = Stopwatch.GetTimestamp();
+            var submittedSeconds = Interlocked.Read(ref run.Bytes) / (2d * run.SampleRate);
             if (!string.IsNullOrWhiteSpace(segment.Text))
             { Interlocked.Exchange(ref run.LastResult, Stopwatch.GetTimestamp()); Interlocked.Increment(ref run.Results); }
             Dispatch(token, () =>
             {
                 if (!string.IsNullOrWhiteSpace(segment.Text)) Heard?.Invoke(segment.Text);
-                var moved = progress.Observe(segment);
+                var moved = playback.Voice.Observe(segment, AudioSource.Microphone);
+                run.Latencies.Enqueue(new(segment.Final, submittedSeconds, segment.Start + segment.Duration,
+                    segment.Final ? null : (submittedSeconds - segment.Start - segment.Duration) * 1000,
+                    Stopwatch.GetElapsedTime(receivedAt).TotalMilliseconds - playback.Voice.LastMatchMilliseconds,
+                    playback.Voice.LastMatchMilliseconds, moved));
+                while (run.Latencies.Count > 128) run.Latencies.TryDequeue(out _);
                 if (!string.IsNullOrWhiteSpace(segment.Text))
                     Status?.Invoke(session.Position == session.Words.Count ? "Finished. Reset to read again." : moved ? "Following your voice…" : "Speech received · waiting for a script match");
             });
@@ -242,6 +267,7 @@ internal sealed class VoiceService(Dispatcher dispatcher, ReaderSession session,
     public Task StopAsync()
     {
         generation++; Running = false;
+        playback.StopVoice();
         var old = active; active = null;
         if (old is not null) { old.Cancel(); pendingStop = FinishAsync(old); }
         Level?.Invoke(0);

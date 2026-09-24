@@ -11,16 +11,18 @@ public sealed class ReaderPlayback
     public bool Waiting => Playing && session.AwaitingText && Cursor >= session.Words.Count;
     public double Cursor { get; private set; }
     public double WordsPerMinute { get; private set; } = 150;
+    public VoiceFlow Voice { get; }
     public event Action? StateChanged;
 
     public ReaderPlayback(ReaderSession session)
     {
         this.session = session;
+        Voice = new(session);
         session.Changed += change =>
         {
             if (change is ReaderChange.Document or ReaderChange.Position)
-            { Cursor = session.Position; Pause(); }
-            else if (change == ReaderChange.VoicePosition) Cursor = session.Position;
+            { Voice.Stop(); Cursor = session.Position; Pause(); }
+            else if (change == ReaderChange.VoicePosition && !Voice.Active) Cursor = session.Position;
             else if (TimedMode && change is (ReaderChange.Append or ReaderChange.StreamState)) StateChanged?.Invoke();
         };
     }
@@ -31,14 +33,18 @@ public sealed class ReaderPlayback
     }
     public void Play()
     {
+        Voice.Stop();
         if (session.Words.Count == 0 && !session.AwaitingText) return;
         if (Cursor >= session.Words.Count && session.Answer is null) session.Select(0);
         TimedMode = true; Playing = true; velocity = 0; StateChanged?.Invoke();
     }
-    public void Pause() { Playing = false; velocity = 0; StateChanged?.Invoke(); }
-    public void UseVoice() { Playing = false; TimedMode = false; Cursor = session.Position; velocity = 0; StateChanged?.Invoke(); }
+    public void Pause() { Voice.Stop(); Playing = false; velocity = 0; StateChanged?.Invoke(); }
+    public void UseVoice() { Voice.Stop(); Playing = false; TimedMode = false; Cursor = session.Position; velocity = 0; StateChanged?.Invoke(); }
+    public void StartVoice() { UseVoice(); Voice.Start(); StateChanged?.Invoke(); }
+    public void StopVoice() { Voice.Stop(); StateChanged?.Invoke(); }
     public void Tick(double elapsedSeconds)
     {
+        if (Voice.Active) { Voice.Tick(elapsedSeconds); return; }
         if (!Playing || !double.IsFinite(elapsedSeconds) || elapsedSeconds <= 0) return;
         var wasWaiting = Waiting;
         var dt = Math.Min(elapsedSeconds, 1d / 30);

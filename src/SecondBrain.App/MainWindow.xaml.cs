@@ -57,7 +57,7 @@ public partial class MainWindow : Window
         saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         saveTimer.Tick += (_, _) => { saveTimer.Stop(); SaveSettings(); };
         var keys = new ApiKeyStore(dataDirectory);
-        Voice = new VoiceService(Dispatcher, Session, keys, log);
+        Voice = new VoiceService(Dispatcher, Session, Playback, keys, log);
         Transcriber = new RecordingTranscriber(keys.Load, log, hiddenTestMode ? TranscriptionTests.CreateConnection : null);
         Recorder = new RecordingService(System.IO.Path.Combine(dataDirectory, "recordings"), log, hiddenTestMode ? AudioRecordingTests.CreateSource : null, Transcriber);
         Voice.Status += text => SetStatus(text); Voice.Heard += text => HeardText.Text = "Heard: " + text; Voice.Level += level => MicLevel.Value = level;
@@ -92,7 +92,7 @@ public partial class MainWindow : Window
     internal ReaderWindow AddReader(PanelPlacement? placement = null)
     {
         var panel = new ReaderWindow(Session, Playback); panels.Add(panel);
-        panel.PlaybackRequested += async () => await ToggleTimed();
+        panel.PlaybackRequested += async () => { if (Playback.Voice.Active || Voice.Running) await StopListening(); else await ToggleTimed(); };
         panel.SentenceRequested += direction => Playback.Sentence(direction);
         if (hiddenTestMode) { panel.ShowActivated = false; panel.ShowInTaskbar = false; panel.Opacity = 0; }
         panel.ResetRequested += ResetPosition; panel.LocationChanged += (_, _) => ScheduleSave(); panel.SizeChanged += (_, _) => ScheduleSave();
@@ -156,7 +156,8 @@ public partial class MainWindow : Window
         Playback.Tick(now - playbackFrame);
         var replayWasRunning = replay?.Running == true;
         replay?.Tick(now - playbackFrame);
-        if (replayWasRunning && replay?.Running == false) SetStatus("Dummy speech replay complete · microphone off. Reset or resume when ready.");
+        if (replayWasRunning && replay?.Running == false) { Playback.StopVoice(); SetStatus("Dummy speech replay complete · microphone off. Reset or resume when ready."); }
+        if (Playback.Voice.Active) PlaybackLabel.Text = Playback.Voice.Status;
         playbackFrame = now;
     }
     private async void TimedPlay_Click(object sender, RoutedEventArgs e) => await ToggleTimed();
@@ -184,7 +185,8 @@ public partial class MainWindow : Window
         if (Session.Words.Count < 15) { SetStatus("Use at least 15 words for the dummy-speech replay.", true); return; }
         Session.Select(0);
         if (panels.Count == 0) AddReader();
-        replay = new ScriptedSpeechSource(Session);
+        Playback.StartVoice();
+        replay = new ScriptedSpeechSource(Session, segment => Playback.Voice.Observe(segment));
         replay.Heard += (text, label) => { HeardText.Text = "Demo heard: " + text; SetStatus("Dummy speech · " + label + " · no microphone or network"); };
         playbackFrame = playbackClock.Elapsed.TotalSeconds;
         SetStatus("Dummy speech replay: pauses, delays, repeats and skipped words. Manual navigation stops the replay.");

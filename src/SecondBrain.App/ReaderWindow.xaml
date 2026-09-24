@@ -32,7 +32,7 @@
         <TextBlock Grid.Column="1" Text="Click a word to reposition" Foreground="#B5CDBD" FontSize="10" VerticalAlignment="Center" />
         <WrapPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,5,0,0">
           <Button Content="Previous" Click="Previous_Click" Padding="8,3" FontSize="11" ToolTip="Previous sentence (Left arrow)"/>
-          <Button x:Name="ReaderPlay" Content="Play timed" Click="Play_Click" Padding="8,3" FontSize="11" Margin="6,0" ToolTip="Play or pause timed scrolling (Space)"/>
+          <Button x:Name="ReaderPlay" Content="Play timed" Click="Play_Click" Padding="8,3" FontSize="11" Margin="6,0" ToolTip="Pause voice following, or play/pause timed scrolling (Space)"/>
           <Button Content="Next" Click="Next_Click" Padding="8,3" FontSize="11" ToolTip="Next sentence (Right arrow)"/>
         </WrapPanel>
       </Grid>

@@ -4,16 +4,18 @@ public sealed class ScriptedSpeechSource
 {
     public sealed record Entry(double At, SpeechSegment Segment, string Label);
     private readonly DeepgramProgress progress;
+    private readonly Action<SpeechSegment>? observe;
     private int next;
     private double elapsed;
     public IReadOnlyList<Entry> Events { get; }
     public bool Running { get; private set; } = true;
     public event Action<string, string>? Heard;
 
-    public ScriptedSpeechSource(ReaderSession session)
+    public ScriptedSpeechSource(ReaderSession session, Action<SpeechSegment>? observe = null)
     {
         if (session.Words.Count < 15) throw new InvalidOperationException("Use at least 15 words for the speech replay.");
         progress = new DeepgramProgress(session);
+        this.observe = observe;
         string Phrase(int start, int count, int omit = -1) => string.Join(" ", session.Words.Skip(start).Take(count).Where((_, i) => i != omit).Select(w => w.Text));
         Events = [
             new(.3, new(0, .5, Phrase(0, 3), false, false, .95f), "Provisional words"),
@@ -32,7 +34,9 @@ public sealed class ScriptedSpeechSource
         elapsed += Math.Min(seconds, 1d / 30);
         while (next < Events.Count && Events[next].At <= elapsed)
         {
-            var item = Events[next++]; progress.Observe(item.Segment); Heard?.Invoke(item.Segment.Text, item.Label);
+            var item = Events[next++];
+            if (observe is null) progress.Observe(item.Segment); else observe(item.Segment);
+            Heard?.Invoke(item.Segment.Text, item.Label);
         }
         if (elapsed >= 7) Running = false;
     }

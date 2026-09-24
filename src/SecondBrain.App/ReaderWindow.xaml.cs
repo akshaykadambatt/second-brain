@@ -27,6 +27,10 @@ public partial class ReaderWindow : Window
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly ReaderMotion motion = new();
     private double lastFrame;
+    private long voiceEvidence = -1;
+    private double voiceCeiling;
+    private double voiceStartOffset;
+    internal double? LastVoiceMotionLatencyMilliseconds { get; private set; }
     private bool layoutDirty = true, snapPending, alignmentQueued, closed;
     private static readonly Brush ReadBrush = FrozenBrush(125, 151, 138);
     private static readonly Brush CurrentBrush = FrozenBrush(207, 237, 153);
@@ -78,6 +82,7 @@ public partial class ReaderWindow : Window
             AppendBlocks(); appendDirty = true; PaintProgress(); QueueAlignment(true, preserveOffset: true); return;
         }
         if (change == ReaderChange.TimedPosition) { PaintCounter(); return; }
+        if (change == ReaderChange.VoicePosition && playback.Voice.Active) { PaintProgress(); return; }
         if (change == ReaderChange.Document) Rebuild();
         else
         {
@@ -187,6 +192,7 @@ public partial class ReaderWindow : Window
             if (snapPending)
             {
                 motion.Reset(target); TextTranslation.Y = -motion.Position;
+                voiceEvidence = -1;
                 lastFrame = clock.Elapsed.TotalSeconds;
             }
             else motion.Follow(target);
@@ -202,6 +208,18 @@ public partial class ReaderWindow : Window
     private void RenderFrame(object? sender, EventArgs args)
     {
         var now = clock.Elapsed.TotalSeconds; var dt = now - lastFrame; lastFrame = now;
+        if (playback.Voice.Active)
+        {
+            if (alignmentQueued) return;
+            var flow = playback.Voice;
+            if (voiceEvidence != flow.EvidenceVersion)
+            { voiceEvidence = flow.EvidenceVersion; voiceStartOffset = motion.Position; voiceCeiling = motion.Position + LineHeight; LastVoiceMotionLatencyMilliseconds = null; }
+            motion.FollowBounded(FlowOffset(flow.Cursor), voiceCeiling);
+            TextTranslation.Y = -(flow.Holding ? motion.Brake(dt) : motion.Step(dt, LineHeight));
+            if (LastVoiceMotionLatencyMilliseconds is null && motion.Position - voiceStartOffset > .1 && flow.LastEvidenceTimestamp != 0)
+                LastVoiceMotionLatencyMilliseconds = Stopwatch.GetElapsedTime(flow.LastEvidenceTimestamp).TotalMilliseconds;
+            return;
+        }
         if (playback.TimedMode)
         {
             if (!playback.Playing || alignmentQueued) return;
@@ -221,7 +239,7 @@ public partial class ReaderWindow : Window
     }
     private void PlaybackChanged()
     {
-        ReaderPlay.Content = playback.Playing ? "Pause" : "Play timed";
+        ReaderPlay.Content = playback.Voice.Active ? "Pause voice" : playback.Playing ? "Pause" : "Play timed";
         if (paintedTimed != playback.TimedMode) PaintProgress();
         if (!playback.Playing) motion.Reset(motion.Position);
     }
