@@ -8,3 +8,13 @@ dist/
 data/
 *.protected
 *key.txt
+Vault/
+docs/
+context/
+recordings/
+backups/
+**/.secondbrain/
+*.mp4
+*.wav
+.env
+.env.*
