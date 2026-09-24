@@ -22,7 +22,7 @@ public partial class MainWindow : Window
     internal StreamDemoWindow? StreamDemo { get; private set; }
     internal AssistantWindow? Assistant { get; private set; }
     internal AssistantContext AssistantContext { get; } = new();
-    private readonly DispatcherTimer contextTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private readonly DispatcherTimer contextTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private readonly List<Task> assistantShutdowns = [];
     private ScriptedSpeechSource? replay;
     internal ReaderSession Session { get; } = new();
@@ -65,14 +65,12 @@ public partial class MainWindow : Window
         Transcriber = new RecordingTranscriber(keys.Load, log, hiddenTestMode ? TranscriptionTests.CreateConnection : null);
         contextTimer.Tick += (_, _) =>
         {
-            var entries = Transcriber.DrainAssistantEvents(out var dropped);
-            foreach (var entry in entries) AssistantContext.Observe(entry);
-            if (dropped) AssistantContext.MarkGap();
+            DrainCompanion();
         };
         contextTimer.Start();
         Recorder = new RecordingService(System.IO.Path.Combine(dataDirectory, "recordings"), log, hiddenTestMode ? AudioRecordingTests.CreateSource : null, Transcriber);
         Voice.Status += text => SetStatus(text); Voice.Heard += text => HeardText.Text = "Heard: " + text; Voice.Level += level => MicLevel.Value = level;
-        Voice.Stopped += () => { MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true; ListenButton.Content = "Start listening"; MicLabel.Text = "Mic off"; MicLevel.Value = 0; };
+        Voice.Stopped += () => { MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true; PracticeListenButton.Content = "Start listening"; MicLabel.Text = "Mic off"; MicLevel.Value = 0; };
         Session.Changed += change =>
         {
             if (change is ReaderChange.Position or ReaderChange.Document)
@@ -87,6 +85,7 @@ public partial class MainWindow : Window
         Closed += (_, _) => CompositionTarget.Rendering -= PlaybackFrame;
         initialized = true;
         RefreshMicrophones();
+        InitializeCompanion(); RefreshCompanionControls();
         if (!keys.Exists) SetStatus("Deepgram key is not configured yet. Ask Codex to finish setup.", true);
         UpdatePanelCount();
     }
@@ -103,7 +102,11 @@ public partial class MainWindow : Window
     internal ReaderWindow AddReader(PanelPlacement? placement = null)
     {
         var panel = new ReaderWindow(Session, Playback); panels.Add(panel);
-        panel.PlaybackRequested += async () => { if (Playback.Voice.Active || Voice.Running) await StopListening(); else await ToggleTimed(); };
+        panel.PlaybackRequested += async () =>
+        {
+            if (Companion?.Active == true) { if (Playback.Voice.Active) Playback.Pause(); else Playback.StartVoice(); return; }
+            if (Playback.Voice.Active || Voice.Running) await StopListening(); else await ToggleTimed();
+        };
         panel.SentenceRequested += direction => Playback.Sentence(direction);
         if (hiddenTestMode) { panel.ShowActivated = false; panel.ShowInTaskbar = false; panel.Opacity = 0; }
         panel.ResetRequested += ResetPosition; panel.LocationChanged += (_, _) => ScheduleSave(); panel.SizeChanged += (_, _) => ScheduleSave();
@@ -138,7 +141,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(ScriptEditor.Text)) { SetStatus("Enter a sentence first.", true); return false; }
         await StopListening(); Assistant?.Close(); StreamDemo?.Close(); Session.Load(ScriptEditor.Text); SaveSettings(); SetStatus("Script loaded. Open a reader or start listening."); return true;
     }
-    private async void Listen_Click(object sender, RoutedEventArgs e)
+    private async void PracticeListen_Click(object sender, RoutedEventArgs e)
     {
         if (startingVoice) return;
         if (Voice.Running) { await StopListening(); return; }
@@ -148,18 +151,19 @@ public partial class MainWindow : Window
         if (panels.Count == 0) AddReader();
         if (Session.Answer is null && Session.Position >= Session.Words.Count) ResetPosition();
         if (MicrophonePicker.SelectedItem is not Microphone microphone) { SetStatus("Select an available microphone, then start listening.", true); return; }
-        startingVoice = true; ListenButton.IsEnabled = false;
+        startingVoice = true; PracticeListenButton.IsEnabled = false;
         MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = false;
-        await Voice.StartAsync(microphone.Id); startingVoice = false; ListenButton.IsEnabled = true;
+        await Voice.StartAsync(microphone.Id); startingVoice = false; PracticeListenButton.IsEnabled = true;
         MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = !Voice.Running;
-        ListenButton.Content = Voice.Running ? "Stop listening" : "Start listening"; MicLabel.Text = Voice.Running ? "Mic listening" : "Mic off";
+        PracticeListenButton.Content = Voice.Running ? "Stop listening" : "Start listening"; MicLabel.Text = Voice.Running ? "Mic listening" : "Mic off";
     }
     internal async Task StopListening()
     {
         replay?.Stop();
-        await Voice.StopAsync(); ListenButton.Content = "Start listening"; MicLabel.Text = "Mic off";
+        await Voice.StopAsync(); PracticeListenButton.Content = "Start listening"; MicLabel.Text = "Mic off";
         MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true;
         if (!closing) SetStatus("Microphone off. Your reading position is preserved.");
+        if (Companion?.Active == true) RefreshCompanionControls();
     }
     private void PlaybackFrame(object? sender, EventArgs e)
     {
@@ -255,13 +259,13 @@ public partial class MainWindow : Window
         Session.SetStyle(new(FontSlider.Value, WidthSlider.Value, SpacingSlider.Value, OpacitySlider.Value / 100, BandSlider.Value / 100)); ScheduleSave();
     }
     private void RememberPosition_Changed(object sender, RoutedEventArgs e) { if (initialized) ScheduleSave(); }
-    private void RefreshMicrophones_Click(object sender, RoutedEventArgs e) => RefreshMicrophones();
+    private void RefreshMicrophones_Click(object sender, RoutedEventArgs e) { RefreshMicrophones(); RefreshOutputDevices(); }
     private void RefreshMicrophones()
     {
         var selected = (MicrophonePicker.SelectedItem as Microphone)?.Id ?? settings.MicrophoneId;
         try
         {
-            var inputs = VoiceService.Microphones();
+            var inputs = hiddenTestMode ? new Microphone[] { new("test-mic", "Synthetic microphone") } : VoiceService.Microphones();
             MicrophonePicker.ItemsSource = inputs;
             MicrophonePicker.SelectedItem = inputs.FirstOrDefault(m => m.Id == selected) ?? (selected is null ? inputs.FirstOrDefault() : null);
             if (inputs.Count == 0) SetStatus("No microphones found. Connect a microphone and press Refresh.", true);
@@ -289,7 +293,7 @@ public partial class MainWindow : Window
     {
         if (allowClose) { base.OnClosing(e); return; }
         e.Cancel = true; if (closing) return;
-        closing = true; contextTimer.Stop(); Assistant?.Close(); replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
+        closing = true; contextTimer.Stop(); await StopCompanion(); Assistant?.Close(); replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
         await Task.WhenAll(assistantShutdowns);
         if (recordingWindow is { } captureWindow) { try { await captureWindow.RecoveryTask; } catch (Exception) { } if (captureWindow.IsVisible) captureWindow.Close(); }
         foreach (var panel in panels.ToArray()) panel.Close();

@@ -20,6 +20,8 @@ internal sealed class AnswerRequest(Guid id, string question, Guid sessionId, St
     public double? FirstTextMs { get; set; }
     public double? FirstReadableMs { get; set; }
     public double? CompletedMs { get; set; }
+    public bool Continuation { get; init; }
+    public double? FirstContinuationMs { get; set; }
 }
 
 internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider provider, DiagnosticLog log)
@@ -29,28 +31,32 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
     public List<AnswerRequest> Requests { get; } = [];
     public event Action? Changed;
     public int ActiveCount => Requests.Count(r => r.Active);
-    public AnswerRequest Ask(string question, AssistantOptions options, string conversation, Guid sessionId, bool automatic = false)
+    public AnswerRequest Ask(string question, AssistantOptions options, string conversation, Guid sessionId, bool automatic = false, bool continuation = false)
     {
         dispatcher.VerifyAccess(); question = question.Trim();
         if (!options.IsValid) throw new InvalidOperationException("Check the model names, reasoning settings and context length.");
         if (question.Length is < 3 or > 2000) throw new InvalidOperationException("Enter a question between 3 and 2,000 characters.");
         if (ActiveCount >= 3) throw new InvalidOperationException("Three questions are already generating. Cancel or wait before asking another.");
-        if (Inbox.Answers.Count > AnswerInbox.Capacity - (options.Deeper ? 2 : 1)) throw new InvalidOperationException("Answer history is full. Close and reopen AI answers to clear it.");
-        if (!Questions.Accept(question, Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency, automatic)) throw new InvalidOperationException("Duplicate or recently answered question suppressed. Wait two minutes to ask it again.");
+        if (Inbox.Answers.Count > AnswerInbox.Capacity - (options.Deeper && !continuation ? 2 : 1)) throw new InvalidOperationException(continuation
+            ? "Answer history is full. Stop and start a new companion session to clear it." : "Answer history is full. Close and reopen AI answers to clear it.");
+        if (!Questions.Accept(question, Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency, automatic, continuation ? 0 : 10)) throw new InvalidOperationException("Duplicate or recently answered question suppressed. Wait two minutes to ask it again.");
         var id = Guid.NewGuid(); var title = question.Length > 95 ? question[..95] + "…" : question;
-        var fast = Inbox.Begin(id, Guid.NewGuid(), "Quick · " + title);
-        var deeper = options.Deeper ? Inbox.Begin(id, Guid.NewGuid(), "Deeper · " + title, fast.Id) : null;
-        var run = new AnswerRequest(id, question, sessionId, fast, deeper); Requests.Add(run);
+        var fast = Inbox.Begin(id, Guid.NewGuid(), (continuation ? "" : "Quick · ") + title);
+        var deeper = options.Deeper && !continuation ? Inbox.Begin(id, Guid.NewGuid(), "Deeper · " + title, fast.Id) : null;
+        var run = new AnswerRequest(id, question, sessionId, fast, deeper) { Continuation = continuation }; Requests.Add(run);
         run.Work = Run(run, options, conversation); Changed?.Invoke(); return run;
     }
     private async Task Run(AnswerRequest run, AssistantOptions options, string conversation)
     {
+        var sequences = new Dictionary<Guid, int>();
         try
         {
-            await Generate(run.Fast, options.FastModel, options.FastEffort, false);
+            await Generate(run.Fast, options.FastModel, options.FastEffort, false, !(run.Continuation && options.Deeper));
+            if (run.Continuation && options.Deeper && run.Active)
+            { run.Status = "First sentence ready · thinking through the continuation…"; Changed?.Invoke(); await Generate(run.Fast, options.DeepModel, options.DeepEffort, true); }
             if (run.Deeper is { } deep && run.Active)
             { run.Status = "Quick answer ready · generating deeper answer…"; Changed?.Invoke(); await Generate(deep, options.DeepModel, options.DeepEffort, true); }
-            if (run.Active) { run.Status = "Complete · choose an answer to read"; run.CompletedMs = run.Clock.Elapsed.TotalMilliseconds; }
+            if (run.Active) { run.Status = run.Continuation ? "Answer complete · ready to read" : "Complete · choose an answer to read"; run.CompletedMs = run.Clock.Elapsed.TotalMilliseconds; }
         }
         catch (Exception ex)
         {
@@ -65,13 +71,14 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
         finally
         {
             run.Active = false; run.CompletedMs ??= run.Clock.Elapsed.TotalMilliseconds;
-            log.Write($"AI timing request={run.Id}; firstTextMs={run.FirstTextMs:F0}; firstReadableMs={run.FirstReadableMs:F0}; completedMs={run.CompletedMs:F0}; fastState={run.Fast.State}; deeperState={run.Deeper?.State}");
+            log.Write($"AI timing request={run.Id}; firstTextMs={run.FirstTextMs:F0}; firstReadableMs={run.FirstReadableMs:F0}; firstContinuationMs={run.FirstContinuationMs:F0}; completedMs={run.CompletedMs:F0}; fastState={run.Fast.State}; deeperState={run.Deeper?.State}");
             run.Cancellation.Dispose(); Changed?.Invoke();
         }
-        async Task Generate(StreamAnswer answer, string model, string effort, bool deeper)
+        async Task Generate(StreamAnswer answer, string model, string effort, bool deeper, bool complete = true)
         {
-            var sequence = 0; var buffer = new ReadableAnswerBuffer();
-            var prompt = new AssistantPrompt(run.Id, run.Question, options.Context, conversation, model, effort, deeper);
+            var buffer = new ReadableAnswerBuffer(); var priorWords = answer.WordCount;
+            var prompt = new AssistantPrompt(run.Id, run.Question, options.Context, conversation, model, effort, deeper, run.Continuation,
+                deeper && run.Continuation ? string.Join("\n\n", answer.Blocks.Select(b => b.Text)) : "");
             await provider.Generate(prompt, async text => await dispatcher.InvokeAsync(() =>
             {
                 if (!run.Active || run.Cancellation.IsCancellationRequested) return;
@@ -80,12 +87,14 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
             }), run.Cancellation.Token);
             if (!run.Active) return;
             foreach (var block in buffer.Push("", true)) Deliver(block);
-            if (answer.WordCount == 0) throw new InvalidOperationException("Provider returned no readable answer.");
-            Inbox.Accept(new(run.Id, answer.Id, sequence++, Kind: AnswerEventKind.Complete));
+            if (answer.WordCount == priorWords) throw new InvalidOperationException("Provider returned no readable answer for this stage.");
+            if (complete) Inbox.Accept(new(run.Id, answer.Id, Next(), Kind: AnswerEventKind.Complete));
+            int Next() { var sequence = sequences.GetValueOrDefault(answer.Id); sequences[answer.Id] = sequence + 1; return sequence; }
             void Deliver(string block)
             {
                 run.FirstReadableMs ??= run.Clock.Elapsed.TotalMilliseconds;
-                if (!Inbox.Accept(new(run.Id, answer.Id, sequence++, block + "\n\n"))) throw new InvalidDataException("Reader rejected the answer stream.");
+                if (deeper) run.FirstContinuationMs ??= run.Clock.Elapsed.TotalMilliseconds;
+                if (!Inbox.Accept(new(run.Id, answer.Id, Next(), block + "\n\n"))) throw new InvalidDataException("Reader rejected the answer stream.");
                 Questions.RememberAnswer(block); Changed?.Invoke();
             }
         }

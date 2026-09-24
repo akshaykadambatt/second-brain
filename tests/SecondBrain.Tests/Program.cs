@@ -14,6 +14,17 @@ void Test(string name, Action action)
 void Assert(bool condition, string message) { if (!condition) throw new Exception(message); }
 string Folder(string name) { var path = Path.Combine(run, name); Directory.CreateDirectory(path); return path; }
 
+Test("Live questions combine final chunks and ignore changing provisional text", () =>
+{
+    var utterance = new QuestionUtterance();
+    Assert(utterance.Observe(new(0, 1, "What is the", true, false, .99f), 0) is null, "Premature partial question");
+    Assert(utterance.Observe(new(1, .5, "wrong draft", false, false, .5f), .5) is null && utterance.Flush(1) is null, "Provisional became a question or caused early flush");
+    Assert(utterance.Observe(new(1, 1, "next milestone?", true, true, .99f), 1) == "What is the next milestone?", "Question lost a final segment");
+    Assert(utterance.Flush(3) is null, "Completed question repeated");
+    utterance.Observe(new(3, 1, "How does this work", true, false, .99f), 3);
+    Assert(utterance.Flush(4.1) == "How does this work", "Missing endpoint cannot recover after quiet timeout");
+});
+
 Test("AI detector gates source, provisional speech, duplicate questions and generated echoes", () =>
 {
     var entry = new TranscriptEntry(Guid.NewGuid(), "Final", AudioSource.System, 0, 1, "What should we do next?");

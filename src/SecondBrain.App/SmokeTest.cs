@@ -25,7 +25,9 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "assistant") { await AssistantTests.Run(window, directory, Check, Capture); }
+            if (phase == "companion") { await CompanionTests.Run(window, directory, Check, Capture); }
+            else if (phase == "companion-live") { await CompanionTests.RunLive(window, directory, Check); }
+            else if (phase == "assistant") { await AssistantTests.Run(window, directory, Check, Capture); }
             else if (phase == "assistant-live") { await AssistantTests.RunLive(window, directory, Check); }
             else if (phase == "hybrid")
             { await HybridVoiceTests.Run(window, directory, Check, Capture); }

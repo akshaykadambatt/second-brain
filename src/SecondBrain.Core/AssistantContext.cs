@@ -47,12 +47,12 @@ public sealed class QuestionGate
     public static string Normalize(string text) => Regex.Replace(text.ToLowerInvariant(), @"[^\p{L}\p{Nd}]+", " ").Trim();
     public void RememberAnswer(string text)
     { generated.Enqueue(Normalize(text)); while (generated.Count > 20) generated.Dequeue(); }
-    public bool Accept(string question, double now, bool automatic)
+    public bool Accept(string question, double now, bool automatic, double automaticInterval = 10)
     {
         var normalized = Normalize(question);
         if (normalized.Length < 3 || question.Length > 2000) return false;
         foreach (var key in recent.Where(p => now - p.Value > 120).Select(p => p.Key).ToArray()) recent.Remove(key);
-        if (recent.ContainsKey(normalized) || automatic && now - lastAutomatic < 10) return false;
+        if (recent.ContainsKey(normalized) || automatic && now - lastAutomatic < automaticInterval) return false;
         if (automatic && generated.Any(a => a.Contains(normalized, StringComparison.Ordinal))) return false;
         if (recent.Count >= 128) recent.Remove(recent.MinBy(p => p.Value).Key);
         recent[normalized] = now; if (automatic) lastAutomatic = now; return true;
@@ -72,7 +72,8 @@ public sealed class QuestionGate
     }
 }
 
-public sealed record AssistantPrompt(Guid RequestId, string Question, string Context, string Conversation, string Model, string Effort, bool Deeper);
+public sealed record AssistantPrompt(Guid RequestId, string Question, string Context, string Conversation, string Model, string Effort, bool Deeper,
+    bool Continuation = false, string Opening = "");
 public interface IAnswerProvider
 {
     Task Generate(AssistantPrompt prompt, Func<string, Task> delta, CancellationToken cancellation);

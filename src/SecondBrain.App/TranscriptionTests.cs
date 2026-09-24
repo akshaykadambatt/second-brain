@@ -11,7 +11,7 @@ namespace SecondBrain.App;
 
 internal static class TranscriptionTests
 {
-    private sealed class WaveSource(AudioSource source, string path) : IAudioCaptureSource
+    internal sealed class WaveSource(AudioSource source, string path) : IAudioCaptureSource
     {
         private readonly WaveFileReader wave = new(path);
         private double next, start;

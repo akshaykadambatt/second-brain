@@ -5,6 +5,7 @@ using SecondBrain.Core;
 namespace SecondBrain.App;
 
 internal sealed record TranscriptView(string Status, string Microphone, string System, string[] Recent);
+internal sealed record LiveSpeech(Guid SessionId, AudioSource Source, Guid ConnectionId, SpeechSegment Segment, double ReceivedAt);
 
 // Capture only offers packets; networking and transcript storage cannot block it.
 // This service has no ReaderSession reference: system speech cannot move a reader.
@@ -24,6 +25,9 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
     private readonly Queue<string> recent = new();
     private readonly Queue<TranscriptEntry> assistantEvents = new();
     private bool assistantOverflow;
+    private readonly Queue<LiveSpeech> liveSpeech = new();
+    public LiveSpeech[] DrainSpeech()
+    { lock (gate) { var result = liveSpeech.ToArray(); liveSpeech.Clear(); return result; } }
     public TranscriptEntry[] DrainAssistantEvents(out bool dropped)
     {
         lock (gate) { var result = assistantEvents.ToArray(); assistantEvents.Clear(); dropped = assistantOverflow; assistantOverflow = false; return result; }
@@ -188,6 +192,12 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
                                 throw new InvalidDataException("Invalid transcription segment.");
                             if (segment.Start < finalized - .001) continue;
                             var start = map.Map(segment.Start); var end = map.Map(segment.Start + segment.Duration, true);
+                            lock (gate)
+                            {
+                                liveSpeech.Enqueue(new(journal!.SessionId, source.Track.Source, epoch,
+                                    segment with { Start = start, Duration = Math.Max(0, end - start), LastWordEnd = end }, AudioClock.Now));
+                                while (liveSpeech.Count > 128) liveSpeech.Dequeue();
+                            }
                             if (segment.Final)
                             {
                                 finalized = Math.Max(finalized, segment.Start + Math.Max(.001, segment.Duration)); finalThrough = Math.Max(finalThrough, end);
