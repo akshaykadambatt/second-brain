@@ -93,7 +93,7 @@ public sealed class VaultMaintenance
             cancellation.ThrowIfCancellationRequested();
             var before = Capture(); Git.Checkpoint(before, "Manual edits before meeting analysis");
             var keywords = VaultIndex.Terms(string.Join(' ', evidence.Select(e => e.Text))).ToHashSet();
-            var candidates = before.Where(p => p.Key.EndsWith(".md", StringComparison.OrdinalIgnoreCase) && !p.Key.StartsWith("Meetings/") && !p.Key.StartsWith("Templates/") && p.Key != "Home.md")
+            var candidates = before.Where(p => p.Key.EndsWith(".md", StringComparison.OrdinalIgnoreCase) && !p.Key.StartsWith("Meetings/") && !p.Key.StartsWith("Templates/") && !p.Key.StartsWith("Imports/") && p.Key != "Home.md")
                 .Select(p => new NoteContext(p.Key, Utf8.GetString(p.Value))).OrderByDescending(p => p.Path == "Knowledge/Meeting updates.md" ? int.MaxValue : VaultIndex.Terms(p.Text).Distinct().Count(keywords.Contains)).Take(12).ToArray();
             var input = new MaintenanceInput(id, date, sourceFolder + "/Transcript", evidence,
                 candidates.Select(n => n with { Text = n.Text.Length > 5000 ? n.Text[..5000] + "\n[Remaining existing note omitted; append only.]" : n.Text }).ToArray());
