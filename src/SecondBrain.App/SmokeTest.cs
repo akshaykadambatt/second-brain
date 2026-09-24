@@ -25,7 +25,8 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "names") { await NameHintSmokeTests.Run(window, directory, Check); }
+            if (phase == "meet") { await NameHintSmokeTests.Run(window, directory, Check, meet: true); }
+            else if (phase == "names") { await NameHintSmokeTests.Run(window, directory, Check); }
             else if (phase == "capture") { await CaptureSmokeTests.Run(window, directory, Check); }
             else if (phase == "flowing-live") { await FlowingAnswerTests.RunLive(window, directory, Check); }
             else if (phase == "speakers") { await SpeakerSmokeTests.Run(window, directory, Check, Capture); }

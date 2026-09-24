@@ -209,7 +209,7 @@
                         <TextBlock x:Name="VisualWindowLabel" Text="No window selected" TextWrapping="Wrap" Margin="0,8,0,8" />
                         <WrapPanel><Button Content="Choose meeting window…" Click="VisualChoose_Click" Margin="0,0,8,0" /><Button Content="Clear" Click="VisualClear_Click" /></WrapPanel>
                         <TextBlock x:Name="VisualCaptureStatus" Text="Off · listening uses system audio and microphone." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,0" />
-                        <TextBlock x:Name="TeamsHintsStatus" Text="Experimental Chrome Teams names · add exact participant names in the meeting brief. English speaking labels only; unqualified layouts stay unnamed." TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0" />
+                        <TextBlock x:Name="TeamsHintsStatus" Text="Experimental Chrome Teams / Meet names · add exact participant names in the meeting brief. English speaking labels only; unqualified layouts stay unnamed." TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0" />
                         <TextBlock Text="Only the selected window is captured while listening. Frames stay in memory. Selection and permission reset when the app exits. Speaker naming requires a supported layout." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,0" />
                       </StackPanel>
                       <TextBlock Text="Make it comfortable" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,18" />
@@ -368,7 +368,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.26.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.27.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

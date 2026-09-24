@@ -5,13 +5,13 @@ using SecondBrain.Core;
 
 namespace SecondBrain.App;
 
-internal sealed record TeamsWindowObservation(bool Supported, string[] Names, string Status);
+internal sealed record TeamsWindowObservation(bool Supported, string[] Names, string Status, string Adapter = "chrome-teams-speaking-en-v1");
 internal static class TeamsWindowHints
 {
     internal static TeamsWindowObservation Read(MeetingWindow target, string[] roster)
     {
         if (!target.ProcessName.Equals("chrome", StringComparison.OrdinalIgnoreCase) || !target.Available)
-            return new(false, [], "Choose a visible Chrome Teams window.");
+            return new(false, [], "Choose a visible Chrome Teams or Meet window.");
         if (roster.Length == 0) return new(false, [], "Add participant names to the meeting brief for exact matching.");
         try
         {
@@ -22,8 +22,10 @@ internal static class TeamsWindowHints
             Walk(root, 0, node => { if (node.Current.ControlType == ControlType.Document) { documents.Add(node); return false; } return true; });
             // Document value must expose its real URL; an edited address bar or window title is insufficient.
             var supported = documents.Where(d => !d.Current.IsOffscreen && d.GetCurrentPropertyValue(ValuePattern.ValueProperty) is string value
-                && TeamsSpeakingLabels.SupportedAddress(value)).ToArray();
-            if (truncated || supported.Length != 1) return new(false, [], "Teams page URL is unavailable or unsupported; audio labels only.");
+                && (TeamsSpeakingLabels.SupportedAddress(value) || MeetSpeakingLabels.SupportedAddress(value))).ToArray();
+            if (truncated || supported.Length != 1) return new(false, [], "Teams or Meet page URL is unavailable or unsupported; audio labels only.");
+            var meet = MeetSpeakingLabels.SupportedAddress((string)supported[0].GetCurrentPropertyValue(ValuePattern.ValueProperty));
+            var adapter = meet ? MeetSpeakingLabels.Adapter : "chrome-teams-speaking-en-v1";
             var names = new List<string>(); var unknownSpeaking = false;
             Walk(supported[0], 0, node =>
             {
@@ -33,10 +35,10 @@ internal static class TeamsWindowHints
                 {
                     var label = properties.Name;
                     if (properties.HelpText.Equals("Speaking", StringComparison.OrdinalIgnoreCase)) label += " is speaking";
-                    var name = TeamsSpeakingLabels.Name(label, roster);
+                    var name = meet ? MeetSpeakingLabels.Name(label, roster) : TeamsSpeakingLabels.Name(label, roster);
                     if (name is not null) names.Add(name);
                     else if (label.EndsWith(" is speaking", StringComparison.OrdinalIgnoreCase) || label.EndsWith(", speaking", StringComparison.OrdinalIgnoreCase)
-                        || label.StartsWith("Speaking: ", StringComparison.OrdinalIgnoreCase)) unknownSpeaking = true;
+                        || label.EndsWith(" (speaking)", StringComparison.OrdinalIgnoreCase) || label.StartsWith("Speaking: ", StringComparison.OrdinalIgnoreCase)) unknownSpeaking = true;
                 }
                 return true;
             });
@@ -45,7 +47,7 @@ internal static class TeamsWindowHints
             if (names.Count > unique.Length) return new(true, [], "Repeated speaking names are ambiguous; no name assigned.");
             if (unknownSpeaking) return new(true, [], "Unrecognized speaking participant; no name assigned.");
             return new(true, unique, unique.Length == 1 ? "One explicit speaking indicator observed (experimental)."
-                : unique.Length > 1 ? "Multiple speaking indicators; no name assigned." : "No supported speaking indicator; audio labels only.");
+                : unique.Length > 1 ? "Multiple speaking indicators; no name assigned." : "No supported speaking indicator; audio labels only.", adapter);
 
             void Walk(AutomationElement node, int depth, Func<AutomationElement, bool> inspect)
             {
@@ -91,7 +93,7 @@ internal sealed class TeamsHintSession(MeetingVisuals visuals, Action<string> st
             var result = await pending.WaitAsync(TimeSpan.FromMilliseconds(800));
             if (!sampling || requestEpoch != epoch || requestCapture != visuals.Generation || currentTimeline != timeline) return;
             if (visuals.LastFrame is not { } fresh || DateTimeOffset.UtcNow - fresh > TimeSpan.FromSeconds(1.2)) result = new(false, [], "Window frame became stale; audio labels only.");
-            currentTimeline.Observe(Math.Max(0, now - origin), result.Supported ? result.Names : []); status(result.Status);
+            currentTimeline.Observe(Math.Max(0, now - origin), result.Supported ? result.Names : [], result.Adapter); status(result.Status);
         }
         catch (Exception)
         {
