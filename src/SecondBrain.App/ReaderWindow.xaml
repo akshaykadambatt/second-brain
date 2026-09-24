@@ -2,6 +2,7 @@
         Title="Second Brain · Reader" Style="{StaticResource ShellWindowStyle}" Width="620" Height="420" MinWidth="340" MinHeight="260"
         Background="Transparent" AllowsTransparency="True" WindowStyle="None" ResizeMode="CanResize" Topmost="True" WindowStartupLocation="CenterScreen"
         ShowInTaskbar="False" ShowActivated="False" PreviewKeyDown="Reader_KeyDown">
+  <Window.Resources><Style TargetType="Button" BasedOn="{StaticResource QuietReaderButton}"/></Window.Resources>
   <Border x:Name="Surface" CornerRadius="12" BorderBrush="#597769" BorderThickness="1">
     <Grid>
       <Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition Height="*"/><RowDefinition Height="75"/></Grid.RowDefinitions>
