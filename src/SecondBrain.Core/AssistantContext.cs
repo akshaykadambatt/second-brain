@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 namespace SecondBrain.Core;
 
 public sealed record AssistantOptions(string FastModel = "gpt-6-luna", string DeepModel = "gpt-6-sol",
-    string FastEffort = "none", string DeepEffort = "medium", bool Deeper = true, string Context = "")
+    string FastEffort = "none", string DeepEffort = "medium", bool Deeper = true, string Context = "", bool AllowGeneralGuidance = false)
 {
     public bool IsValid => ValidModel(FastModel) && ValidModel(DeepModel) && Context is not null && Context.Length <= 16000
         && new[] { "none", "low", "medium", "high" }.Contains(FastEffort) && new[] { "none", "low", "medium", "high" }.Contains(DeepEffort);
@@ -76,6 +76,7 @@ public sealed record AssistantPrompt(Guid RequestId, string Question, string Con
     bool Continuation = false, string Opening = "", string Knowledge = "")
 {
     public bool Extension { get; init; }
+    public bool AllowGeneralGuidance { get; init; }
 }
 public interface IAnswerProvider
 {

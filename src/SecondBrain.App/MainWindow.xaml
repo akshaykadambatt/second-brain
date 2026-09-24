@@ -246,6 +246,7 @@
                   <StackPanel Margin="20">
                     <TextBlock Text="Context notes (saved locally and sent with questions)" TextWrapping="Wrap" />
                     <TextBox x:Name="LiveContext" AcceptsReturn="True" TextWrapping="Wrap" Height="100" MaxLength="16000" VerticalScrollBarVisibility="Auto" />
+                    <CheckBox x:Name="GeneralGuidanceCheck" Content="Allow general guidance and hypothetical examples" Margin="0,8" ToolTip="Continuation can explain concepts and offer hypothetical examples when supplied facts run out. Client facts and commitments must still come from your sources. Saved for the next session." />
                     <Button Content="Load Markdown context…" Click="LiveMarkdown_Click" Padding="8,6" HorizontalAlignment="Left" Margin="0,6,0,8" />
                     <TextBlock Text="Fast model / reasoning effort" />
                     <DockPanel>

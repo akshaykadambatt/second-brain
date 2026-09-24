@@ -22,11 +22,12 @@ public partial class MainWindow
         try { options = companionSettings.Load(); } catch (Exception) { CompanionStatus.Text = "AI settings could not be loaded; review and save the defaults."; }
         LiveFastModel.Text = options.FastModel; LiveDeepModel.Text = options.DeepModel;
         LiveFastEffort.SelectedItem = options.FastEffort; LiveDeepEffort.SelectedItem = options.DeepEffort; LiveContext.Text = options.Context;
+        GeneralGuidanceCheck.IsChecked = options.AllowGeneralGuidance;
         RefreshOutputDevices();
         if (!hiddenTestMode) Session.ShowAnswer(new AnswerInbox().Begin(Guid.NewGuid(), Guid.NewGuid(), "Start listening to begin your companion session."));
     }
     private AssistantOptions CompanionOptions() => new(LiveFastModel.Text.Trim(), LiveDeepModel.Text.Trim(),
-        LiveFastEffort.SelectedItem as string ?? "none", LiveDeepEffort.SelectedItem as string ?? "medium", true, LiveContext.Text);
+        LiveFastEffort.SelectedItem as string ?? "none", LiveDeepEffort.SelectedItem as string ?? "medium", true, LiveContext.Text, GeneralGuidanceCheck.IsChecked == true);
     private void RefreshOutputDevices()
     {
         try

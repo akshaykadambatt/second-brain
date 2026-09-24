@@ -93,6 +93,14 @@ internal static class AssistantTests
         var prompt = new AssistantPrompt(Guid.NewGuid(), "What is known?", "Known context", "", "fixture-model", "none", false);
         var answer = ""; await provider.Generate(prompt, text => { answer += text; return Task.CompletedTask; }, default);
         check(answer == "A safe synthetic answer.", "SSE adapter emits delta once and requires completion");
+        using var guidance = new OpenAiAnswerProvider(() => "synthetic-test-key", new Handler(async request =>
+        {
+            using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            var instructions = json.RootElement.GetProperty("instructions").GetString()!;
+            check(instructions.Contains("Do not stop merely") && instructions.Contains("Never invent client facts") && instructions.Contains("hypothetical"), "Approved continuation adds general guidance without inventing client facts");
+            return new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "text/event-stream") };
+        }));
+        await guidance.Generate(prompt with { Extension = true, AllowGeneralGuidance = true }, _ => Task.CompletedTask, default);
         foreach (var status in new[] { HttpStatusCode.Unauthorized, HttpStatusCode.TooManyRequests })
         {
             using var error = new OpenAiAnswerProvider(() => "synthetic-test-key", new Handler(_ => Task.FromResult(new HttpResponseMessage(status))));

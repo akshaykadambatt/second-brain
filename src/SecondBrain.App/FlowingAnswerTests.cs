@@ -29,7 +29,7 @@ internal static class FlowingAnswerTests
     {
         while (main.Panels.Count < 4) main.AddReader();
         var provider = new Provider(); var answers = new AssistantService(main.Dispatcher, provider, new(directory));
-        using var companion = new CompanionSession(main.Session, main.Playback, new(), answers, new());
+        using var companion = new CompanionSession(main.Session, main.Playback, new(), answers, new(AllowGeneralGuidance: true));
         var run = companion.Ask("How can we explain the delivery approach?")!; await run.Work;
         var original = run.Fast.Blocks[0]; var count = run.Fast.WordCount;
         var connection = Guid.NewGuid(); var speechStart = 0d;
@@ -72,6 +72,7 @@ internal static class FlowingAnswerTests
             "Appended detail preserves the active answer, earlier word identity and manual reading position");
         check(main.Panels.Select((p, i) => Math.Abs(p.WordScreenY(3) - positions[i]) <= 1).All(v => v), "Appends preserve text position on four independently laid-out readers");
         check(provider.Extensions[0].Opening.Contains("grounded") && provider.Extensions[0].RequestId == run.Id, "Continuation receives the existing full answer and request identity");
+        check(provider.Extensions[0].AllowGeneralGuidance, "Explicit general-guidance preference reaches the continuation provider");
         provider.Next = new(TaskCreationOptions.RunContinuationsAsynchronously);
         main.Session.Select(run.Fast.WordCount - 1); companion.Tick();
         check(provider.Extensions.Count == 2 && !main.Playback.Voice.Active && !main.Playback.Playing,
@@ -79,6 +80,7 @@ internal static class FlowingAnswerTests
         provider.Next.SetResult("END_OF_GROUNDED_ANSWER.\n\n"); await run.Work;
         main.Session.Select(run.Fast.WordCount, fromVoice: true); companion.Tick();
         check(run.FlowFinished && provider.Extensions.Count == 2 && !run.Fast.Blocks.Any(b => b.Text.Contains("END_OF_GROUNDED")), "Exhausted grounded detail ends continuation without showing control text");
+        check(run.Fast.Detail.Contains("no further useful detail"), "A deliberate model stop is explained in the reader status");
         var newer = companion.Ask("What is the next delivery step?")!; await newer.Work;
         companion.Navigate(-1); main.Session.Select(run.Fast.WordCount, fromVoice: true); companion.Tick();
         check(main.Session.Answer == run.Fast && provider.Extensions.Count == 2, "Revisiting an older answer cannot start or select a newer continuation");

@@ -46,6 +46,12 @@ public sealed class AnswerInbox
     private readonly List<StreamAnswer> answers = [];
     public IReadOnlyList<StreamAnswer> Answers => answers.AsReadOnly();
     public event Action<StreamAnswer>? Changed;
+    public void Describe(Guid requestId, Guid answerId, string detail)
+    {
+        var answer = answers.FirstOrDefault(a => a.Id == answerId && a.RequestId == requestId);
+        if (answer is null || string.IsNullOrWhiteSpace(detail) || detail.Length > 200) return;
+        answer.Detail = detail; Changed?.Invoke(answer);
+    }
     public bool Resume(Guid requestId, Guid answerId)
     {
         var answer = answers.FirstOrDefault(a => a.Id == answerId && a.RequestId == requestId);

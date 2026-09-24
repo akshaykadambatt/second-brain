@@ -133,7 +133,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
             var buffer = new ReadableAnswerBuffer(); var priorWords = answer.WordCount;
             var prompt = new AssistantPrompt(run.Id, run.Question, options.Context, conversation, model, effort, deeper, run.Continuation,
                 deeper && run.Continuation ? string.Join("\n\n", answer.Blocks.Select(b => b.Text)) : "",
-                run.Knowledge is { } evidence ? evidence.Status + "\n" + evidence.Evidence : "") { Extension = extend };
+                run.Knowledge is { } evidence ? evidence.Status + "\n" + evidence.Evidence : "") { Extension = extend, AllowGeneralGuidance = options.AllowGeneralGuidance };
             await provider.Generate(prompt, async text => await dispatcher.InvokeAsync(() =>
             {
                 if (!run.Active || run.Cancellation.IsCancellationRequested) return;
@@ -143,7 +143,11 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
             if (!run.Active) return;
             foreach (var block in buffer.Push("", true)) Deliver(block);
             if (answer.WordCount == priorWords && !run.FlowFinished) throw new InvalidOperationException("Provider returned no readable answer for this stage.");
-            if (complete) Inbox.Accept(new(run.Id, answer.Id, Next(), Kind: AnswerEventKind.Complete));
+            if (complete)
+            {
+                Inbox.Accept(new(run.Id, answer.Id, Next(), Kind: AnswerEventKind.Complete));
+                if (run.FlowFinished) Inbox.Describe(run.Id, answer.Id, "Answer complete · no further useful detail");
+            }
             int Next() { var sequence = sequences.GetValueOrDefault(answer.Id); sequences[answer.Id] = sequence + 1; return sequence; }
             void Deliver(string block)
             {
