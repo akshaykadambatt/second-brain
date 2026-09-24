@@ -13,7 +13,7 @@ internal interface ITranscriptConnection : IDisposable
     Task<SpeechSegment?> Receive(CancellationToken ct);
 }
 
-internal sealed class TranscriptConnection : ITranscriptConnection
+internal sealed class TranscriptConnection(bool diarize = false, string[]? vocabulary = null) : ITranscriptConnection
 {
     private readonly ClientWebSocket socket = new();
     public async Task Connect(int sampleRate, string key, CancellationToken ct)
@@ -22,7 +22,7 @@ internal sealed class TranscriptConnection : ITranscriptConnection
         socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(10);
         socket.Options.KeepAliveTimeout = TimeSpan.FromSeconds(10);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct); timeout.CancelAfter(TimeSpan.FromSeconds(12));
-        await socket.ConnectAsync(new Uri($"wss://api.deepgram.com/v1/listen?model=nova-3&language=en&encoding=linear16&sample_rate={sampleRate}&channels=1&interim_results=true&endpointing=300&punctuate=true"), timeout.Token);
+        await socket.ConnectAsync(StreamingSpeechOptions.Uri(sampleRate, diarize, vocabulary ?? []), timeout.Token);
     }
     public Task Send(byte[] pcm, CancellationToken ct) => SendFrame(pcm, WebSocketMessageType.Binary, ct);
     public Task Control(string type, CancellationToken ct) => SendFrame(Encoding.UTF8.GetBytes("{\"type\":\"" + type + "\"}"), WebSocketMessageType.Text, ct);

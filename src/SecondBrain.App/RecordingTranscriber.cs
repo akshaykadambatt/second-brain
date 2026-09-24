@@ -9,6 +9,7 @@ internal sealed record LiveSpeech(Guid SessionId, AudioSource Source, Guid Conne
 {
     // Provider word timing for diagnostics only; reader alignment keeps its existing segment mapping.
     public double? SpeechEndedSeconds { get; init; }
+    public string? SpeakerLabel { get; init; }
 }
 
 // Capture only offers packets; networking and transcript storage cannot block it.
@@ -36,7 +37,12 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
     {
         lock (gate) { var result = assistantEvents.ToArray(); assistantEvents.Clear(); dropped = assistantOverflow; assistantOverflow = false; return result; }
     }
-    private readonly Func<AudioSource, ITranscriptConnection> connect = connectionFactory ?? (_ => new TranscriptConnection());
+    public SpeakerOptions SpeakerOptions { get; set; } = new();
+    public string[] Vocabulary { get; set; } = [];
+    private SpeakerOptions activeSpeakerOptions = new();
+    private string[] activeVocabulary = [];
+    private AudioSpeakers? speakerLabels;
+    private string vocabularyStatus = "";
     private SourceRun[] sources = [];
     private CancellationTokenSource? cancellation;
     private TranscriptLog? journal;
@@ -50,7 +56,7 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
     public bool Enabled { get; set; }
     public TranscriptView View
     {
-        get { lock (gate) return new((failure ?? (sources.Length == 0 ? idle : string.Join(" · ", sources.Select(s => s.Track.Source + ": " + s.Status)))) + (detailFailure is null ? "" : " · " + detailFailure),
+        get { lock (gate) return new((failure ?? (sources.Length == 0 ? idle : string.Join(" · ", sources.Select(s => s.Track.Source + ": " + s.Status)))) + vocabularyStatus + (detailFailure is null ? "" : " · " + detailFailure),
             sources.FirstOrDefault(s => s.Track.Source == AudioSource.Microphone)?.Interim ?? "",
             sources.FirstOrDefault(s => s.Track.Source == AudioSource.System)?.Interim ?? "", recent.ToArray()); }
     }
@@ -66,7 +72,14 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
             lock (gate)
             {
                 failure = null; runStart = Math.Max(0, seconds); runEnd = runStart;
-                if (lastSession != manifest.Id) { recent.Clear(); previousEnd = 0; lastSession = manifest.Id; }
+                if (lastSession != manifest.Id)
+                {
+                    if (!SpeakerOptions.IsValid) throw new InvalidDataException("Invalid microphone identity.");
+                    recent.Clear(); previousEnd = 0; lastSession = manifest.Id; activeSpeakerOptions = SpeakerOptions;
+                    speakerLabels = new(manifest.Id, activeSpeakerOptions); activeVocabulary = StreamingSpeechOptions.Keyterms(Vocabulary);
+                    vocabularyStatus = " · " + (activeSpeakerOptions.SeparateSpeakers ? "audio speaker labels on (provisional)" : "audio speaker labels off")
+                        + (activeVocabulary.Length < Vocabulary.Length ? $" · vocabulary {activeVocabulary.Length}/{Vocabulary.Length} terms sent (provider budget)" : "");
+                }
                 journal = new(directory, manifest.Id); cancellation = new();
                 detailFailure = null;
                 try { details = new(directory, manifest.Id); }
@@ -116,7 +129,7 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
         lock (gate) failure = "Transcription unavailable or unable to save. Local recording continues. Check the protected key, disk space and folder access; restart recording to retry.";
         cancellation?.Cancel();
     }
-    private TranscriptEntry? Record(string kind, AudioSource? source, double start, double end, string text, Guid connection = default, string? id = null)
+    private TranscriptEntry? Record(string kind, AudioSource? source, double start, double end, string text, Guid connection = default, string? id = null, string? attribution = null)
     {
         var entry = new TranscriptEntry(journal!.SessionId, kind, source, Math.Max(0, start), Math.Max(Math.Max(0, start), end), text, connection, id);
         try
@@ -129,7 +142,7 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
             }
             if (kind is "Final" or "Gap") lock (gate)
             {
-                recent.Enqueue($"{TimeSpan.FromSeconds(entry.Start):hh\\:mm\\:ss} {source?.ToString() ?? "Session"} · {(kind == "Gap" ? "GAP: " : "")}{text}");
+                recent.Enqueue($"{TimeSpan.FromSeconds(entry.Start):hh\\:mm\\:ss} {source?.ToString() ?? "Session"}" + (attribution is null ? "" : " · " + attribution) + $" · {(kind == "Gap" ? "GAP: " : "")}{text}");
                 while (recent.Count > 80) recent.Dequeue();
             }
             return entry;
@@ -146,7 +159,7 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
                 if (source.Queue.Reader.Completion.IsCompleted) break;
                 var epoch = Guid.NewGuid(); var map = new TranscriptTimeline(source.Track.SampleRate);
                 var finalized = -1d; var finalThrough = uncertain; var sentThrough = uncertain;
-                using var socket = connect(source.Track.Source);
+                using var socket = connectionFactory?.Invoke(source.Track.Source) ?? new TranscriptConnection(source.Track.Source == AudioSource.System && activeSpeakerOptions.SeparateSpeakers, activeVocabulary);
                 using var connectionStop = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 Task receiving = Task.CompletedTask;
                 var first = true; var finishing = false;
@@ -205,11 +218,20 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
                             if (segment.Start < finalized - .001) continue;
                             var start = map.Map(segment.Start); var end = map.Map(segment.Start + segment.Duration, true);
                             var mappedWords = segment.Words.Select(w => w with { Start = map.Map(w.Start), End = map.Map(w.End, true) }).ToArray();
+                            var segmentId = epoch.ToString("N") + ":" + ((long)Math.Round(segment.Start * source.Track.SampleRate)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            TranscriptDetail? labeled = null; string? attribution = null;
+                            if (segment.Final && !string.IsNullOrWhiteSpace(segment.Text)) lock (detailsGate)
+                            {
+                                var original = new TranscriptEntry(journal!.SessionId, "Final", source.Track.Source, start, Math.Max(start, end), segment.Text, epoch, segmentId);
+                                labeled = speakerLabels!.Label(TranscriptDetails.From(original, mappedWords, segment.WordTimingStatus));
+                                attribution = string.Join(" / ", labeled.Words.Select(w => w.SpeakerLabel ?? "Unknown").Distinct());
+                                if (attribution.Length == 0) attribution = "Unknown";
+                            }
                             lock (gate)
                             {
                                 liveSpeech.Enqueue(new(journal!.SessionId, source.Track.Source, epoch,
                                     segment with { Start = start, Duration = Math.Max(0, end - start), LastWordEnd = end, Words = mappedWords }, AudioClock.Now)
-                                { SpeechEndedSeconds = segment.LastWordEnd is { } wordEnd && double.IsFinite(wordEnd)
+                                { SpeakerLabel = attribution, SpeechEndedSeconds = segment.LastWordEnd is { } wordEnd && double.IsFinite(wordEnd)
                                     && wordEnd >= segment.Start && wordEnd <= segment.Start + segment.Duration + .001 ? map.Map(wordEnd, true) : null });
                                 while (liveSpeech.Count > 128) liveSpeech.Dequeue();
                             }
@@ -218,11 +240,10 @@ internal sealed class RecordingTranscriber(Func<string> loadKey, DiagnosticLog l
                                 finalized = Math.Max(finalized, segment.Start + Math.Max(.001, segment.Duration)); finalThrough = Math.Max(finalThrough, end);
                                 if (!string.IsNullOrWhiteSpace(segment.Text))
                                 {
-                                    var entry = Record("Final", source.Track.Source, start, end, segment.Text, epoch,
-                                        epoch.ToString("N") + ":" + ((long)Math.Round(segment.Start * source.Track.SampleRate)).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                                    var entry = Record("Final", source.Track.Source, start, end, segment.Text, epoch, segmentId, attribution);
                                     if (entry is not null) lock (detailsGate)
                                     {
-                                        try { details?.Append(TranscriptDetails.From(entry, mappedWords, segment.WordTimingStatus)); }
+                                        try { details?.Append(labeled!); }
                                         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
                                         {
                                             details?.Dispose(); details = null; detailFailure = "Word details could not be saved; original transcript continues";

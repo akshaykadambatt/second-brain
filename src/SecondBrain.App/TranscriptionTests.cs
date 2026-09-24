@@ -78,9 +78,10 @@ internal static class TranscriptionTests
                 var end = seconds;
                 results.Writer.TryWrite(new(finalized, end - finalized, "incorrect provisional draft", false, false, .5f));
                 var duration = end - finalized;
+                var speaker = (int)(seconds / .6) % 2;
                 var final = new SpeechSegment(finalized, duration, source + " finalized sentence.", true, true, .98f)
-                { LastWordEnd = end, WordTimingStatus = "Word timing available", Words = [new(source.ToString(), finalized, finalized + duration / 3, .98f),
-                    new("finalized", finalized + duration / 3, finalized + 2 * duration / 3, .98f), new("sentence.", finalized + 2 * duration / 3, end, .98f)] };
+                { LastWordEnd = end, WordTimingStatus = "Word timing available", Words = [new(source.ToString(), finalized, finalized + duration / 3, .98f, speaker),
+                    new("finalized", finalized + duration / 3, finalized + 2 * duration / 3, .98f, speaker), new("sentence.", finalized + 2 * duration / 3, end, .98f, speaker)] };
                 results.Writer.TryWrite(final); results.Writer.TryWrite(final);
                 results.Writer.TryWrite(final with { Text = "stale provisional draft", Final = false });
                 finalized = end;

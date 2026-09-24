@@ -80,6 +80,9 @@ public partial class RecordingWindow : Window
         if (MicrophonePicker.SelectedItem is not AudioDevice mic || OutputPicker.SelectedItem is not AudioDevice output)
         { StatusText.Text = "Select an available microphone and computer-audio output first."; return; }
         main.SaveRecordingDevices(mic.Id, output.Id);
+        try { main.ConfigureSpeakers(); }
+        catch (Exception) { StatusText.Text = "Speaker settings could not be saved. Check the participant name and folder access."; return; }
+        main.Transcriber.Vocabulary = [];
         main.Transcriber.Enabled = TranscribeCheck.IsChecked == true;
         await recorder.StartAsync(mic.Id, output.Id);
     }

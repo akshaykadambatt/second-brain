@@ -9,7 +9,8 @@ public partial class TranscriptWindow : Window
     private sealed record Row(TranscriptDetail Detail)
     {
         public string Text => Detail.Text;
-        public string Meta => $"{Detail.Source} · {TimeSpan.FromSeconds(Detail.Start):hh\\:mm\\:ss} · {Detail.Words.Length} timed words";
+        public string Meta => $"{Detail.Source} · {TimeSpan.FromSeconds(Detail.Start):hh\\:mm\\:ss} · {Detail.Words.Length} timed words"
+            + (Detail.Words.Any(w => w.SpeakerLabel is not null) ? " · " + string.Join(" / ", Detail.Words.Select(w => w.SpeakerLabel ?? "Unknown").Distinct()) : "");
     }
     internal TranscriptWindow(MainWindow owner, TranscriptDetail[] records, string warning, bool hidden)
     {

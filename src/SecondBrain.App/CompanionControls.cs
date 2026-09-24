@@ -16,6 +16,7 @@ public partial class MainWindow
     private void InitializeCompanion()
     {
         companionSettings = new(dataDirectory);
+        InitializeSpeakers();
         LiveFastEffort.ItemsSource = LiveDeepEffort.ItemsSource = new[] { "none", "low", "medium", "high" };
         AssistantOptions options = new();
         try { options = companionSettings.Load(); } catch (Exception) { CompanionStatus.Text = "AI settings could not be loaded; review and save the defaults."; }
@@ -54,6 +55,7 @@ public partial class MainWindow
             companionSettings!.Save(baseOptions);
             if (!hiddenTestMode) { _ = new ApiKeyStore(dataDirectory).Load(); _ = new ApiKeyStore(dataDirectory, "OpenAI").Load(); }
             var meetingContext = SaveMeetingContext();
+            ConfigureSpeakers(); Transcriber.Vocabulary = meetingContext.Vocabulary.ToArray();
             if (Knowledge?.ForProject(meetingContext.Project) is IStagedKnowledgeSearch prepared)
                 _ = prepared.Prewarm(meetingContext.Goal, CancellationToken.None);
             Assistant?.Close(); StreamDemo?.Close(); study?.Close(); replay?.Stop();
@@ -117,8 +119,9 @@ public partial class MainWindow
             if (speech.Source == AudioSource.Microphone) Companion?.Observe(speech);
             if (Companion?.Active == true && speech.Segment.Text.Length > 0)
             {
-                if (speech.Source == AudioSource.Microphone) LiveMic.Text = "Microphone · " + speech.Segment.Text;
-                else LiveSystem.Text = "Computer audio · " + speech.Segment.Text;
+                var label = speech.SpeakerLabel is { Length: > 0 } speaker ? " · " + speaker : "";
+                if (speech.Source == AudioSource.Microphone) LiveMic.Text = "Microphone" + label + " · " + speech.Segment.Text;
+                else LiveSystem.Text = "Computer audio" + label + " · " + speech.Segment.Text;
             }
         }
         foreach (var entry in entries.Where(e => e.Kind != "RunStart")) AssistantContext.Observe(entry);
@@ -145,6 +148,7 @@ public partial class MainWindow
         DiagnosticControls.IsEnabled = !active && !companionBusy;
         LiveAsk.IsEnabled = active && !companionBusy;
         ClientPicker.IsEnabled = ContextEditor.IsEnabled = !active && !companionBusy && !contextLoadFailed;
+        SpeakerSettingsPanel.IsEnabled = !active && !companionBusy && !Recorder.HasSession;
     }
     private void RefreshCompanion()
     {

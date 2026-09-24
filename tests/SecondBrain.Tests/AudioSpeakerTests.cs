@@ -40,5 +40,13 @@ internal static class AudioSpeakerTests
             try { settings.Save(new(true, "Invalid\nName")); throw new Exception("Invalid speaker name accepted"); } catch (InvalidDataException) { }
             check(settings.Load().LocalParticipant == "Morgan", "Invalid update destroyed the prior speaker settings");
         });
+        test("Bounded speaker maps retain known identities when capacity is exhausted", () =>
+        {
+            var id = Guid.NewGuid(); var epoch = Guid.NewGuid(); var labels = new AudioSpeakers(id, new());
+            TranscriptDetail Segment(int speaker) => new(1, id, "s", AudioSource.System, epoch, 0, 1, "Word.", [new("w", "Word.", 0, 1, .9f, speaker)]);
+            for (var i = 0; i < 4096; i++) labels.Label(Segment(i));
+            check(labels.Label(Segment(0)).Words[0].SpeakerLabel == "Speaker 1" && labels.Label(Segment(4096)).Words[0].SpeakerLabel == "Unknown",
+                "Capacity exhaustion changed a known identity or grew an unbounded map");
+        });
     }
 }

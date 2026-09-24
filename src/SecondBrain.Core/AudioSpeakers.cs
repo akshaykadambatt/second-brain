@@ -66,11 +66,14 @@ public sealed class AudioSpeakers(Guid sessionId, SpeakerOptions options)
             {
                 var overlap = words.Where((_, j) => j != i).Any(other => other.ProviderSpeaker is { } otherSpeaker && otherSpeaker != speaker
                     && Math.Min(other.End, word.End) - Math.Max(other.Start, word.Start) > .03);
-                if (!overlap && labels.Count < 4096)
+                if (!overlap)
                 {
                     var key = (detail.ConnectionId, speaker);
-                    if (!labels.TryGetValue(key, out var label)) labels[key] = label = ++next;
-                    id = sessionId.ToString("N") + ":remote:" + label; name = "Speaker " + label;
+                    if (labels.TryGetValue(key, out var label) || labels.Count < 4096)
+                    {
+                        if (label == 0) labels[key] = label = ++next;
+                        id = sessionId.ToString("N") + ":remote:" + label; name = "Speaker " + label;
+                    }
                 }
             }
             return word with { SpeakerId = id, SpeakerLabel = name };
