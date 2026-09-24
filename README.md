@@ -4,7 +4,7 @@ A Windows desktop meeting companion built with .NET 10 and WPF. It captures the 
 
 ## Build
 
-Requires Windows x64, the .NET 10 SDK and Git for Windows. From the repository root:
+Requires Windows 10 version 2004 or later (x64), the .NET 10 SDK and Git for Windows. From the repository root:
 
 ```powershell
 ./scripts/build.ps1
@@ -52,3 +52,5 @@ Recorded transcripts retain optional word timestamps and source metadata in a ve
 **Settings > Audio & reader > Audio speaker labels** configures provisional remote speaker separation and an optional microphone participant name. Streaming diarization pins `diarize_model=v1`; remote IDs are session-local and new connections receive new labels. Missing, weak or detectably overlapping word metadata stays Unknown. Streaming speaker confidence is not invented. Meeting vocabulary is sent as bounded Nova-3 keyterm hints; the Live details show when the hint budget reduces the list. Physical meeting speaker accuracy remains to be qualified.
 
 Saved meeting transcripts group speaker turns and support text/speaker search, bookmarks and replay from the selected timestamp. Name a turn, rename a speaker, split selected words or merge speakers; Undo reverses the last change. Corrections live in a source-bound local journal and backups include them. Original transcript and timing files remain unchanged. Optional general-guidance permission in Settings lets continuation add explanations and hypothetical examples without inventing client facts.
+
+Optional meeting-window capture is off by default. In **Settings > Audio & reader**, enable it and explicitly choose one visible window. Selection does not start listening. While listening, Windows Graphics Capture processes frames locally in memory without saving or sending images. Clearing selection, stopping listening or exiting stops capture. Closed, minimized, protected or unavailable windows fall back to audio-only listening. Permission and selection reset on app exit. The `capture` packaged check uses a visible synthetic window and the real native capture API.
