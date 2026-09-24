@@ -5,6 +5,8 @@ namespace SecondBrain.Core;
 public sealed record SpeechSegment(double Start, double Duration, string Text, bool Final, bool SpeechFinal, float Confidence)
 {
     public double? LastWordEnd { get; init; }
+    public SpeechWord[] Words { get; init; } = [];
+    public string WordTimingStatus { get; init; } = "Provider omitted word timing";
 }
 
 public static class DeepgramProtocol
@@ -17,12 +19,30 @@ public static class DeepgramProtocol
         if (type == "Error") throw new InvalidOperationException("Deepgram reported a transcription error. Stop and retry the connection.");
         if (type != "Results") return null;
         var alternative = root.GetProperty("channel").GetProperty("alternatives")[0];
-        double? lastWordEnd = null;
-        if (alternative.TryGetProperty("words", out var words) && words.GetArrayLength() > 0)
-            lastWordEnd = words[words.GetArrayLength() - 1].GetProperty("end").GetDouble();
-        return new(root.GetProperty("start").GetDouble(), root.GetProperty("duration").GetDouble(),
+        var start = root.GetProperty("start").GetDouble(); var duration = root.GetProperty("duration").GetDouble();
+        var parsed = new List<SpeechWord>(); var supplied = 0;
+        if (alternative.TryGetProperty("words", out var words) && words.ValueKind == JsonValueKind.Array)
+        {
+            supplied = words.GetArrayLength();
+            foreach (var word in words.EnumerateArray().Take(4000))
+            {
+                if (word.ValueKind != JsonValueKind.Object || !word.TryGetProperty("start", out var ws) || ws.ValueKind != JsonValueKind.Number || !ws.TryGetDouble(out var begins)
+                    || !word.TryGetProperty("end", out var we) || we.ValueKind != JsonValueKind.Number || !we.TryGetDouble(out var ends) || !double.IsFinite(begins) || !double.IsFinite(ends)
+                    || begins < start || ends < begins || ends > start + duration + .001) continue;
+                var text = word.TryGetProperty("punctuated_word", out var punctuated) && punctuated.ValueKind == JsonValueKind.String ? punctuated.GetString()
+                    : word.TryGetProperty("word", out var plain) && plain.ValueKind == JsonValueKind.String ? plain.GetString() : null;
+                if (string.IsNullOrWhiteSpace(text) || text.Length > 1000) continue;
+                float? Probability(string name) => word.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetSingle(out var number)
+                    && float.IsFinite(number) && number >= 0 && number <= 1 ? number : null;
+                int? speaker = word.TryGetProperty("speaker", out var label) && label.ValueKind == JsonValueKind.Number && label.TryGetInt32(out var number) && number >= 0 && number <= 10000 ? number : null;
+                parsed.Add(new(text, begins, ends, Probability("confidence"), speaker, Probability("speaker_confidence")));
+            }
+        }
+        return new(start, duration,
             alternative.GetProperty("transcript").GetString() ?? "", root.GetProperty("is_final").GetBoolean(),
-            root.TryGetProperty("speech_final", out var end) && end.GetBoolean(), alternative.GetProperty("confidence").GetSingle()) { LastWordEnd = lastWordEnd };
+            root.TryGetProperty("speech_final", out var end) && end.GetBoolean(), alternative.GetProperty("confidence").GetSingle())
+        { LastWordEnd = parsed.LastOrDefault()?.End, Words = parsed.ToArray(), WordTimingStatus = supplied == 0 ? "Provider omitted word timing"
+            : parsed.Count != supplied ? "Some invalid word timing was omitted" : "Word timing available" };
     }
 }
 

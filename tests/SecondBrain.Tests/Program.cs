@@ -18,6 +18,7 @@ HistoryTests.Run(Test, Assert, Folder);
 StorageTests.Run(Test, Assert, Folder);
 SessionContextTests.Run(Test, Assert, Folder);
 LatencyTests.Run(Test, Assert);
+TranscriptDetailTests.Run(Test, Assert, Folder);
 
 Test("Continuing a completed answer retains identities and sequence protection", () =>
 {
