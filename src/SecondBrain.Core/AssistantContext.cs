@@ -73,7 +73,10 @@ public sealed class QuestionGate
 }
 
 public sealed record AssistantPrompt(Guid RequestId, string Question, string Context, string Conversation, string Model, string Effort, bool Deeper,
-    bool Continuation = false, string Opening = "", string Knowledge = "");
+    bool Continuation = false, string Opening = "", string Knowledge = "")
+{
+    public bool Extension { get; init; }
+}
 public interface IAnswerProvider
 {
     Task Generate(AssistantPrompt prompt, Func<string, Task> delta, CancellationToken cancellation);

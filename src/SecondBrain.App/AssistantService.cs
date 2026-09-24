@@ -12,7 +12,11 @@ internal sealed class AnswerRequest(Guid id, string question, Guid sessionId, St
     public string Question { get; } = question;
     public StreamAnswer Fast { get; } = fast;
     public StreamAnswer? Deeper { get; } = deeper;
-    public CancellationTokenSource Cancellation { get; } = new();
+    public CancellationTokenSource Cancellation { get; set; } = new();
+    public Dictionary<Guid, int> Sequences { get; } = [];
+    public AssistantOptions Options { get; init; } = new();
+    public string Conversation { get; init; } = "";
+    public bool FlowFinished { get; set; }
     public Stopwatch Clock { get; } = Stopwatch.StartNew();
     public double CreatedAt { get; } = AudioClock.Now;
     public QuestionTiming? Trigger { get; init; }
@@ -52,26 +56,39 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
         var id = Guid.NewGuid(); var title = question.Length > 95 ? question[..95] + "…" : question;
         var fast = Inbox.Begin(id, Guid.NewGuid(), (continuation ? "" : "Quick · ") + title);
         var deeper = options.Deeper && !continuation ? Inbox.Begin(id, Guid.NewGuid(), "Deeper · " + title, fast.Id) : null;
-        var run = new AnswerRequest(id, question, sessionId, fast, deeper) { Continuation = continuation, Trigger = timing,
+        var run = new AnswerRequest(id, question, sessionId, fast, deeper) { Continuation = continuation, Trigger = timing, Options = options, Conversation = conversation,
             Automatic = automatic, FirstInSession = !Requests.Any(r => r.SessionId == sessionId) }; Requests.Add(run);
         run.Work = Run(run, options, conversation); Changed?.Invoke(); return run;
     }
-    private async Task Run(AnswerRequest run, AssistantOptions options, string conversation)
+    public bool Extend(AnswerRequest run)
     {
-        var sequences = new Dictionary<Guid, int>();
+        dispatcher.VerifyAccess();
+        if (Requests.LastOrDefault() != run || run.Active || run.FlowFinished || !run.Continuation || ActiveCount >= 3 || run.Fast.State != AnswerState.Complete) return false;
+        if (!Inbox.Resume(run.Id, run.Fast.Id)) { run.FlowFinished = true; run.Status = "Answer length limit reached · readable text retained"; Changed?.Invoke(); return false; }
+        run.Cancellation = new(); run.Active = true; run.Status = "Continuing this answer…";
+        run.Work = Run(run, run.Options, run.Conversation, extend: true); Changed?.Invoke(); return true;
+    }
+    private async Task Run(AnswerRequest run, AssistantOptions options, string conversation, bool extend = false)
+    {
+        var sequences = run.Sequences;
         try
         {
             if (knowledge is not null)
             {
                 run.Status = "Looking up vault context…"; Changed?.Invoke();
-                try { run.Knowledge = knowledge is IStagedKnowledgeSearch staged ? await staged.SearchOpening(run.Question, run.Cancellation.Token) : await knowledge.Search(run.Question, run.Cancellation.Token); }
-                catch (Exception) when (!run.Cancellation.IsCancellationRequested) { run.Knowledge = new([], "Vault search unavailable; evidence may be missing."); }
+                try
+                {
+                    var result = !extend && knowledge is IStagedKnowledgeSearch staged ? await staged.SearchOpening(run.Question, run.Cancellation.Token) : await knowledge.Search(run.Question, run.Cancellation.Token);
+                    run.Knowledge = extend ? new((run.Knowledge?.Hits ?? []).Concat(result.Hits).DistinctBy(h => h.Chunk.Id).TakeLast(12).ToArray(), result.Status) : result;
+                }
+                catch (Exception) when (!run.Cancellation.IsCancellationRequested) { run.Knowledge ??= new([], "Vault search unavailable; evidence may be missing."); }
                 if (!run.Active) return;
-                run.RetrievalMs = run.Clock.Elapsed.TotalMilliseconds; run.Status = "Generating opening with retrieved context…"; Changed?.Invoke();
+                if (!extend) run.RetrievalMs = run.Clock.Elapsed.TotalMilliseconds;
+                run.Status = extend ? "Appending supporting detail…" : "Generating opening with retrieved context…"; Changed?.Invoke();
             }
-            run.GenerationStartedMs = run.Clock.Elapsed.TotalMilliseconds;
-            await Generate(run.Fast, options.FastModel, options.FastEffort, false, !(run.Continuation && options.Deeper));
-            if (run.Continuation && options.Deeper && run.Active)
+            if (!extend) run.GenerationStartedMs = run.Clock.Elapsed.TotalMilliseconds;
+            await Generate(run.Fast, extend ? options.DeepModel : options.FastModel, extend ? options.DeepEffort : options.FastEffort, extend, extend || !(run.Continuation && options.Deeper));
+            if (!extend && run.Continuation && options.Deeper && run.Active)
             {
                 run.Status = "First sentence ready · retrieving supporting detail…"; Changed?.Invoke();
                 if (knowledge is IStagedKnowledgeSearch)
@@ -88,7 +105,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
             }
             if (run.Deeper is { } deep && run.Active)
             { run.Status = "Quick answer ready · generating deeper answer…"; Changed?.Invoke(); await Generate(deep, options.DeepModel, options.DeepEffort, true); }
-            if (run.Active) { run.Status = run.Continuation ? "Answer complete · ready to read" : "Complete · choose an answer to read"; run.CompletedMs = run.Clock.Elapsed.TotalMilliseconds; }
+            if (run.Active) { run.Status = run.FlowFinished ? "No further grounded detail · answer complete" : run.Continuation ? "Ready to read · continuation follows your progress" : "Complete · choose an answer to read"; run.CompletedMs ??= run.Clock.Elapsed.TotalMilliseconds; }
         }
         catch (Exception ex)
         {
@@ -112,7 +129,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
             var buffer = new ReadableAnswerBuffer(); var priorWords = answer.WordCount;
             var prompt = new AssistantPrompt(run.Id, run.Question, options.Context, conversation, model, effort, deeper, run.Continuation,
                 deeper && run.Continuation ? string.Join("\n\n", answer.Blocks.Select(b => b.Text)) : "",
-                run.Knowledge is { } evidence ? evidence.Status + "\n" + evidence.Evidence : "");
+                run.Knowledge is { } evidence ? evidence.Status + "\n" + evidence.Evidence : "") { Extension = extend };
             await provider.Generate(prompt, async text => await dispatcher.InvokeAsync(() =>
             {
                 if (!run.Active || run.Cancellation.IsCancellationRequested) return;
@@ -121,11 +138,12 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
             }), run.Cancellation.Token);
             if (!run.Active) return;
             foreach (var block in buffer.Push("", true)) Deliver(block);
-            if (answer.WordCount == priorWords) throw new InvalidOperationException("Provider returned no readable answer for this stage.");
+            if (answer.WordCount == priorWords && !run.FlowFinished) throw new InvalidOperationException("Provider returned no readable answer for this stage.");
             if (complete) Inbox.Accept(new(run.Id, answer.Id, Next(), Kind: AnswerEventKind.Complete));
             int Next() { var sequence = sequences.GetValueOrDefault(answer.Id); sequences[answer.Id] = sequence + 1; return sequence; }
             void Deliver(string block)
             {
+                if (extend && block.Trim() == "END_OF_GROUNDED_ANSWER.") { run.FlowFinished = true; return; }
                 run.FirstReadableMs ??= run.Clock.Elapsed.TotalMilliseconds;
                 if (deeper) run.FirstContinuationMs ??= run.Clock.Elapsed.TotalMilliseconds;
                 if (!Inbox.Accept(new(run.Id, answer.Id, Next(), block + "\n\n"))) throw new InvalidDataException("Reader rejected the answer stream.");

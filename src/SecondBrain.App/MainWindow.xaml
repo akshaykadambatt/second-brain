@@ -60,6 +60,9 @@
                   <Button Content="Resume following" Click="ResumeFollowing_Click" Padding="8,6" Margin="0,0,6,5" />
                 </WrapPanel>
                 <DockPanel Margin="0,0,0,8">
+                  <CheckBox x:Name="FlowCheck" Content="Keep this answer flowing as I read" IsChecked="True" Click="FlowCheck_Click" ToolTip="Appends grounded detail near the end during voice or timed following. Manual navigation never requests more text." />
+                </DockPanel>
+                <DockPanel Margin="0,0,0,8">
                   <Button x:Name="LiveAsk" Content="Ask" DockPanel.Dock="Right" Click="LiveAsk_Click" Padding="12,6" />
                   <TextBox x:Name="LiveQuestion" MaxLength="2000" ToolTip="Optional typed question while listening" AutomationProperties.Name="Ask about this meeting" />
                 </DockPanel>

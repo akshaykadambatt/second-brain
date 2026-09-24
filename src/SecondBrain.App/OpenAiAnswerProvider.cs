@@ -29,6 +29,7 @@ internal sealed class OpenAiAnswerProvider(Func<string> loadKey, HttpMessageHand
                 ? prompt.Deeper ? "Continue naturally after the supplied spoken_opening, which is already on screen. Do not repeat or rephrase it. Add useful supporting detail in one to three short paragraphs, at most 130 words. Correct any error in the opening explicitly rather than silently contradicting it."
                     : "Give exactly one short, useful opening sentence, at most 22 words. Answer directly; do not introduce yourself or promise to explain later. End with sentence punctuation."
                 : prompt.Deeper ? "Give a more considered answer in two to four paragraphs, at most 180 words." : "Give a quick useful answer in one or two paragraphs, at most 80 words.");
+        if (prompt.Extension) instructions += " The user is nearing the end of the already displayed answer. Add only the next useful grounded section; do not restart, summarize or repeat existing text. If no further supported detail is useful, output exactly END_OF_GROUNDED_ANSWER. and nothing else.";
         request.Content = new StringContent(JsonSerializer.Serialize(new
         {
             model = prompt.Model, stream = true, store = false, instructions,

@@ -20,6 +20,8 @@ internal sealed class CompanionSession : IDisposable
     private readonly QuestionUtterance utterance = new();
     private Guid systemConnection;
     private bool disposed;
+    private bool flowDemand;
+    public bool KeepFlowing { get; set; } = true;
     public AssistantService Answers { get; }
     public bool Active { get; private set; } = true;
     public StreamAnswer? Selected { get; private set; }
@@ -32,6 +34,7 @@ internal sealed class CompanionSession : IDisposable
         this.reader = reader; this.playback = playback; this.context = context; Answers = answers; this.options = options; this.provider = provider;
         this.sessionClockOrigin = sessionClockOrigin;
         context.SessionChanged += SessionChanged;
+        reader.Changed += ReaderProgress;
         Answers.Inbox.Changed += Updated; Answers.Changed += AnswerChanged;
         var waiting = new AnswerInbox().Begin(Guid.NewGuid(), Guid.NewGuid(), "Listening for a question…");
         reader.ShowAnswer(waiting);
@@ -106,6 +109,14 @@ internal sealed class CompanionSession : IDisposable
             Received(new(context.SessionId, "Final", AudioSource.System, 0, 0, question), TakeTiming());
         if (pending.Count > 0 && Answers.ActiveCount < 3)
         { var next = pending.Dequeue(); Ask(next.Question, true, next.Context, next.Session, next.Timing); }
+        if (KeepFlowing && flowDemand && (playback.Voice.Active || playback.Playing) && Selected is { } selected
+            && reader.Position >= Math.Max(1, Math.Max(selected.WordCount * .6, selected.WordCount - 40))
+            && Answers.Requests.LastOrDefault() is { } latest && latest.Fast == selected && Answers.Extend(latest)) flowDemand = false;
+    }
+    private void ReaderProgress(ReaderChange change)
+    {
+        if (change is ReaderChange.VoicePosition or ReaderChange.TimedPosition) flowDemand = true;
+        else if (change is ReaderChange.Position or ReaderChange.Document) flowDemand = false;
     }
     private void Updated(StreamAnswer answer)
     {
@@ -139,6 +150,7 @@ internal sealed class CompanionSession : IDisposable
     {
         Active = false; pending.Clear(); playback.Pause();
         context.SessionChanged -= SessionChanged;
+        reader.Changed -= ReaderProgress;
         await Answers.Stop(); Status = "Answer generation stopped · your readable answer remains available."; Changed?.Invoke();
         Dispose();
     }
@@ -146,6 +158,7 @@ internal sealed class CompanionSession : IDisposable
     {
         if (disposed) return; disposed = true;
         context.SessionChanged -= SessionChanged;
+        reader.Changed -= ReaderProgress;
         Answers.Inbox.Changed -= Updated; Answers.Changed -= AnswerChanged; provider?.Dispose();
     }
 }

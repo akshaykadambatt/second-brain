@@ -63,6 +63,7 @@ public partial class MainWindow
             Companion?.Dispose();
             var provider = testProvider ?? new OpenAiAnswerProvider(new ApiKeyStore(dataDirectory, "OpenAI").Load);
             Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log, Knowledge?.ForProject(meetingContext.Project)), options, testProvider is null ? provider as IDisposable : null, () => Recorder.ClockOrigin);
+            Companion.KeepFlowing = FlowCheck.IsChecked == true;
             companionVaultRoot = Knowledge?.Root;
             sourcesRequest = Guid.Empty; LiveSources.Items.Clear(); SourceStatus.Text = "Waiting for retrieved sources.";
             Companion.Changed += RefreshCompanion;
@@ -157,6 +158,8 @@ public partial class MainWindow
         RefreshLatency();
     }
     private void LiveAsk_Click(object sender, RoutedEventArgs e) => Companion?.Ask(LiveQuestion.Text);
+    private void FlowCheck_Click(object sender, RoutedEventArgs e)
+    { if (Companion is { } companion) companion.KeepFlowing = FlowCheck.IsChecked == true; }
     private void CompanionPrevious_Click(object sender, RoutedEventArgs e) => Companion?.Navigate(-1);
     private void CompanionNext_Click(object sender, RoutedEventArgs e) => Companion?.Navigate(1);
     private void ResumeFollowing_Click(object sender, RoutedEventArgs e)
