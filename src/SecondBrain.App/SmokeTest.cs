@@ -25,7 +25,9 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "stream")
+            if (phase == "audio")
+            { await AudioRecordingTests.Run(window, directory, Check, Capture); }
+            else if (phase == "stream")
             {
                 while (window.Panels.Count < 4) window.AddReader();
                 for (var i = 0; i < 4; i++) { window.Panels[i].Width = 430 + i * 65; window.Panels[i].Height = 380 + i * 20; }

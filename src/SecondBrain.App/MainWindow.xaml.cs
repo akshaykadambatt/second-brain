@@ -26,6 +26,8 @@ public partial class MainWindow : Window
     private readonly System.Diagnostics.Stopwatch playbackClock = System.Diagnostics.Stopwatch.StartNew();
     private double playbackFrame;
     internal VoiceService Voice { get; }
+    internal RecordingService Recorder { get; }
+    private RecordingWindow? recordingWindow;
     internal IReadOnlyList<ReaderWindow> Panels => panels;
     internal AppSettings Settings => settings;
 
@@ -55,6 +57,7 @@ public partial class MainWindow : Window
         saveTimer.Tick += (_, _) => { saveTimer.Stop(); SaveSettings(); };
         var keys = new ApiKeyStore(dataDirectory);
         Voice = new VoiceService(Dispatcher, Session, keys, log);
+        Recorder = new RecordingService(System.IO.Path.Combine(dataDirectory, "recordings"), log, hiddenTestMode ? AudioRecordingTests.CreateSource : null);
         Voice.Status += text => SetStatus(text); Voice.Heard += text => HeardText.Text = "Heard: " + text; Voice.Level += level => MicLevel.Value = level;
         Voice.Stopped += () => { MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true; ListenButton.Content = "Start listening"; MicLabel.Text = "Mic off"; MicLevel.Value = 0; };
         Session.Changed += change =>
@@ -197,6 +200,18 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is InvalidOperationException or System.IO.IOException or UnauthorizedAccessException)
         { SetStatus("Reading comparison could not open. Existing results are preserved; check the data folder.", true); }
     }
+    private void Recording_Click(object sender, RoutedEventArgs e) => OpenRecording();
+    internal RecordingWindow OpenRecording()
+    {
+        if (recordingWindow is not null) { if (!hiddenTestMode) recordingWindow.Activate(); return recordingWindow; }
+        recordingWindow = new RecordingWindow(this, System.IO.Path.Combine(dataDirectory, "recordings"), hiddenTestMode);
+        recordingWindow.Closed += (_, _) => recordingWindow = null;
+        recordingWindow.Show(); return recordingWindow;
+    }
+    internal void SaveRecordingDevices(string microphone, string output)
+    {
+        settings = settings with { RecordingMicrophoneId = microphone, RecordingOutputId = output }; SaveSettings();
+    }
     private void StreamDemo_Click(object sender, RoutedEventArgs e) => OpenStreamDemo();
     internal StreamDemoWindow OpenStreamDemo()
     {
@@ -247,7 +262,8 @@ public partial class MainWindow : Window
     {
         if (allowClose) { base.OnClosing(e); return; }
         e.Cancel = true; if (closing) return;
-        closing = true; replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync();
+        closing = true; replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
+        if (recordingWindow is { } captureWindow) { try { await captureWindow.RecoveryTask; } catch (Exception) { } if (captureWindow.IsVisible) captureWindow.Close(); }
         foreach (var panel in panels.ToArray()) panel.Close();
         allowClose = true;
         await Dispatcher.InvokeAsync(Close);

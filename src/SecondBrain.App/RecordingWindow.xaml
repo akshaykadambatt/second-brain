@@ -1,0 +1,19 @@
+<Window x:Class="SecondBrain.App.RecordingWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Second Brain · Record audio" Style="{StaticResource ShellWindowStyle}" Width="750" Height="650" MinWidth="600" MinHeight="540" WindowStartupLocation="CenterOwner">
+  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="24">
+    <TextBlock Text="Record audio" FontSize="28" FontWeight="SemiBold"/>
+    <TextBlock Text="Save your microphone and computer audio as separate local tracks. Choose the output device your meeting uses. Recording does not start transcription." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,8,0,18"/>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel><TextBlock Text="Recording microphone" FontWeight="SemiBold" Margin="0,0,0,6"/><ComboBox x:Name="MicrophonePicker" DisplayMemberPath="Name" Padding="6" AutomationProperties.Name="Recording microphone" ToolTip="{Binding RelativeSource={RelativeSource Self}, Path=SelectedItem.Name}"/><ProgressBar x:Name="MicrophoneMeter" Maximum="100" Height="8" Margin="0,14,0,8"/><TextBlock x:Name="MicrophoneStatus" Text="Not recording" FontSize="12" TextWrapping="Wrap"/></StackPanel>
+      <StackPanel Grid.Column="2"><TextBlock Text="Computer audio output" FontWeight="SemiBold" Margin="0,0,0,6"/><ComboBox x:Name="OutputPicker" DisplayMemberPath="Name" Padding="6" AutomationProperties.Name="Computer audio output" ToolTip="{Binding RelativeSource={RelativeSource Self}, Path=SelectedItem.Name}"/><ProgressBar x:Name="OutputMeter" Maximum="100" Height="8" Margin="0,14,0,8"/><TextBlock x:Name="OutputStatus" Text="Not recording" FontSize="12" TextWrapping="Wrap"/></StackPanel>
+    </Grid>
+    <WrapPanel Margin="0,18,0,8"><Button x:Name="StartButton" Content="Start recording" Click="Start_Click" Padding="14,9" Margin="0,0,8,6"/><Button x:Name="PauseButton" Content="Pause" Click="Pause_Click" Padding="14,9" Margin="0,0,8,6"/><Button x:Name="StopButton" Content="Stop and save" Click="Stop_Click" Padding="14,9" Margin="0,0,8,6"/><Button x:Name="RefreshButton" Content="Refresh devices" Click="Refresh_Click" Padding="12,9" Margin="0,0,0,6"/></WrapPanel>
+    <TextBlock x:Name="ClockText" Text="00:00:00" FontSize="24" FontWeight="SemiBold"/>
+    <TextBlock x:Name="StatusText" Text="Ready · nothing is being captured" TextWrapping="Wrap" Margin="0,8,0,6"/>
+    <TextBlock x:Name="LocationText" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,14"/>
+    <TextBlock Text="Recent recordings" FontSize="17" FontWeight="SemiBold" Margin="0,8,0,6"/>
+    <ListBox x:Name="SessionsList" Height="105" DisplayMemberPath="Label" AutomationProperties.Name="Recent recordings"/>
+    <WrapPanel Margin="0,10,0,0"><Button x:Name="FolderButton" Content="Open recording folder" Click="Folder_Click" Padding="12,8" Margin="0,0,8,6"/><Button x:Name="RecoverButton" Content="Recover selected session" Click="Recover_Click" Padding="12,8" Margin="0,0,0,6"/></WrapPanel>
+    <TextBlock Text="Stop creates microphone.wav and system.wav. Pauses and uncaptured intervals remain on the timeline. If interrupted, recover the session from its saved chunks. Closing this window stops and saves recording." TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+  </StackPanel></ScrollViewer>
+</Window>

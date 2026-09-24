@@ -14,6 +14,8 @@ public sealed record AppSettings
     public int SchemaVersion { get; init; } = 1;
     public bool RememberReaderPosition { get; init; } = true;
     public string? MicrophoneId { get; init; }
+    public string? RecordingMicrophoneId { get; init; }
+    public string? RecordingOutputId { get; init; }
     public double TimedWordsPerMinute { get; init; } = 150;
     public WindowPlacement? ReaderPlacement { get; init; }
     public string ScriptText { get; init; } = ReaderSession.Sample;

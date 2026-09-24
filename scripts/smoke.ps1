@@ -1,4 +1,6 @@
-param([string]$Executable = '')
+param([string]$Executable = '',
+    [ValidateSet('seed','verify','voice','flow','timed','study','replay','audio','stream')]
+    [string[]]$Phases = @('seed','verify','voice','flow','timed','study','replay','audio','stream'))
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $Executable) { $Executable = Join-Path $root 'dist\single-file\SecondBrain.exe' }
@@ -14,8 +16,8 @@ $hash = (Get-FileHash -LiteralPath $isolatedExe -Algorithm SHA256).Hash
 try {
     $env:DOTNET_ROOT = Join-Path $data 'absent-runtime'
     $env:DOTNET_MULTILEVEL_LOOKUP = '0'
-    foreach ($phase in @('seed','verify','voice','flow','timed','study','replay','stream')) {
-        $phaseData = if ($phase -in @('voice','flow','timed','study','replay','stream')) { Join-Path $data $phase } else { $data }
+    foreach ($phase in $Phases) {
+        $phaseData = if ($phase -in @('voice','flow','timed','study','replay','stream','audio')) { Join-Path $data $phase } else { $data }
         $p = Start-Process -FilePath $isolatedExe -ArgumentList @('--data-dir', ('"' + $phaseData + '"'), '--smoke-test', $phase) -PassThru -WindowStyle Hidden
         if (-not $p.WaitForExit(30000)) { $p.Kill(); throw "Smoke phase timed out: $phase" }
         if ($p.ExitCode -ne 0) { throw "Smoke phase failed: $phase ($($p.ExitCode)). Inspect $data" }

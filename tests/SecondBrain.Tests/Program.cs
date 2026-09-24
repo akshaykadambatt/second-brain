@@ -99,9 +99,9 @@ Test("Requirements have unique IDs, sprint assignments and completion evidence",
     }
     Assert(Enumerable.Range(0, 11).All(sprints.Contains), "A sprint has no requirements");
 });
-Test("Voice prototype excludes system capture, recognition fallback and unrelated AI capabilities", () =>
+Test("Audio sprint excludes recognition fallback and unrelated AI capabilities", () =>
 {
-    var forbidden = new[] { "SpeechRecognitionEngine", "DictationGrammar", "WasapiLoopbackCapture", "DataFlow.Render", "Process.Start", "api.openai.com", "api.anthropic.com" };
+    var forbidden = new[] { "SpeechRecognitionEngine", "DictationGrammar", "api.openai.com", "api.anthropic.com" };
     foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
         .Where(p => !p.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)))
     {
@@ -420,6 +420,73 @@ Test("Microphone matcher continues into newly appended text without resetting th
     inbox.Accept(new(answer.RequestId, answer.Id, 1, "Welcome back.\n\n"));
     progress.Observe(new(2, 1, "Welcome back", true, true, .99f));
     Assert(session.Position == 4 && session.DocumentId == answer.Id, "Append broke microphone matching");
+});
+Test("Recording selections persist independently of voice-following selection", () =>
+{
+    var store = new SettingsStore(Folder("audio-settings"));
+    store.Save(new() { MicrophoneId = "voice", RecordingMicrophoneId = "capture", RecordingOutputId = "speakers" });
+    var value = store.Load(out _);
+    Assert(value.MicrophoneId == "voice" && value.RecordingMicrophoneId == "capture" && value.RecordingOutputId == "speakers", "Recording device settings were lost");
+});
+Test("Recording preserves source clocks, pauses and playable PCM headers", () =>
+{
+    var tracks = new AudioTrack[] { new(AudioSource.Microphone, "mic", "Mic", 8000), new(AudioSource.System, "output", "Output", 16000) };
+    using var recording = new RecordingSession(Folder("audio-clock"), tracks);
+    foreach (var track in tracks)
+    {
+        var data = new byte[track.SampleRate * 2];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(track.SampleRate / 4 * 2), 12345);
+        recording.Write(new(track.Source, 0, data));
+    }
+    recording.Mark("Paused", 1); recording.Mark("Recording", 2, "Resume");
+    foreach (var track in tracks) recording.Write(new(track.Source, 2, new byte[track.SampleRate * 2], Silent: true));
+    recording.Complete(3);
+    foreach (var track in tracks)
+    {
+        var bytes = File.ReadAllBytes(Path.Combine(recording.DirectoryPath, track.Source.ToString().ToLowerInvariant() + ".wav"));
+        Assert(System.Text.Encoding.ASCII.GetString(bytes, 0, 4) == "RIFF" && BitConverter.ToInt32(bytes, 40) == track.SampleRate * 6, "Invalid WAV header or timeline duration");
+        Assert(BitConverter.ToInt16(bytes, 44 + track.SampleRate / 4 * 2) == 12345, "Cross-source marker moved off the common clock");
+        Assert(bytes.AsSpan(44 + track.SampleRate * 2, track.SampleRate * 2).ToArray().All(v => v == 0), "Pause was compressed instead of padded");
+    }
+    var manifest = RecordingSession.ReadManifest(recording.DirectoryPath);
+    Assert(manifest.State == "Completed" && manifest.Chunks.Count == 4 && manifest.SilentFrames[AudioSource.Microphone] == 8000, "Chunk or captured-silence metadata missing");
+    Assert(manifest.Events.Count(e => e.Kind == "NoCapturedPackets") == 2, "Uncaptured gaps were silently presented as recorded silence");
+});
+Test("Recovery rebuilds interrupted chunks and refuses an active session lock", () =>
+{
+    var tracks = new AudioTrack[] { new(AudioSource.Microphone, "mic", "Mic", 8000), new(AudioSource.System, "output", "Output", 8000) };
+    string directory;
+    using (var recording = new RecordingSession(Folder("audio-recovery"), tracks))
+    {
+        directory = recording.DirectoryPath; recording.Write(new(AudioSource.Microphone, 0, new byte[1600]));
+        try { RecordingSession.Recover(directory); throw new Exception("Recovery entered a live session"); } catch (IOException) { }
+    }
+    var part = Directory.GetFiles(directory, "*.part").Single();
+    using (var damaged = new FileStream(part, FileMode.Open, FileAccess.Write)) { damaged.Position = 40; damaged.Write(new byte[4]); damaged.Position = damaged.Length; damaged.WriteByte(99); }
+    var recovered = RecordingSession.Recover(directory);
+    Assert(recovered.State == "Recovered" && recovered.Chunks.Single().Frames == 800 && !Directory.GetFiles(directory, "*.part").Any(), "Incomplete header/tail was not repaired");
+    Assert(File.Exists(Path.Combine(directory, "microphone.wav")) && File.Exists(Path.Combine(directory, "system.wav")), "Recovery did not produce both aligned tracks");
+    Assert(RecordingSession.Recover(directory).Events.Count == recovered.Events.Count, "Repeated recovery duplicated events");
+});
+Test("Thirty-minute synthetic recording retains alignment and bounded recoverable chunks", () =>
+{
+    var tracks = new AudioTrack[] { new(AudioSource.Microphone, "mic", "Mic", 8000), new(AudioSource.System, "output", "Output", 16000) };
+    using var recording = new RecordingSession(Folder("audio-thirty-minutes"), tracks);
+    var packets = tracks.ToDictionary(t => t.Source, t => new byte[t.SampleRate * 20]);
+    foreach (var track in tracks) System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(packets[track.Source], 14000);
+    for (var second = 0; second < 1800; second += 10)
+        foreach (var track in tracks) recording.Write(new(track.Source, second, packets[track.Source]));
+    recording.Complete(1800);
+    Assert(recording.Manifest.Chunks.Count == 360 && recording.Manifest.DurationSeconds == 1800, "Thirty-minute timeline or chunk count mismatch");
+    foreach (var track in tracks)
+    {
+        using var file = File.OpenRead(Path.Combine(recording.DirectoryPath, track.Source.ToString().ToLowerInvariant() + ".wav"));
+        Assert(file.Length == 44 + track.SampleRate * 2L * 1800, "Export duration changed with source sample rate");
+        var marker = new byte[2];
+        foreach (var second in new[] { 0, 600, 1200, 1790 })
+        { file.Position = 44 + track.SampleRate * 2L * second; file.ReadExactly(marker); Assert(BitConverter.ToInt16(marker) == 14000, "Marker drifted at " + second); }
+    }
+    File.WriteAllText(Path.Combine(root, "artifacts", "audio-endurance.json"), JsonSerializer.Serialize(new { passed = true, simulatedSeconds = 1800, realTimeHardwareTest = false, recording.Manifest.DurationSeconds, chunks = recording.Manifest.Chunks.Count, markerAlignmentSamples = 0, sampleRates = tracks.Select(t => t.SampleRate) }, new JsonSerializerOptions { WriteIndented = true }));
 });
 var report = Path.Combine(root, "artifacts", "unit-tests.json");
 File.WriteAllText(report, JsonSerializer.Serialize(new { passed = failures == 0, results }, new JsonSerializerOptions { WriteIndented = true }));
