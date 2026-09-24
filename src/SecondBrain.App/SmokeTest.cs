@@ -25,7 +25,8 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "wrap") { await WrapAlignmentTests.Run(window, directory, Check, Capture); }
+            if (phase == "tray") { await TraySmokeTests.Run(window, directory, Check); }
+            else if (phase == "wrap") { await WrapAlignmentTests.Run(window, directory, Check, Capture); }
             else if (phase == "storage") { await StorageSmokeTests.Run(window, directory, Check, Capture); }
             else if (phase == "history") { await MaintenanceTests.Run(window, directory, Check, Capture); }
             else if (phase == "history-live") { await MaintenanceTests.RunLive(window, directory, Check); }
@@ -323,10 +324,12 @@ internal static class SmokeTest
             await window.StopListening();
             var open = window.Panels.ToArray();
             Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            window.Close();
+            window.ExitApplication();
             using (var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20)))
-                while (window.IsVisible) await Task.Delay(20, deadline.Token);
-            Check(open.All(p => !p.IsVisible), "Closing main window closes every reader");
+                while (!window.ShutdownCompleted) await Task.Delay(20, deadline.Token);
+            Check(open.All(p => !p.IsVisible) && !window.TrayVisible, "Explicit exit closes every reader and removes the tray icon");
+            if (phase == "tray") Check(window.Companion?.Active == false && !window.Recorder.HasSession && window.Recorder.State == RecordingState.Completed,
+                "Tray Exit completes active synthetic recording and companion shutdown before process exit");
             File.WriteAllText(Path.Combine(directory, phase + ".json"), JsonSerializer.Serialize(new { passed = unmetTargets.Count == 0, functionalPassed = true, checks, unmetTargets }, new JsonSerializerOptions { WriteIndented = true }));
             Application.Current.Shutdown(0);
         }

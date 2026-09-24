@@ -17,6 +17,23 @@ internal static class NativeWindows
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool SetWindowDisplayAffinity(IntPtr window, uint affinity);
     [DllImport("user32.dll")] private static extern bool GetWindowDisplayAffinity(IntPtr window, out uint affinity);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)] private static extern IntPtr SetWindowLongPtr(IntPtr window, int index, IntPtr value);
+
+    internal static bool IsToolWindow(Window window)
+    {
+        var style = GetWindowLongPtr(new WindowInteropHelper(window).Handle, -20).ToInt64();
+        return (style & 0x80) != 0 && (style & 0x40000) == 0;
+    }
+
+    internal static void HideFromWindowSwitchers(Window window)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        var style = GetWindowLongPtr(handle, -20).ToInt64();
+        // Tool windows stay out of the taskbar and Alt+Tab without disabling input.
+        SetWindowLongPtr(handle, -20, new IntPtr((style | 0x80) & ~0x40000L));
+        if (!IsToolWindow(window)) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "Could not hide the reader from window switchers.");
+    }
 
     public static bool ExcludeFromCapture(Window window)
     {

@@ -26,7 +26,7 @@ public partial class App : Application
                 else if (e.Args[i] == "--setup-vault") setupVault = true;
                 else throw new ArgumentException("Expected --data-dir <directory> or --smoke-test <seed|verify|voice>.");
             }
-            if (smokePhase is not null and not "seed" and not "verify" and not "voice" and not "deepgram" and not "flow" and not "timed" and not "study" and not "replay" and not "stream" and not "audio" and not "transcription" and not "companion" and not "companion-live" and not "knowledge" and not "knowledge-live" and not "history" and not "history-live" and not "storage" and not "wrap" and not "assistant" and not "assistant-live" and not "hybrid" and not "transcription-live" and not "performance" and not "performance30") throw new ArgumentException("Unknown smoke phase.");
+            if (smokePhase is not null and not "seed" and not "verify" and not "voice" and not "deepgram" and not "flow" and not "timed" and not "study" and not "replay" and not "stream" and not "audio" and not "transcription" and not "companion" and not "companion-live" and not "knowledge" and not "knowledge-live" and not "history" and not "history-live" and not "storage" and not "wrap" and not "tray" and not "assistant" and not "assistant-live" and not "hybrid" and not "transcription-live" and not "performance" and not "performance30") throw new ArgumentException("Unknown smoke phase.");
             Directory.CreateDirectory(dataDirectory);
             if (importOpenAi is not null)
             {
@@ -50,7 +50,7 @@ public partial class App : Application
                 Shutdown(0); return;
             }
             log = new DiagnosticLog(dataDirectory);
-            var loggingAvailable = log.Write("Application started v0.13.1");
+            var loggingAvailable = log.Write("Application started v0.13.2");
             var store = new SettingsStore(dataDirectory);
             var settings = store.Load(out var warning);
             var window = new MainWindow(store, settings, log, dataDirectory, hiddenTestMode: smokePhase is not null);
@@ -66,7 +66,20 @@ public partial class App : Application
                 args.Handled = true;
                 Shutdown(1);
             };
+            if (smokePhase is null)
+            {
+                try { window.InitializeTray(); }
+                catch (Exception ex)
+                {
+                    window.DisposeTray();
+                    window.ShowInTaskbar = true;
+                    window.ShowActivated = true;
+                    log.Write("Tray initialization failed: " + ex.Message);
+                    window.SetStatus("System tray unavailable. Controls remain open; closing them exits the app.", true);
+                }
+            }
             window.Show();
+            if (smokePhase is null && window.TrayVisible) window.Hide();
             if (smokePhase == "performance") _ = PerformanceTest.Run(window, dataDirectory);
             else if (smokePhase == "performance30") _ = PerformanceTest.Run(window, dataDirectory, 30);
             else if (smokePhase is not null) _ = SmokeTest.Run(window, dataDirectory, smokePhase);
@@ -82,6 +95,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (MainWindow is MainWindow window) window.DisposeTray();
         log?.Write("Application stopped");
         instanceLock?.Dispose();
         base.OnExit(e);

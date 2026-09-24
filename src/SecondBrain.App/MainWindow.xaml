@@ -112,6 +112,6 @@
         </StackPanel></ScrollViewer>
       </Border>
     </Grid></ScrollViewer>
-    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.13.1" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
+    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.13.2" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
   </Grid>
 </Window>

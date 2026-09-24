@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <!-- WPF uses the SDK's WindowsDesktop reference pack, not an external Windows SDK.
          Explicit metadata avoids unnecessary per-user SDK-directory discovery. -->
     <TargetPlatformMoniker>Windows,Version=7.0</TargetPlatformMoniker>
@@ -11,6 +12,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../SecondBrain.Core/SecondBrain.Core.csproj" /></ItemGroup>
+  <ItemGroup><Using Remove="System.Drawing" /><Using Remove="System.Windows.Forms" /></ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.Speech" Version="10.0.0" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />

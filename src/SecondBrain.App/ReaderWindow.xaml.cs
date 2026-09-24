@@ -68,6 +68,7 @@ public partial class ReaderWindow : Window
         session.Changed += SessionChanged;
         SourceInitialized += (_, _) =>
         {
+            NativeWindows.HideFromWindowSwitchers(this);
             CaptureExcluded = NativeWindows.ExcludeFromCapture(this);
             CaptureText.Text = CaptureExcluded ? "Capture exclusion on · verify your screen share" : "Capture exclusion failed · panel may appear in screen share";
             if (!CaptureExcluded) CaptureText.Foreground = Brushes.Salmon;

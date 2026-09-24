@@ -14,6 +14,10 @@ public partial class MainWindow : Window
     private readonly DiagnosticLog log;
     private AppSettings settings;
     private bool initialized, closing, allowClose, startingVoice;
+    private bool exitRequested;
+    private TrayController? tray;
+    internal bool TrayVisible => tray?.Visible == true;
+    internal bool ShutdownCompleted { get; private set; }
     private readonly bool hiddenTestMode;
     private readonly DispatcherTimer saveTimer;
     private readonly List<ReaderWindow> panels = [];
@@ -82,7 +86,8 @@ public partial class MainWindow : Window
             CompositionTarget.Rendering += PlaybackFrame;
             if (settings.RememberReaderPosition) foreach (var saved in settings.Panels.ToArray()) AddReader(saved);
         };
-        Closed += (_, _) => CompositionTarget.Rendering -= PlaybackFrame;
+        StateChanged += (_, _) => { if (tray is not null && WindowState == WindowState.Minimized && !closing) Hide(); };
+        Closed += (_, _) => { CompositionTarget.Rendering -= PlaybackFrame; DisposeTray(); ShutdownCompleted = true; };
         initialized = true;
         RefreshMicrophones();
         InitializeCompanion(); RefreshCompanionControls();
@@ -90,6 +95,31 @@ public partial class MainWindow : Window
         if (!keys.Exists) SetStatus("Deepgram key is not configured yet. Ask Codex to finish setup.", true);
         UpdatePanelCount();
     }
+    internal void InitializeTray()
+    {
+        if (tray is not null) return;
+        tray = new TrayController(ShowControls, () => { if (!closing) AddReader(); }, ExitApplication);
+        ShowInTaskbar = false;
+        ShowActivated = false;
+    }
+
+    internal void ShowControls()
+    {
+        if (closing) return;
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        NativeWindows.Restore(this, NativeWindows.GetBounds(this));
+        if (!hiddenTestMode) Activate();
+    }
+
+    internal void ExitApplication()
+    {
+        exitRequested = true;
+        Close();
+    }
+
+    internal void DisposeTray() { tray?.Dispose(); tray = null; }
+
     private IntPtr WindowHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (message == 0x007E) Dispatcher.BeginInvoke(() => { if (!closing) NativeWindows.Restore(this, NativeWindows.GetBounds(this)); });
@@ -294,6 +324,7 @@ public partial class MainWindow : Window
     protected override async void OnClosing(CancelEventArgs e)
     {
         if (allowClose) { base.OnClosing(e); return; }
+        if (tray is not null && !exitRequested) { e.Cancel = true; Hide(); return; }
         e.Cancel = true; if (closing) return;
         closing = true; contextTimer.Stop(); await storageTask; await StopCompanion(); Assistant?.Close(); replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
         await Task.WhenAll(assistantShutdowns);
