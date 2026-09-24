@@ -17,7 +17,7 @@
 <TextBlock x:Name="LiveSystem" Text="Computer audio · waiting" TextWrapping="Wrap" MaxHeight="65" Margin="0,0,0,10"/>
 <TextBlock x:Name="CurrentQuestion" Text="Waiting for a question" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8"/>
 <TextBox x:Name="LiveAnswer" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="120" MaxHeight="230" FontSize="16"/>
-<WrapPanel Margin="0,8,0,12"><Button Content="Previous answer" Click="CompanionPrevious_Click" Padding="8,6" Margin="0,0,6,5"/><Button Content="Next answer" Click="CompanionNext_Click" Padding="8,6" Margin="0,0,6,5"/><Button Content="Resume following" Click="ResumeFollowing_Click" Padding="8,6" Margin="0,0,6,5"/><Button Content="Open reader" Click="OpenReader_Click" Padding="8,6" Margin="0,0,6,5"/></WrapPanel>
+<Expander Header="Sources for this answer" Margin="0,8,0,0"><StackPanel><TextBlock x:Name="SourceStatus" Text="Relevant vault passages will appear here, separate from the spoken answer." TextWrapping="Wrap" FontSize="11"/><ListBox x:Name="LiveSources" MaxHeight="200" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/><Button Content="Open selected source in Obsidian" Click="SourceOpen_Click" HorizontalAlignment="Left" Padding="8,5"/></StackPanel></Expander><WrapPanel Margin="0,8,0,12"><Button Content="Previous answer" Click="CompanionPrevious_Click" Padding="8,6" Margin="0,0,6,5"/><Button Content="Next answer" Click="CompanionNext_Click" Padding="8,6" Margin="0,0,6,5"/><Button Content="Resume following" Click="ResumeFollowing_Click" Padding="8,6" Margin="0,0,6,5"/><Button Content="Open reader" Click="OpenReader_Click" Padding="8,6" Margin="0,0,6,5"/></WrapPanel>
 <DockPanel><Button x:Name="LiveAsk" Content="Ask" DockPanel.Dock="Right" Click="LiveAsk_Click" Padding="12,6"/><TextBox x:Name="LiveQuestion" MaxLength="2000" ToolTip="Optional typed question while listening"/></DockPanel>
 <Expander Header="Context and AI settings" Margin="0,12,0,0"><StackPanel Margin="0,10,0,0">
 <TextBlock Text="Context notes (saved locally and sent with questions)" TextWrapping="Wrap"/>
@@ -28,7 +28,23 @@
 <Button Content="Save for next session" Click="LiveSave_Click" Padding="8,6" Margin="0,8,0,0" HorizontalAlignment="Left"/>
 <TextBlock Text="The first sentence and deeper continuation use these two models. Settings take effect on the next session." TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0"/>
 </StackPanel></Expander>
-</StackPanel></ScrollViewer></TabItem><TabItem x:Name="PracticeTab" Header="Practice and diagnostics">
+</StackPanel></ScrollViewer></TabItem><TabItem Header="Knowledge"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="18">
+<TextBlock Text="Your Markdown vault" FontSize="22" FontWeight="SemiBold"/>
+<TextBlock Text="The companion and Obsidian use this same folder. Notes remain beside the app by default; links become edges in Obsidian’s graph." TextWrapping="Wrap" Margin="0,8,0,12"/>
+<TextBox x:Name="VaultFolder" ToolTip="Vault folder"/>
+<WrapPanel Margin="0,8,0,8"><Button x:Name="VaultChoose" Content="Choose folder…" Click="VaultChoose_Click" Padding="8,6" Margin="0,0,6,6"/><Button Content="Open folder" Click="VaultExplorer_Click" Padding="8,6" Margin="0,0,6,6"/><Button Content="Open in Obsidian" Click="VaultObsidian_Click" Padding="8,6" Margin="0,0,6,6"/></WrapPanel>
+<CheckBox x:Name="SemanticCheck"><TextBlock Text="Semantic search: sends Markdown passages to OpenAI for embeddings (API usage)" TextWrapping="Wrap"/></CheckBox>
+<TextBlock Text="Project filter (exact project: frontmatter value; blank means all)" TextWrapping="Wrap" Margin="0,12,0,4"/><TextBox x:Name="VaultProject" MaxLength="120"/>
+<TextBlock Text="Date range · YYYY-MM-DD (blank means unrestricted)" Margin="0,8,0,4"/><UniformGrid Columns="2"><TextBox x:Name="VaultFrom" ToolTip="From date" Margin="0,0,6,0"/><TextBox x:Name="VaultUntil" ToolTip="Until date"/></UniformGrid>
+<WrapPanel Margin="0,8,0,10"><Button x:Name="VaultApply" Content="Apply vault and filters" Click="VaultApply_Click" Padding="8,6" Margin="0,0,6,6"/><Button Content="Rebuild index" Click="VaultRebuild_Click" Padding="8,6" Margin="0,0,6,6"/><Button x:Name="VaultImport" Content="Import saved meetings" Click="VaultImport_Click" Padding="8,6" Margin="0,0,6,6"/></WrapPanel>
+<TextBlock Text="New sessions export transcripts and linked excerpt summaries when stopped. Import saved meetings brings earlier sessions into this vault without changing original recordings." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"/>
+<TextBlock x:Name="VaultStatus" TextWrapping="Wrap" Margin="0,0,0,12"/>
+<DockPanel><Button x:Name="VaultSearch" Content="Search" Click="VaultSearch_Click" DockPanel.Dock="Right" Padding="10,6"/><TextBox x:Name="VaultQuery" MaxLength="2000" ToolTip="Search notes and previous meetings"/></DockPanel>
+<TextBlock x:Name="VaultSearchStatus" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,6"/>
+<ListBox x:Name="VaultResults" Height="200" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+<Button Content="Open selected note in Obsidian" Click="VaultOpenResult_Click" Padding="8,6" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+</StackPanel></ScrollViewer></TabItem>
+<TabItem x:Name="PracticeTab" Header="Practice and diagnostics">
 <Border Background="White" BorderBrush="#DFE4DA" BorderThickness="1" CornerRadius="12" Padding="20">
         <Grid>
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -65,6 +81,6 @@
         </StackPanel></ScrollViewer>
       </Border>
     </Grid></ScrollViewer>
-    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.10.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
+    <DockPanel Grid.Row="3" Margin="0,16,0,0"><TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}"/><TextBlock x:Name="VersionText" Text="v0.11.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right"/></DockPanel>
   </Grid>
 </Window>

@@ -54,7 +54,9 @@ public partial class MainWindow
             Transcriber.DrainAssistantEvents(out _); Transcriber.DrainSpeech();
             Companion?.Dispose();
             var provider = testProvider ?? new OpenAiAnswerProvider(new ApiKeyStore(dataDirectory, "OpenAI").Load);
-            Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log), options, testProvider is null ? provider as IDisposable : null);
+            Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log, Knowledge), options, testProvider is null ? provider as IDisposable : null);
+            companionVaultRoot = Knowledge?.Root;
+            sourcesRequest = Guid.Empty; LiveSources.Items.Clear(); SourceStatus.Text = "Waiting for retrieved sources.";
             Companion.Changed += RefreshCompanion;
             SaveRecordingDevices(mic.Id, output.Id); Transcriber.Enabled = true;
             if (Panels.Count == 0) AddReader();
@@ -83,6 +85,7 @@ public partial class MainWindow
                 var answers = companion.Stop(); // Disable new questions before flushing transcript finals.
                 await Recorder.StopAsync(); await answers;
                 CompanionStatus.Text = Recorder.State == RecordingState.Completed ? "Stopped · audio and transcripts saved. Your answer stays in the reader." : Recorder.Message;
+                await ExportCurrentMeeting();
             }
             Playback.Pause(); RefreshCompanionControls();
         }
@@ -106,6 +109,7 @@ public partial class MainWindow
         if (dropped) AssistantContext.MarkGap();
         foreach (var speech in speeches.Where(s => s.Source == AudioSource.System)) Companion?.Observe(speech);
         Companion?.Tick();
+        TickKnowledge();
         if (Companion?.Active == true)
         {
             CaptureStatus.Text = $"{TimeSpan.FromSeconds(Recorder.Elapsed):hh\\:mm\\:ss} · {Recorder.Message}\n{Transcriber.View.Status}";
@@ -131,6 +135,7 @@ public partial class MainWindow
         var text = companion.Selected is { } answer ? string.Join("\n\n", answer.Blocks.Select(b => b.Text)) : "Your first answer will appear here and in the floating reader automatically.";
         if (LiveAnswer.Text != text) LiveAnswer.Text = text;
         RefreshCompanionControls();
+        RefreshSources();
     }
     private void LiveAsk_Click(object sender, RoutedEventArgs e) => Companion?.Ask(LiveQuestion.Text);
     private void CompanionPrevious_Click(object sender, RoutedEventArgs e) => Companion?.Navigate(-1);

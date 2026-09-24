@@ -15,6 +15,7 @@ public partial class App : Application
         var dataDirectory = Path.Combine(AppContext.BaseDirectory, "data");
         string? smokePhase = null;
         string? importOpenAi = null;
+        var setupVault = false;
         try
         {
             for (var i = 0; i < e.Args.Length; i++)
@@ -22,9 +23,10 @@ public partial class App : Application
                 if (e.Args[i] == "--data-dir" && i + 1 < e.Args.Length) dataDirectory = Path.GetFullPath(e.Args[++i]);
                 else if (e.Args[i] == "--smoke-test" && i + 1 < e.Args.Length) smokePhase = e.Args[++i];
                 else if (e.Args[i] == "--import-openai-key" && i + 1 < e.Args.Length) importOpenAi = Path.GetFullPath(e.Args[++i]);
+                else if (e.Args[i] == "--setup-vault") setupVault = true;
                 else throw new ArgumentException("Expected --data-dir <directory> or --smoke-test <seed|verify|voice>.");
             }
-            if (smokePhase is not null and not "seed" and not "verify" and not "voice" and not "deepgram" and not "flow" and not "timed" and not "study" and not "replay" and not "stream" and not "audio" and not "transcription" and not "companion" and not "companion-live" and not "assistant" and not "assistant-live" and not "hybrid" and not "transcription-live" and not "performance" and not "performance30") throw new ArgumentException("Unknown smoke phase.");
+            if (smokePhase is not null and not "seed" and not "verify" and not "voice" and not "deepgram" and not "flow" and not "timed" and not "study" and not "replay" and not "stream" and not "audio" and not "transcription" and not "companion" and not "companion-live" and not "knowledge" and not "knowledge-live" and not "assistant" and not "assistant-live" and not "hybrid" and not "transcription-live" and not "performance" and not "performance30") throw new ArgumentException("Unknown smoke phase.");
             Directory.CreateDirectory(dataDirectory);
             if (importOpenAi is not null)
             {
@@ -32,8 +34,21 @@ public partial class App : Application
                 File.Delete(importOpenAi); Shutdown(0); return;
             }
             instanceLock = new FileStream(Path.Combine(dataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            if (setupVault)
+            {
+                var vaultSettings = new VaultSettings(dataDirectory, AppContext.BaseDirectory);
+                var options = vaultSettings.Load(); var root = vaultSettings.Resolve(options); VaultFiles.Initialize(root); vaultSettings.Save(options);
+                var recordings = Path.Combine(dataDirectory, "recordings"); var imported = 0; var skipped = 0;
+                if (Directory.Exists(recordings)) foreach (var folder in Directory.EnumerateDirectories(recordings))
+                {
+                    if (!File.Exists(Path.Combine(folder, "transcript.jsonl"))) continue;
+                    try { VaultFiles.ExportMeeting(root, folder); imported++; } catch (Exception) { skipped++; }
+                }
+                File.WriteAllText(Path.Combine(dataDirectory, "vault-setup.json"), System.Text.Json.JsonSerializer.Serialize(new { root, imported, skipped, networkUsed = false, originalsPreserved = true }));
+                Shutdown(0); return;
+            }
             log = new DiagnosticLog(dataDirectory);
-            var loggingAvailable = log.Write("Application started v0.10.0");
+            var loggingAvailable = log.Write("Application started v0.11.0");
             var store = new SettingsStore(dataDirectory);
             var settings = store.Load(out var warning);
             var window = new MainWindow(store, settings, log, dataDirectory, hiddenTestMode: smokePhase is not null);

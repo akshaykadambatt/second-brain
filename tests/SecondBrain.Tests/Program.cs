@@ -14,6 +14,52 @@ void Test(string name, Action action)
 void Assert(bool condition, string message) { if (!condition) throw new Exception(message); }
 string Folder(string name) { var path = Path.Combine(run, name); Directory.CreateDirectory(path); return path; }
 
+Test("Vault setup creates linked templates and preserves manual notes", () =>
+{
+    var root = Folder("vault-seed"); VaultFiles.Initialize(root);
+    Assert(File.ReadAllText(Path.Combine(root, "Home.md")).Contains("[[Context/Role]]"), "Missing graph links");
+    var role = Path.Combine(root, "Context", "Role.md"); File.WriteAllText(role, "Manual role content."); VaultFiles.Initialize(root);
+    Assert(File.ReadAllText(role) == "Manual role content." && File.Exists(Path.Combine(root, "Templates", "Person.md")), "Setup overwrote manual content or missed a template");
+    try { VaultFiles.SafePath(root, "../escape.md"); throw new Exception("Traversal accepted"); } catch (InvalidDataException) { }
+});
+Test("Vault manual edits, deletes and rebuilds update retrieval with project and date provenance", () =>
+{
+    var root = Folder("vault-index");
+    File.WriteAllText(Path.Combine(root, "early.md"), "---\nproject: Cedar\ndate: 2026-01-01\n---\n# Deadline\nThe launch deadline is Friday.");
+    File.WriteAllText(Path.Combine(root, "late.md"), "---\nproject: Cedar\ndate: 2026-09-24\n---\n# Deadline\nThe launch deadline is Monday.");
+    File.WriteAllText(Path.Combine(root, "other.md"), "---\nproject: Pine\ndate: 2026-09-24\n---\n# Deadline\nThe deadline is Tuesday.");
+    var index = new VaultIndex(); index.Rebuild(root);
+    var hits = index.Search("launch deadline", new("Cedar"), new Dictionary<string, float[]>()).Hits;
+    Assert(hits.Count == 2 && hits.All(h => h.Chunk.Project == "Cedar") && hits.Any(h => h.Chunk.Date == new DateOnly(2026, 1, 1)), "Project/date provenance lost");
+    Assert(index.Search("deadline", new("Cedar", new DateOnly(2026, 9, 1)), new Dictionary<string, float[]>()).Hits.Single().Chunk.File == "late.md", "Date filter failed");
+    File.WriteAllText(Path.Combine(root, "late.md"), "# Updated\nThe aurora release has no confirmed date."); File.Delete(Path.Combine(root, "early.md")); index.Rebuild(root);
+    Assert(index.Search("aurora", new(), new Dictionary<string, float[]>()).Hits.Single().Chunk.File == "late.md" && index.Chunks.All(c => c.File != "early.md"), "Manual change/delete not indexed");
+    var fresh = new VaultIndex(); fresh.Rebuild(root); Assert(fresh.Chunks.Select(c => c.Id).SequenceEqual(index.Chunks.Select(c => c.Id)), "Rebuild differs from source");
+});
+Test("Hybrid retrieval can recover a semantic paraphrase without lexical matches", () =>
+{
+    var root = Folder("vault-semantic"); File.WriteAllText(Path.Combine(root, "benefits.md"), "# Benefits\nEmployees receive twenty days of paid leave annually.");
+    File.WriteAllText(Path.Combine(root, "network.md"), "# Network\nFirewall access requires security review.");
+    var index = new VaultIndex(); index.Rebuild(root);
+    var vectors = index.Chunks.ToDictionary(c => c.Id, c => c.File == "benefits.md" ? new float[] { 1, 0 } : [0, 1]);
+    Assert(index.Search("vacation allowance", new(), vectors).Hits.Count == 0, "Fixture unexpectedly matches lexically");
+    Assert(index.Search("vacation allowance", new(), vectors, [1, 0]).Hits.Single().Chunk.File == "benefits.md", "Semantic ranking failed");
+    Assert(index.Search("zzunknown", new(), new Dictionary<string, float[]>()).Evidence.Contains("No relevant"), "Missing evidence not explicit");
+    var longLine = VaultIndex.Parse("long.md", new string('a', 5000)); Assert(longLine.Select(c => c.Id).Distinct().Count() == longLine.Count && longLine.Sum(c => c.Text.Length) == 5000, "Long repeated line lost text or generated duplicate IDs");
+});
+Test("Meeting export preserves source, dated links and human edits without duplicate imports", () =>
+{
+    var root = Folder("meeting-vault"); VaultFiles.Initialize(root);
+    using var session = new RecordingSession(Folder("meeting-source"), [new(AudioSource.Microphone, "fixture", "Synthetic", 16000), new(AudioSource.System, "output", "Synthetic output", 16000)], DateTimeOffset.Parse("2026-09-24T12:00:00Z"));
+    using (var journal = new TranscriptLog(session.DirectoryPath, session.Manifest.Id))
+    { journal.Append(new(session.Manifest.Id, "Final", AudioSource.Microphone, 1, 2, "We agreed the trial will be Friday.", Id: "one")); journal.Append(new(session.Manifest.Id, "Gap", AudioSource.System, 2, 3, "Connection gap.")); }
+    session.Complete(3); var raw = File.ReadAllText(Path.Combine(session.DirectoryPath, "transcript.jsonl"));
+    var summary = VaultFiles.ExportMeeting(root, session.DirectoryPath, "Cedar"); var full = VaultFiles.SafePath(root, summary);
+    Assert(File.ReadAllText(full).Contains("#^t000000|source") && File.ReadAllText(full).Contains("2026-09-24"), "Summary provenance/date missing");
+    Assert(File.ReadAllText(Path.Combine(Path.GetDirectoryName(full)!, "transcript.jsonl")) == raw, "Original transcript changed");
+    File.AppendAllText(full, "\nMy own note."); Assert(VaultFiles.ExportMeeting(root, session.DirectoryPath, "Cedar") == summary && File.ReadAllText(full).EndsWith("My own note."), "Repeated import duplicated or overwrote a note");
+});
+
 Test("Live questions combine final chunks and ignore changing provisional text", () =>
 {
     var utterance = new QuestionUtterance();

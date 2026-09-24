@@ -26,6 +26,9 @@ internal static class CompanionTests
     {
         var key = Path.Combine(directory, "synthetic-key.txt"); File.WriteAllText(key, "synthetic-deepgram-key-for-offline-tests");
         try { new ApiKeyStore(directory).Import(key); } finally { File.Delete(key); }
+        await main.Knowledge!.Refresh(true);
+        File.WriteAllText(Path.Combine(main.Knowledge.Root, "comfort.md"), "# Cedar\nCedar improves reading comfort by preserving text position. [[Home]]");
+        await main.Knowledge.Refresh(true);
         var provider = new Provider();
         check(await main.StartCompanion(provider), "One Start listening starts the companion session");
         await Until(() => main.AssistantContext.SessionId != Guid.Empty);
@@ -41,6 +44,7 @@ internal static class CompanionTests
         companion.Observe(new(id, AudioSource.System, connection, new(0, 1, "How does Cedar", true, false, .99f), AudioClock.Now));
         check(provider.Calls.Count == 0, "Split question waits for its speech endpoint");
         companion.Observe(new(id, AudioSource.System, connection, new(1, 1, "improve reading comfort?", true, true, .99f), AudioClock.Now));
+        await Until(() => provider.Calls.Count == 1);
         check(provider.Calls.Count == 1 && provider.Calls[0].Prompt.Question == "How does Cedar improve reading comfort?", "Computer question reaches fast model with all final segments; a shared single microphone word cannot suppress it");
         var run = companion.Answers.Requests[0];
         await provider.Calls[0].Delta("Cedar keeps the text steady while");
@@ -49,6 +53,7 @@ internal static class CompanionTests
         await Until(() => provider.Calls.Count == 2);
         check(main.Session.Answer == run.Fast && run.Fast.State == AnswerState.Receiving && main.Playback.Voice.Active && run.Deeper is null, "First sentence appears automatically with voice following and waits for continuation in the same answer");
         check(provider.Calls[1].Prompt.Opening == "Cedar keeps the text steady while you read." && provider.Calls[1].Prompt.Continuation, "Deeper model receives actual opening so it can continue without repeating");
+        check(main.LiveSources.Items.Count > 0 && run.Knowledge!.Hits.Any(h => h.Chunk.File == "comfort.md") && provider.Calls[1].Prompt.Knowledge.Contains("comfort.md"), "Integrated answers retrieve vault context and display separate source rows");
         main.Playback.StartVoice();
         companion.Observe(new(id, AudioSource.Microphone, micConnection, new(1, .5, "", true, true, .99f), AudioClock.Now));
         companion.Observe(new(id, AudioSource.Microphone, micConnection, new(2, 1, "Cedar keeps the text steady", true, true, .99f), AudioClock.Now));
@@ -63,6 +68,7 @@ internal static class CompanionTests
         check(run.Fast.State == AnswerState.Complete && run.Fast.Blocks.Count == 2 && run.FirstContinuationMs >= run.FirstReadableMs, "Opening and deeper continuation form one complete answer with separate timings");
         main.Playback.StartVoice();
         companion.Observe(new(id, AudioSource.System, connection, new(3, 1, "What is the next milestone?", true, true, .99f), AudioClock.Now));
+        await Until(() => provider.Calls.Count == 3);
         check(provider.Calls.Count == 3 && main.Session.Answer == run.Fast, "New system questions are detected while voice following remains active and do not erase the current answer");
         await provider.Calls[2].Delta("The next milestone is a reading trial.\n\n");
         provider.Calls[2].Done.SetResult(); await Until(() => provider.Calls.Count == 4);
@@ -78,6 +84,7 @@ internal static class CompanionTests
         check(!companion.Active && main.Recorder.State == RecordingState.Completed && AudioRecordingTests.SyntheticSource.OpenCount == 0 && !main.Playback.Voice.Active, "One stop cancels generation, saves recording/transcripts and releases both devices");
         check(!companion.Answers.Inbox.Answers.Any(a => a.Blocks.Any(b => b.Text.Contains("canceled late"))) && main.Session.Answer == run.Fast, "Stop rejects late output and leaves the current readable answer in place");
         check(File.Exists(Path.Combine(main.Recorder.LastDirectory!, "transcript.md")) && File.Exists(Path.Combine(main.Recorder.LastDirectory!, "system.wav")), "Combined session saves durable transcripts and both-source recording");
+        check(Directory.GetFiles(main.Knowledge!.Root, "Summary.md", SearchOption.AllDirectories).Length == 1, "Stopping the combined session exports a linked vault summary automatically");
         check(await main.StartCompanion(new Provider()), "Combined session can restart after stop");
         await Until(() => main.AssistantContext.SessionId != id);
         check(main.Companion!.Answers.Requests.Count == 0 && main.Session.Words.Count == 0, "Restart has a new context session and does not replay old questions or answers");

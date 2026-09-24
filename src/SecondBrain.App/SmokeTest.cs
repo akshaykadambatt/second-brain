@@ -25,7 +25,9 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "companion") { await CompanionTests.Run(window, directory, Check, Capture); }
+            if (phase == "knowledge") { await KnowledgeTests.Run(window, directory, Check, Capture); }
+            else if (phase == "knowledge-live") { await KnowledgeTests.RunLive(window, directory, Check); }
+            else if (phase == "companion") { await CompanionTests.Run(window, directory, Check, Capture); }
             else if (phase == "companion-live") { await CompanionTests.RunLive(window, directory, Check); }
             else if (phase == "assistant") { await AssistantTests.Run(window, directory, Check, Capture); }
             else if (phase == "assistant-live") { await AssistantTests.RunLive(window, directory, Check); }
@@ -316,9 +318,13 @@ internal static class SmokeTest
             }
             await window.StopListening();
             var open = window.Panels.ToArray();
+            Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             window.Close();
+            using (var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20)))
+                while (window.IsVisible) await Task.Delay(20, deadline.Token);
             Check(open.All(p => !p.IsVisible), "Closing main window closes every reader");
             File.WriteAllText(Path.Combine(directory, phase + ".json"), JsonSerializer.Serialize(new { passed = unmetTargets.Count == 0, functionalPassed = true, checks, unmetTargets }, new JsonSerializerOptions { WriteIndented = true }));
+            Application.Current.Shutdown(0);
         }
         catch (Exception ex)
         {

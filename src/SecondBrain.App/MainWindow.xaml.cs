@@ -86,6 +86,7 @@ public partial class MainWindow : Window
         initialized = true;
         RefreshMicrophones();
         InitializeCompanion(); RefreshCompanionControls();
+        InitializeKnowledge();
         if (!keys.Exists) SetStatus("Deepgram key is not configured yet. Ask Codex to finish setup.", true);
         UpdatePanelCount();
     }
@@ -295,6 +296,7 @@ public partial class MainWindow : Window
         e.Cancel = true; if (closing) return;
         closing = true; contextTimer.Stop(); await StopCompanion(); Assistant?.Close(); replay?.Stop(); StreamDemo?.Close(); study?.Close(); Playback.Pause(); saveTimer.Stop(); SaveSettings(); await Voice.StopAsync(); await Recorder.StopAsync();
         await Task.WhenAll(assistantShutdowns);
+        await StopKnowledge();
         if (recordingWindow is { } captureWindow) { try { await captureWindow.RecoveryTask; } catch (Exception) { } if (captureWindow.IsVisible) captureWindow.Close(); }
         foreach (var panel in panels.ToArray()) panel.Close();
         allowClose = true;

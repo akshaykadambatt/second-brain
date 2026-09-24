@@ -22,9 +22,11 @@ internal sealed class AnswerRequest(Guid id, string question, Guid sessionId, St
     public double? CompletedMs { get; set; }
     public bool Continuation { get; init; }
     public double? FirstContinuationMs { get; set; }
+    public KnowledgeResult? Knowledge { get; set; }
+    public double? RetrievalMs { get; set; }
 }
 
-internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider provider, DiagnosticLog log)
+internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider provider, DiagnosticLog log, IKnowledgeSearch? knowledge = null)
 {
     public AnswerInbox Inbox { get; } = new();
     public QuestionGate Questions { get; } = new();
@@ -51,6 +53,14 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
         var sequences = new Dictionary<Guid, int>();
         try
         {
+            if (knowledge is not null)
+            {
+                run.Status = "Looking up vault context…"; Changed?.Invoke();
+                try { run.Knowledge = await knowledge.Search(run.Question, run.Cancellation.Token); }
+                catch (Exception) when (!run.Cancellation.IsCancellationRequested) { run.Knowledge = new([], "Vault search unavailable; evidence may be missing."); }
+                if (!run.Active) return;
+                run.RetrievalMs = run.Clock.Elapsed.TotalMilliseconds; run.Status = "Generating opening with retrieved context…"; Changed?.Invoke();
+            }
             await Generate(run.Fast, options.FastModel, options.FastEffort, false, !(run.Continuation && options.Deeper));
             if (run.Continuation && options.Deeper && run.Active)
             { run.Status = "First sentence ready · thinking through the continuation…"; Changed?.Invoke(); await Generate(run.Fast, options.DeepModel, options.DeepEffort, true); }
@@ -78,7 +88,8 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
         {
             var buffer = new ReadableAnswerBuffer(); var priorWords = answer.WordCount;
             var prompt = new AssistantPrompt(run.Id, run.Question, options.Context, conversation, model, effort, deeper, run.Continuation,
-                deeper && run.Continuation ? string.Join("\n\n", answer.Blocks.Select(b => b.Text)) : "");
+                deeper && run.Continuation ? string.Join("\n\n", answer.Blocks.Select(b => b.Text)) : "",
+                run.Knowledge is { } evidence ? evidence.Status + "\n" + evidence.Evidence : "");
             await provider.Generate(prompt, async text => await dispatcher.InvokeAsync(() =>
             {
                 if (!run.Active || run.Cancellation.IsCancellationRequested) return;
