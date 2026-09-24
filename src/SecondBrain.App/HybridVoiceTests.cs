@@ -32,6 +32,7 @@ internal static class HybridVoiceTests
             await Task.Delay(2400);
             var drift = main.Panels.Select((p, i) => (p.ScrollPosition - initial[i]) / p.LineHeight).ToArray();
             check(main.Session.Position == 5 && main.Panels.All(p => p.SelectedWord == 5), "Four layouts share one microphone-confirmed word identity");
+            File.WriteAllText(Path.Combine(directory, "hybrid-settling.json"), JsonSerializer.Serialize(new { frames = samples.Count, holding = flow.Holding, panels = main.Panels.Select((p, i) => new { drift = drift[i], p.AnchorError, p.IsGliding, p.ScrollPosition, p.SelectedWord, p.LineHeight }), samples }));
             check(drift.All(value => value >= 0) && main.Panels.All(p => p.AnchorError <= 1 && !p.IsGliding) && flow.Holding, "Every panel finishes accepted progress on its actual wrapped line without speculative drift");
             var motionLatency = main.Panels.Select(p => p.LastVoiceMotionLatencyMilliseconds).ToArray();
             check(motionLatency.Select((value, i) => drift[i] < .01 || value is > 0 and < 2000).All(v => v), "Panels needing a line change begin visible motion within two seconds; same-line panels stay still");
