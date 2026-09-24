@@ -5,7 +5,7 @@ namespace SecondBrain.Core;
 
 public sealed record SpeakerNameHint(int SchemaVersion, Guid SessionId, string SegmentId, string Binding, string Name,
     double FirstObserved, double LastObserved, string Adapter = "chrome-teams-speaking-en-v1");
-public sealed record SpeakingObservation(double At, string? Name);
+public sealed record SpeakingObservation(double At, string? Name, string Adapter);
 
 public static class TeamsSpeakingLabels
 {
@@ -24,20 +24,35 @@ public static class TeamsSpeakingLabels
     }
 }
 
+public static class MeetSpeakingLabels
+{
+    public const string Adapter = "chrome-meet-speaking-en-v1";
+    public static bool SupportedAddress(string address) => Uri.TryCreate(address.Contains("://", StringComparison.Ordinal) ? address : "https://" + address, UriKind.Absolute, out var uri)
+        && uri.Scheme == "https" && uri.UserInfo.Length == 0 && uri.IsDefaultPort && uri.Host == "meet.google.com"
+        && System.Text.RegularExpressions.Regex.IsMatch(uri.AbsolutePath, @"^/[a-z]{3}-[a-z]{4}-[a-z]{3}/?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    public static string? Name(string label, IEnumerable<string> roster)
+    {
+        var matches = roster.Where(TranscriptReview.ValidLabel).GroupBy(n => n.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() == 1).Select(g => g.Key).Where(n => label.Equals(n + " is speaking", StringComparison.OrdinalIgnoreCase)
+                || label.Equals(n + " (speaking)", StringComparison.OrdinalIgnoreCase) || label.Equals("Speaking: " + n, StringComparison.OrdinalIgnoreCase)).ToArray();
+        return matches.Length == 1 ? matches[0] : null;
+    }
+}
+
 // Audio timestamps and observations share the session's monotonic clock. No cross-session identity mapping.
 public sealed class SpeakerHintTimeline(Guid sessionId)
 {
     private readonly object gate = new();
     private readonly List<SpeakingObservation> samples = [];
     public void Clear() { lock (gate) samples.Clear(); }
-    public void Observe(double seconds, IEnumerable<string> candidates)
+    public void Observe(double seconds, IEnumerable<string> candidates, string adapter = "chrome-teams-speaking-en-v1")
     {
         if (!double.IsFinite(seconds) || seconds < 0) return;
         var names = candidates.Where(TranscriptReview.ValidLabel).Distinct(StringComparer.OrdinalIgnoreCase).Take(2).ToArray();
         lock (gate)
         {
             if (samples.Count > 0 && seconds <= samples[^1].At) return;
-            samples.Add(new(seconds, names.Length == 1 ? names[0] : null));
+            samples.Add(new(seconds, names.Length == 1 ? names[0] : null, adapter));
             samples.RemoveAll(s => s.At < seconds - 120);
             if (samples.Count > 300) samples.RemoveRange(0, samples.Count - 300);
         }
@@ -52,10 +67,10 @@ public sealed class SpeakerHintTimeline(Guid sessionId)
         SpeakingObservation[] relevant;
         lock (gate) relevant = samples.Where(s => s.At >= start - .3 && s.At <= end + .3).ToArray();
         if (relevant.Length < 2 || relevant[0].At > start + .5 || relevant[^1].At < end - .5
-            || relevant[^1].At - relevant[0].At < .3 || relevant.Any(s => s.Name is null)
+            || relevant[^1].At - relevant[0].At < .3 || relevant.Any(s => s.Name is null) || relevant.Select(s => s.Adapter).Distinct().Count() != 1
             || relevant.Select(s => s.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != 1
             || relevant.Skip(1).Where((s, i) => s.At - relevant[i].At > .8).Any()) return null;
-        return new(1, sessionId, detail.SegmentId, SpeakerNameHints.Binding(detail), relevant[0].Name!, relevant[0].At, relevant[^1].At);
+        return new(1, sessionId, detail.SegmentId, SpeakerNameHints.Binding(detail), relevant[0].Name!, relevant[0].At, relevant[^1].At, relevant[0].Adapter);
     }
 }
 
@@ -79,7 +94,7 @@ public sealed class SpeakerNameHints(string directory, Guid sessionId)
     private static bool Valid(SpeakerNameHint hint) => hint.SchemaVersion == 1 && hint.SessionId != Guid.Empty
         && !string.IsNullOrWhiteSpace(hint.SegmentId) && hint.SegmentId.Length <= 256 && hint.Binding?.Length == 64
         && TranscriptReview.ValidLabel(hint.Name) && double.IsFinite(hint.FirstObserved) && double.IsFinite(hint.LastObserved)
-        && hint.FirstObserved >= 0 && hint.LastObserved >= hint.FirstObserved && hint.Adapter == "chrome-teams-speaking-en-v1";
+        && hint.FirstObserved >= 0 && hint.LastObserved >= hint.FirstObserved && hint.Adapter is "chrome-teams-speaking-en-v1" or MeetSpeakingLabels.Adapter;
     public static Dictionary<string, string> Read(string directory, TranscriptDetail[] records, out string warning)
     {
         warning = ""; var result = new Dictionary<string, string>(); var path = Path.Combine(directory, FileName);

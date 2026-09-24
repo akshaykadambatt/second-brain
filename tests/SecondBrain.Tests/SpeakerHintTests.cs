@@ -47,6 +47,25 @@ internal static class SpeakerHintTests
             check(detail.Words.All(w => w.SpeakerLabel == "Speaker 1"), "Original audio labels rewritten");
             check(SpeakerNameHints.Read(path, [detail with { Text = "changed original" }], out var warning).Count == 0 && warning.Length > 0, "Changed source accepted");
         });
+        test("Meet hints have independent URL label timing and persisted provenance qualification", () =>
+        {
+            check(MeetSpeakingLabels.SupportedAddress("https://meet.google.com/abc-defg-hij?authuser=1"), "Meet room rejected");
+            foreach (var url in new[] { "https://meet.google.com/", "https://meet.google.com/landing", "https://meet.google.com.example.test/abc-defg-hij", "http://meet.google.com/abc-defg-hij", "https://teams.microsoft.com/abc-defg-hij" })
+                check(!MeetSpeakingLabels.SupportedAddress(url), "Non-Meet room accepted");
+            check(MeetSpeakingLabels.Name("Morgan (speaking)", ["Morgan"]) == "Morgan" && TeamsSpeakingLabels.Name("Morgan (speaking)", ["Morgan"]) is null, "Platform label contracts are coupled");
+            foreach (var label in new[] { "Morgan", "Morgan (muted)", "Morgan is not speaking", "Speaking: Unknown", "Morgan (speaking) in chat" })
+                check(MeetSpeakingLabels.Name(label, ["Morgan"]) is null, "Meet ambiguous label accepted");
+            var detail = Fixture(Guid.NewGuid()); var timeline = new SpeakerHintTimeline(detail.SessionId);
+            for (var time = 1d; time <= 3; time += .5) timeline.Observe(time, ["Morgan"], MeetSpeakingLabels.Adapter);
+            var hint = timeline.Resolve(detail); check(hint?.Adapter == MeetSpeakingLabels.Adapter, "Meet provenance lost");
+            var path = folder("meet-hints"); new SpeakerNameHints(path, detail.SessionId).Append(detail, hint!);
+            check(SpeakerNameHints.Read(path, [detail], out var warning).Count == 2 && warning.Length == 0, "Meet sidecar rejected");
+            timeline.Clear();
+            for (var time = 1d; time <= 3; time += .5) timeline.Observe(time, ["Morgan"], time < 2 ? MeetSpeakingLabels.Adapter : "chrome-teams-speaking-en-v1");
+            check(timeline.Resolve(detail) is null, "Changing meeting platform crossed a turn");
+            timeline.Clear(); for (var time = 1d; time <= 3; time += .5) timeline.Observe(time, time == 2 ? ["Morgan", "Taylor"] : ["Morgan"], MeetSpeakingLabels.Adapter);
+            check(timeline.Resolve(detail) is null, "Meet overlap named");
+        });
         test("Corrupt optional hints cannot hide the original transcript or disable corrections", () =>
         {
             var path = folder("hint-recovery"); var detail = Fixture(Guid.NewGuid());
