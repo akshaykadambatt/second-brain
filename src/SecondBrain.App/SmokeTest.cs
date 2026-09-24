@@ -25,7 +25,8 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "shortcuts") { await ShortcutTests.Run(window, directory, Check, Capture); }
+            if (phase == "context") { await ContextSmokeTests.Run(window, directory, Check, Capture); }
+            else if (phase == "shortcuts") { await ShortcutTests.Run(window, directory, Check, Capture); }
             else if (phase == "chrome") { await ReaderChromeTests.Run(window, directory, Check, Capture); }
             else if (phase == "shell") { await ShellSmokeTests.Run(window, directory, Check, Capture); }
             else if (phase == "tray") { await TraySmokeTests.Run(window, directory, Check); }

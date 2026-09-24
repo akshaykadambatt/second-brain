@@ -93,6 +93,7 @@ public partial class MainWindow : Window
         InitializeCompanion(); RefreshCompanionControls();
         InitializeKnowledge();
         InitializeShortcutFields();
+        InitializeClientContexts();
         if (!keys.Exists) SetStatus("Deepgram key is not configured yet. Ask Codex to finish setup.", true);
         UpdatePanelCount();
     }

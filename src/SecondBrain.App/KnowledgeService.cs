@@ -95,7 +95,11 @@ internal sealed class KnowledgeService : IKnowledgeSearch, IDisposable
         if (File.Exists(cachePath)) File.Delete(cachePath);
         retryEmbedding = DateTime.MinValue; await Refresh(true);
     }
-    public async Task<KnowledgeResult> Search(string question, CancellationToken cancellation)
+    private sealed class ProjectSearch(KnowledgeService owner, KnowledgeFilter filter) : IKnowledgeSearch
+    { public Task<KnowledgeResult> Search(string question, CancellationToken cancellation) => owner.Search(question, filter, cancellation); }
+    internal IKnowledgeSearch ForProject(string project) => string.IsNullOrWhiteSpace(project) ? this : new ProjectSearch(this, Filter with { Project = project.Trim() });
+    public Task<KnowledgeResult> Search(string question, CancellationToken cancellation) => Search(question, Filter, cancellation);
+    private async Task<KnowledgeResult> Search(string question, KnowledgeFilter filter, CancellationToken cancellation)
     {
         Dictionary<string, float[]> saved; lock (gate) saved = new(vectors);
         float[]? query = null; var status = "Keyword search";
@@ -106,7 +110,7 @@ internal sealed class KnowledgeService : IKnowledgeSearch, IDisposable
             catch (Exception) when (!cancellation.IsCancellationRequested) { status = "Semantic unavailable/slow · keyword fallback"; }
         }
         cancellation.ThrowIfCancellationRequested();
-        return await Task.Run(() => index.Search(question, Filter, saved, query, status + " · " + Status), cancellation);
+        return await Task.Run(() => index.Search(question, filter, saved, query, status + " · " + Status), cancellation);
     }
     public async Task Stop() { stop.Cancel(); await refresh; }
     public void Dispose() { stop.Dispose(); (embeddings as IDisposable)?.Dispose(); }

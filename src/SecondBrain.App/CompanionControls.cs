@@ -48,15 +48,19 @@ public partial class MainWindow
             if (closing || Companion?.Active == true) return false;
             if (MicrophonePicker.SelectedItem is not Microphone mic || LiveOutputPicker.SelectedItem is not AudioDevice output)
                 throw new InvalidOperationException("Choose an available microphone and the output your meeting plays through.");
-            var options = CompanionOptions(); companionSettings!.Save(options);
+            var baseOptions = CompanionOptions(); var preview = ReadMeetingContext();
+            var options = baseOptions with { Context = preview.CombineWith(baseOptions.Context) };
+            if (!options.IsValid) throw new InvalidOperationException("Check the models and meeting context before starting.");
+            companionSettings!.Save(baseOptions);
             if (!hiddenTestMode) { _ = new ApiKeyStore(dataDirectory).Load(); _ = new ApiKeyStore(dataDirectory, "OpenAI").Load(); }
+            var meetingContext = SaveMeetingContext();
             Assistant?.Close(); StreamDemo?.Close(); study?.Close(); replay?.Stop();
             await StopListening(); await Recorder.StopAsync();
             if (recordingWindow is { IsVisible: true }) recordingWindow.Close();
             Transcriber.DrainAssistantEvents(out _); Transcriber.DrainSpeech();
             Companion?.Dispose();
             var provider = testProvider ?? new OpenAiAnswerProvider(new ApiKeyStore(dataDirectory, "OpenAI").Load);
-            Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log, Knowledge), options, testProvider is null ? provider as IDisposable : null);
+            Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log, Knowledge?.ForProject(meetingContext.Project)), options, testProvider is null ? provider as IDisposable : null);
             companionVaultRoot = Knowledge?.Root;
             sourcesRequest = Guid.Empty; LiveSources.Items.Clear(); SourceStatus.Text = "Waiting for retrieved sources.";
             Companion.Changed += RefreshCompanion;
@@ -66,6 +70,8 @@ public partial class MainWindow
             CompanionStatus.Text = "Starting recording, transcription and automatic answers…";
             await Recorder.StartAsync(mic.Id, output.Id);
             if (Recorder.State != RecordingState.Recording) throw new InvalidOperationException(Recorder.Message);
+            var recordingDirectory = Recorder.LastDirectory ?? throw new IOException("Recording directory is unavailable.");
+            SessionContextStore.SaveSnapshot(recordingDirectory, RecordingSession.ReadManifest(recordingDirectory).Id, meetingContext);
             RefreshCompanion(); return true;
         }
         catch (Exception ex)
@@ -131,6 +137,7 @@ public partial class MainWindow
         PracticeTab.IsEnabled = !active && !companionBusy;
         DiagnosticControls.IsEnabled = !active && !companionBusy;
         LiveAsk.IsEnabled = active && !companionBusy;
+        ClientPicker.IsEnabled = ContextEditor.IsEnabled = !active && !companionBusy && !contextLoadFailed;
     }
     private void RefreshCompanion()
     {

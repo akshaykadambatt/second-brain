@@ -23,7 +23,16 @@
                   </Border>
                   <TextBlock Text="Live" Style="{StaticResource PageTitle}" Margin="0" />
                 </DockPanel>
-                <WrapPanel Margin="0,0,0,10">
+                <DockPanel Margin="0,0,0,8"><ComboBox x:Name="ClientPicker" DisplayMemberPath="DisplayName" SelectionChanged="ClientPicker_Changed" Width="210" DockPanel.Dock="Left" Margin="0,0,12,0" AutomationProperties.Name="Client profile"/><TextBlock x:Name="MeetingBriefSummary" Text="General meeting" VerticalAlignment="Center" TextWrapping="Wrap" MaxHeight="40" FontSize="12" Foreground="{StaticResource Muted}"/></DockPanel>
+<Expander x:Name="MeetingBriefExpander" Header="Meeting brief" Margin="0,0,0,12"><StackPanel x:Name="ContextEditor" Margin="0,10,0,0">
+<TextBlock Text="Client name (blank for a general meeting)"/><TextBox x:Name="ContextClient" MaxLength="120" TextChanged="ContextField_Changed" AutomationProperties.Name="Client name"/>
+<TextBlock Text="Project filter (optional; exact project name in your notes)" Margin="0,8,0,0"/><TextBox x:Name="ContextProject" MaxLength="120" TextChanged="ContextField_Changed" AutomationProperties.Name="Meeting project"/>
+<TextBlock Text="Goal for this meeting" Margin="0,8,0,0"/><TextBox x:Name="ContextGoal" MaxLength="2000" AcceptsReturn="True" TextWrapping="Wrap" Height="70" VerticalScrollBarVisibility="Auto" TextChanged="ContextField_Changed" AutomationProperties.Name="Meeting goal"/>
+<TextBlock Text="Expected participants · one name per line (up to 50)" Margin="0,8,0,0"/><TextBox x:Name="ContextParticipants" MaxLength="5050" AcceptsReturn="True" TextWrapping="Wrap" Height="65" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Expected participants"/>
+<TextBlock Text="Work vocabulary · one term per line (up to 100)" Margin="0,8,0,0"/><TextBox x:Name="ContextVocabulary" MaxLength="8100" AcceptsReturn="True" TextWrapping="Wrap" Height="65" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Work vocabulary"/>
+<WrapPanel Margin="0,10,0,8"><Button Content="Save brief" Click="SaveContext_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0"/><Button Content="New client" Click="NewContext_Click"/></WrapPanel>
+<TextBlock x:Name="ContextStatus" Text="Save a brief to reuse it. Starting a session saves the current brief and keeps that meeting’s copy fixed." TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}"/>
+</StackPanel></Expander><WrapPanel Margin="0,0,0,10">
                   <Button x:Name="ListenButton" Content="Start listening" Click="Listen_Click" Padding="20,12" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
                   <Button Content="Open reader" Click="OpenReader_Click" Padding="16,12" Margin="10,0,0,0" />
                 </WrapPanel>
@@ -42,7 +51,7 @@
                 <Border Style="{StaticResource CardSurface}" Padding="16">
                   <StackPanel>
                     <TextBlock x:Name="CurrentQuestion" Text="Your next answer" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" FontSize="18" />
-                    <TextBox x:Name="LiveAnswer" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="190" MaxHeight="270" FontSize="20" BorderThickness="0" Padding="0" Text="Answers will appear here and in your reader when a question comes through." AutomationProperties.Name="Current answer" />
+                    <TextBox x:Name="LiveAnswer" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="150" MaxHeight="240" FontSize="20" BorderThickness="0" Padding="0" Text="Answers will appear here and in your reader when a question comes through." AutomationProperties.Name="Current answer" />
                   </StackPanel>
                 </Border>
                 <WrapPanel Margin="0,10,0,10">
@@ -328,7 +337,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.18.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.19.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

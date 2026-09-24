@@ -16,6 +16,10 @@ internal static class StorageSmokeTests
         check(refused is null && !invoked && main.Recorder.HasSession, "Storage operation refuses an active recording without stopping or deleting it");
         await main.Recorder.StopAsync();
         var recording = main.Recorder.LastDirectory!;
+        var contextStore = new SessionContextStore(directory);
+        var brief = new SessionContext { ProfileId = Guid.NewGuid(), Client = "Cedar", Goal = "Fixture backup" };
+        contextStore.SaveProfile(contextStore.Load(), brief);
+        SessionContextStore.SaveSnapshot(recording, RecordingSession.ReadManifest(recording).Id, brief);
         var backupParent = Path.Combine(Path.GetDirectoryName(directory)!, "storage-snapshots");
         var backup = await main.StorageOperation(root => LocalBackup.Create(directory, root, Environment.ProcessPath!, backupParent));
         check(backup is not null, "Packaged UI quiesces writers and creates a verified snapshot");
@@ -23,6 +27,9 @@ internal static class StorageSmokeTests
         check(manifest.Files.Any(f => f.Path.Contains("history.git/objects/")) && manifest.Files.Any(f => f.Path.EndsWith("session.json")), "Snapshot contains the private Git repository and saved recording");
         var restored = await main.StorageOperation(_ => LocalBackup.Restore(backup!, backupParent));
         check(restored is not null && File.Exists(Path.Combine(restored, "SecondBrain.exe")) && new VaultSettings(Path.Combine(restored, "data"), restored).Resolve(new("Vault")) == Path.Combine(restored, "Vault"), "Restore creates an adjacent EXE, data and portable vault");
+        check(new SessionContextStore(Path.Combine(restored!, "data")).Load().SelectedProfileId == brief.ProfileId
+            && SessionContextStore.ReadSnapshot(Path.Combine(restored!, "data/recordings", Path.GetFileName(recording)))?.Context.Goal == brief.Goal,
+            "Backup and restore retain client profiles and per-meeting context snapshots");
         var deleted = await main.StorageOperation(_ => { LocalBackup.DeleteRecording(directory, recording); return "Fixture recording deleted"; });
         check(deleted is not null && !Directory.Exists(recording) && File.Exists(Path.Combine(restored!, "data/recordings", Path.GetFileName(recording), "session.json")), "Deletion removes only the selected source recording; the restored copy remains");
         await main.RefreshStorage();

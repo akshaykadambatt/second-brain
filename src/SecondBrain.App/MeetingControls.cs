@@ -44,7 +44,9 @@ public partial class MainWindow
                 {
                     var meeting = RecordingSession.ReadManifest(path);
                     var elapsed = TimeSpan.FromSeconds(Math.Max(0, meeting.DurationSeconds));
-                    return new MeetingRow(path, $"{meeting.StartedUtc.ToLocalTime():ddd, MMM d · HH:mm}   ·   {elapsed:hh\\:mm\\:ss}   ·   {meeting.State}");
+                    string? client = null;
+                    try { var brief = SessionContextStore.ReadSnapshot(path); if (brief?.SessionId == meeting.Id) client = brief.Context.Client; } catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException) { }
+                    return new MeetingRow(path, $"{meeting.StartedUtc.ToLocalTime():ddd, MMM d · HH:mm}   ·   {elapsed:hh\\:mm\\:ss}   ·   {meeting.State}" + (string.IsNullOrWhiteSpace(client) ? "" : "   ·   " + client));
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException)
                 { return new MeetingRow(path, Path.GetFileName(path) + " · Details unavailable"); }
