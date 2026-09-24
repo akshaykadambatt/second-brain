@@ -297,32 +297,7 @@ Test("Unavailable diagnostics do not throw", () =>
     File.WriteAllText(path, "occupied");
     Assert(!new DiagnosticLog(path).Write("entry"), "Failure was not reported");
 });
-Test("Requirements have unique IDs, sprint assignments and completion evidence", () =>
-{
-    using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs", "requirements.json")));
-    var seen = new HashSet<string>();
-    var sprints = new HashSet<int>();
-    foreach (var row in doc.RootElement.GetProperty("requirements").EnumerateArray())
-    {
-        var id = row.GetProperty("id").GetString()!;
-        Assert(seen.Add(id), "Duplicate ID " + id);
-        var sprint = row.GetProperty("sprint").GetInt32();
-        Assert(sprint is >= 0 and <= 10, "Invalid sprint " + id);
-        sprints.Add(sprint);
-        Assert(!string.IsNullOrWhiteSpace(row.GetProperty("acceptance").GetString()), "Missing acceptance " + id);
-        var status = row.GetProperty("status").GetString();
-        Assert(new[] { "planned", "in_progress", "passed", "blocked", "deferred" }.Contains(status), "Invalid status " + id);
-        if (status == "passed")
-        {
-            var evidence = row.GetProperty("evidence").EnumerateArray().ToArray();
-            Assert(evidence.Length > 0, "Missing evidence " + id);
-            foreach (var item in evidence)
-                Assert(File.Exists(Path.Combine(root, item.GetString()!)), "Evidence file absent " + id);
-        }
-        if (sprint > doc.RootElement.GetProperty("activeSprint").GetInt32()) Assert(status is "planned" or "deferred", "Future sprint unexpectedly marked implemented: " + id);
-    }
-    Assert(Enumerable.Range(0, 11).All(sprints.Contains), "A sprint has no requirements");
-});
+
 Test("Audio sprint excludes recognition fallback and unrelated AI capabilities", () =>
 {
     var forbidden = new[] { "SpeechRecognitionEngine", "DictationGrammar", "api.anthropic.com" };

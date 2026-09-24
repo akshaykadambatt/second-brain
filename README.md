@@ -30,7 +30,7 @@ Packaged checks use generated fixtures. They do not establish real meeting, micr
 
 Place the executable in a writable folder. Its `data` and `Vault` folders stay beside it by default. Launching places the controls in the system tray. Click the tray icon to open controls; closing controls keeps the app running. Use **Exit Second Brain** to stop and save the session and exit.
 
-Select your microphone and meeting output, configure your own provider credentials through the app, then choose **Start listening**. Microphone and computer audio are transcribed using Deepgram; questions and selected context are sent to OpenAI. The app never speaks or sends an answer into the meeting. Floating readers remain interactive while staying out of the taskbar.
+With your provider credentials configured, select your microphone and meeting output, then choose **Start listening**. The current build expects account-protected provider key files in its data folder; it does not yet provide a credential setup screen. Microphone and computer audio are transcribed using Deepgram; questions and selected context are sent to OpenAI. The app never speaks or sends an answer into the meeting. Floating readers remain interactive while staying out of the taskbar.
 
 Credentials use Windows account-bound protection. Recordings, knowledge, personal context, development notes and private evidence are not part of this public repository. Keep your own data backups separately.
 

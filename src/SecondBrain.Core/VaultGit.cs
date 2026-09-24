@@ -21,7 +21,7 @@ public sealed class VaultGit
     public void Initialize()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DirectoryPath)!);
-        if (!File.Exists(Path.Combine(DirectoryPath, "HEAD"))) Run(["init", "--bare", "--initial-branch=main", DirectoryPath], repository: false);
+        if (!File.Exists(Path.Combine(DirectoryPath, "HEAD"))) Run(["init", "--bare", "--initial-branch=main", ".secondbrain/history.git"], repository: false);
     }
     public string Head => Run(["rev-parse", "--verify", "HEAD"], allowFailure: true).Trim();
     public string Prepare(IReadOnlyDictionary<string, byte[]> files, string message, string parent)
@@ -59,7 +59,9 @@ public sealed class VaultGit
         info.Environment["GIT_AUTHOR_EMAIL"] = info.Environment["GIT_COMMITTER_EMAIL"] = "local@secondbrain.invalid";
         info.Environment["GIT_TERMINAL_PROMPT"] = "0";
         foreach (var arg in new[] { "-c", "core.hooksPath=" + Path.Combine(DirectoryPath, "disabled-hooks"), "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false", "-c", "core.longpaths=true", "-c", "core.quotePath=false", "-c", "safe.directory=" + DirectoryPath.Replace('\\', '/') }) info.ArgumentList.Add(arg);
-        if (repository) { info.ArgumentList.Add("--git-dir=" + DirectoryPath); info.ArgumentList.Add("--work-tree=" + Root); }
+        // Git for Windows rejects a long absolute GIT_DIR before core.longpaths
+        // can help. The working directory is already Root, so use relative paths.
+        if (repository) { info.ArgumentList.Add("--git-dir=.secondbrain/history.git"); info.ArgumentList.Add("--work-tree=."); }
         foreach (var arg in args) info.ArgumentList.Add(arg);
         using var process = Process.Start(info) ?? throw new IOException("Git could not start. Install Git for Windows to enable local history.");
         var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
