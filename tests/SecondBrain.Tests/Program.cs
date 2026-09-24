@@ -316,6 +316,111 @@ Test("Dummy speech replays pauses, repeats, delays and skipped words through liv
     Assert(events.Count == 7 && events[2].Position == events[3].Position && events[4].Position == events[5].Position, "Duplicate or uncertain speech advanced");
     Assert(events.Zip(events.Skip(1)).All(pair => pair.Second.Position >= pair.First.Position), "Replay moved backwards");
 });
+Test("Streaming orders chunks, buffers paragraphs and ignores exact duplicates", () =>
+{
+    var inbox = new AnswerInbox(); var answer = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "First");
+    void Send(int n, string t, AnswerEventKind kind = AnswerEventKind.Delta) => inbox.Accept(new(answer.RequestId, answer.Id, n, t, kind));
+    Send(1, "world.\n\nNext "); Assert(answer.Blocks.Count == 0, "Out-of-order content leaked");
+    Send(0, "Hello "); Assert(answer.Blocks.Count == 1 && answer.Blocks[0].Text == "Hello world.", "Paragraph buffering failed");
+    var block = answer.Blocks[0]; Send(1, "world.\n\nNext ");
+    Send(2, "paragraph.", AnswerEventKind.Complete);
+    Assert(answer.Blocks.Count == 2 && answer.WordCount == 4 && answer.Blocks[1].Text == "Next paragraph.", "Duplicate or final flush corrupted text");
+    Assert(ReferenceEquals(block, answer.Blocks[0]) && block.Words[0].BlockId == block.Id, "Published block changed identity");
+});
+Test("Superseded, wrong-request and interrupted responses retain stable content", () =>
+{
+    var inbox = new AnswerInbox(); var answer = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "First");
+    Assert(!inbox.Accept(new(Guid.NewGuid(), answer.Id, 0, "Wrong\n\n")), "Wrong request accepted");
+    inbox.Accept(new(answer.RequestId, answer.Id, 0, "Keep this.\n\nUnfinished"));
+    inbox.Supersede(answer.RequestId);
+    Assert(!inbox.Accept(new(answer.RequestId, answer.Id, 1, " late", AnswerEventKind.Complete)), "Late superseded result accepted");
+    Assert(answer.State == AnswerState.Superseded && answer.Blocks.Single().Text == "Keep this.", "Supersede mutated displayed text");
+    var interrupted = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Interrupted");
+    inbox.Accept(new(interrupted.RequestId, interrupted.Id, 0, "Stable.\n\nHalf", AnswerEventKind.Interrupted));
+    Assert(interrupted.Blocks.Count == 1 && interrupted.State == AnswerState.Interrupted, "Incomplete interrupted paragraph displayed");
+});
+Test("Conflicting duplicates and unbounded ordering fail visibly without rewriting", () =>
+{
+    var inbox = new AnswerInbox(); var answer = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Conflict");
+    inbox.Accept(new(answer.RequestId, answer.Id, 0, "Original.\n\n"));
+    inbox.Accept(new(answer.RequestId, answer.Id, 0, "Replacement.\n\n"));
+    Assert(answer.State == AnswerState.Failed && answer.Blocks.Single().Text == "Original.", "Conflict rewrote original");
+    var gap = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Gap");
+    Assert(!inbox.Accept(new(gap.RequestId, gap.Id, 65, "Too far")) && gap.State == AnswerState.Failed, "Unlimited reorder buffer");
+    var large = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Large");
+    Assert(!inbox.Accept(new(large.RequestId, large.Id, 0, new string('x', 4097))) && large.State == AnswerState.Failed, "Oversized chunk accepted");
+});
+Test("Active answer appends preserve word IDs and queued responses cannot take over", () =>
+{
+    var inbox = new AnswerInbox(); var session = new ReaderSession(); inbox.Changed += session.RefreshAnswer;
+    var first = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "First");
+    inbox.Accept(new(first.RequestId, first.Id, 0, "One two three.\n\n")); session.ShowAnswer(first); session.Select(1);
+    var words = session.Words.ToArray(); var document = session.DocumentId;
+    var other = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Other"); inbox.Accept(new(other.RequestId, other.Id, 0, "Other answer.", AnswerEventKind.Complete));
+    inbox.Accept(new(first.RequestId, first.Id, 1, "Four five.\n\n"));
+    Assert(session.Position == 1 && session.DocumentId == document && words.Zip(session.Words).All(pair => ReferenceEquals(pair.First, pair.Second)), "Append reset anchor or word identity");
+    Assert(session.Answer == first && session.Words.Count == 5, "Queued answer took over");
+    first.SavedPosition = session.Position; session.ShowAnswer(other); session.ShowAnswer(first);
+    Assert(session.Position == 1 && session.DocumentId == document, "Answer navigation lost position");
+});
+Test("Open streams wait at the end, resume gently and honor manual pauses", () =>
+{
+    var inbox = new AnswerInbox(); var session = new ReaderSession(); var playback = new ReaderPlayback(session);
+    inbox.Changed += session.RefreshAnswer; var answer = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Waiting"); session.ShowAnswer(answer);
+    playback.Play(); Assert(playback.Waiting, "Empty open stream cannot wait");
+    inbox.Accept(new(answer.RequestId, answer.Id, 0, "One two.\n\n"));
+    for (var i = 0; i < 120; i++) playback.Tick(1d / 60);
+    Assert(playback.Waiting && playback.Cursor == 2, "End did not wait");
+    inbox.Accept(new(answer.RequestId, answer.Id, 1, "Three four.\n\n")); playback.Tick(1d / 60);
+    Assert(playback.Playing && playback.Cursor > 2 && playback.Cursor < 2.01, "Resume reset or jumped");
+    session.Select(0); inbox.Accept(new(answer.RequestId, answer.Id, 2, "Five six.\n\n")); playback.Tick(1);
+    Assert(!playback.Playing && playback.Cursor == 0, "Append resumed after manual navigation");
+    session.Select(session.Words.Count); playback.Play(); playback.Pause();
+    inbox.Accept(new(answer.RequestId, answer.Id, 3, "Seven eight.", AnswerEventKind.Complete)); playback.Tick(1);
+    Assert(!playback.Playing && playback.Cursor == 6, "Paused end resumed on completion");
+});
+Test("History is bounded explicitly and inactive answers never enter the active document", () =>
+{
+    var inbox = new AnswerInbox(); var session = new ReaderSession(); inbox.Changed += session.RefreshAnswer;
+    for (var i = 0; i < AnswerInbox.Capacity; i++)
+    {
+        var answer = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Answer " + i);
+        inbox.Accept(new(answer.RequestId, answer.Id, 0, "One stable paragraph.", AnswerEventKind.Complete));
+        if (i == 0) session.ShowAnswer(answer);
+    }
+    Assert(session.Words.Count == 3 && inbox.Answers.Count == 100, "History leaked into reader layout");
+    try { inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Overflow"); throw new Exception("History overflow silently accepted"); }
+    catch (InvalidOperationException ex) { Assert(ex.Message.Contains("100 answers"), "Capacity failure not explained"); }
+});
+Test("Dummy answer source exercises delayed, duplicate and interrupted events", () =>
+{
+    var inbox = new AnswerInbox(); var source = new ScriptedAnswerSource(inbox, 1);
+    for (var i = 0; i < 300; i++) source.Tick(.05);
+    Assert(!source.Running && inbox.Answers.Count == 3, "Demo did not finish");
+    Assert(inbox.Answers[0].State == AnswerState.Complete && inbox.Answers[0].Blocks.Count == 4, "First answer corrupted by reordering");
+    Assert(inbox.Answers[1].ParentAnswerId == inbox.Answers[0].Id && inbox.Answers[2].State == AnswerState.Interrupted, "Deeper answer or interruption missing");
+});
+Test("Streaming layout limits retain prior blocks and report oversized paragraphs", () =>
+{
+    var inbox = new AnswerInbox(); var answer = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Limit");
+    inbox.Accept(new(answer.RequestId, answer.Id, 0, "Keep this.\n\n"));
+    Assert(!inbox.Accept(new(answer.RequestId, answer.Id, 1, new string('x', 1501))) && answer.State == AnswerState.Failed && answer.Blocks.Count == 1, "Oversized paragraph lost prior data or was not surfaced");
+    var many = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Many blocks");
+    for (var i = 0; i < AnswerInbox.MaximumBlocks; i++) inbox.Accept(new(many.RequestId, many.Id, i, "Short.\n\n"));
+    Assert(!inbox.Accept(new(many.RequestId, many.Id, 128, "Excess.\n\n")) && many.Blocks.Count == 128 && many.State == AnswerState.Failed, "Unbounded block layout accepted");
+});
+Test("Microphone matcher continues into newly appended text without resetting the session", () =>
+{
+    var inbox = new AnswerInbox(); var session = new ReaderSession(); inbox.Changed += session.RefreshAnswer;
+    var answer = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Speech"); session.ShowAnswer(answer);
+    inbox.Accept(new(answer.RequestId, answer.Id, 0, "Hello reader.\n\n"));
+    var progress = new DeepgramProgress(session);
+    progress.Observe(new(0, 1, "Hello reader", true, true, .99f));
+    Assert(session.Position == 2, "Speech did not reach current end");
+    inbox.Accept(new(answer.RequestId, answer.Id, 1, "Welcome back.\n\n"));
+    progress.Observe(new(2, 1, "Welcome back", true, true, .99f));
+    Assert(session.Position == 4 && session.DocumentId == answer.Id, "Append broke microphone matching");
+});
 var report = Path.Combine(root, "artifacts", "unit-tests.json");
 File.WriteAllText(report, JsonSerializer.Serialize(new { passed = failures == 0, results }, new JsonSerializerOptions { WriteIndented = true }));
 Console.WriteLine($"{results.Count - failures}/{results.Count} tests passed");

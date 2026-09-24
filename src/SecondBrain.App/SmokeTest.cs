@@ -15,6 +15,7 @@ internal static class SmokeTest
     public static async Task Run(MainWindow window, string directory, string phase)
     {
         var checks = new List<string>();
+        var unmetTargets = new List<string>();
         try
         {
             async Task Settle()
@@ -24,7 +25,82 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "replay")
+            if (phase == "stream")
+            {
+                while (window.Panels.Count < 4) window.AddReader();
+                for (var i = 0; i < 4; i++) { window.Panels[i].Width = 430 + i * 65; window.Panels[i].Height = 380 + i * 20; }
+                var original = window.Session.Text; window.Session.Select(7);
+                window.ScriptEditor.Text = "Unapplied draft must survive the incoming answers demo.";
+                var draft = window.ScriptEditor.Text;
+                var demo = window.OpenStreamDemo(); await Settle();
+                var inbox = demo.Inbox;
+                var answer = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Stable active answer");
+                inbox.Accept(new(answer.RequestId, answer.Id, 0, ReaderSession.Sample + "\n\n"));
+                await demo.SelectAnswer(answer); window.Session.Select(12); await Settle();
+                var id = window.Session.DocumentId; var words = window.Session.Words.ToArray();
+                var y = window.Panels.Select(p => p.WordScreenY(12)).ToArray();
+                var offsets = window.Panels.Select(p => p.ScrollPosition).ToArray();
+                inbox.Accept(new(answer.RequestId, answer.Id, 1, "This paragraph arrives while the reader is paused.\n\n")); await Settle();
+                var pausedError = window.Panels.Select((p, i) => Math.Abs(p.WordScreenY(12) - y[i])).Max();
+                Check(pausedError <= 1 && window.Panels.Select((p, i) => p.ScrollPosition == offsets[i]).All(v => v), "Append preserves the paused active word within one DIP on four differently sized panels");
+                Check(window.Session.Position == 12 && window.Session.DocumentId == id && words.Zip(window.Session.Words).All(pair => ReferenceEquals(pair.First, pair.Second)), "Append preserves document, block and word identity");
+                window.Session.Select(2); await Settle();
+                var backY = window.Panels.Select(p => p.WordScreenY(2)).ToArray();
+                inbox.Accept(new(answer.RequestId, answer.Id, 2, "A further paragraph arrives while looking back.\n\n")); await Settle();
+                Check(window.Panels.Select((p, i) => Math.Abs(p.WordScreenY(2) - backY[i]) <= 1).All(v => v) && !window.Playback.Playing, "Append while scrolled backward preserves every view and does not resume playback");
+                var queued = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "Queued answer");
+                inbox.Accept(new(queued.RequestId, queued.Id, 0, "Queued text never takes over.", AnswerEventKind.Complete)); await Settle();
+                Check(window.Session.Answer == answer && window.Panels.All(p => p.DisplayedBlockCount == 5), "A new answer stays queued outside every reader layout");
+                await demo.SelectAnswer(queued); await demo.SelectAnswer(answer); await Settle();
+                Check(window.Session.Position == 2 && window.Session.DocumentId == id, "Explicit answer navigation restores the prior logical position");
+                window.Session.Select(window.Session.Words.Count); await window.ToggleTimed(); await Settle();
+                Check(window.Playback.Waiting && window.Session.Answer == answer, "Timed controls keep the streamed answer selected and wait at its open end");
+                var cursor = window.Playback.Cursor;
+                inbox.Accept(new(answer.RequestId, answer.Id, 3, "Text arriving after a pause should resume at a gentle pace.\n\n"));
+                await Task.Delay(350);
+                Check(window.Playback.Playing && window.Playback.Cursor > cursor && window.Playback.Cursor < cursor + 1, "New text resumes gently from the previous end without restarting");
+                window.Playback.Pause(); await Settle();
+                var heldWord = Math.Min(window.Session.Position, window.Session.Words.Count - 1);
+                var heldY = window.Panels.Select(p => p.WordScreenY(heldWord)).ToArray();
+                inbox.Accept(new(answer.RequestId, answer.Id, 4, "This arrives after pausing partway through a smooth transition.\n\n")); await Settle();
+                Check(window.Panels.Select((p, i) => Math.Abs(p.WordScreenY(heldWord) - heldY[i]) <= 1).All(v => v), "Appending after a mid-glide pause does not snap the word back to the reading band");
+                window.Session.Select(2); await Settle();
+                var historyTimings = new List<double>();
+                for (var i = 2; i < 100; i++)
+                {
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    var item = inbox.Begin(Guid.NewGuid(), Guid.NewGuid(), "History " + i);
+                    inbox.Accept(new(item.RequestId, item.Id, 0, "Historical context stays outside the current reader.", AnswerEventKind.Complete));
+                    await Settle(); historyTimings.Add(watch.Elapsed.TotalMilliseconds);
+                }
+                Check(window.Panels.All(p => p.DisplayedBlockCount == 7) && window.Session.Answer == answer, "One hundred retained answers do not grow the active reader layout");
+                var appendTimings = new List<double>();
+                for (var i = 5; i < 105; i++)
+                {
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    inbox.Accept(new(answer.RequestId, answer.Id, i, "A stable paragraph keeps earlier words in place as more information arrives for this answer.\n\n"));
+                    await Settle(); appendTimings.Add(watch.Elapsed.TotalMilliseconds);
+                }
+                var appendP95 = appendTimings.Order().ElementAt((int)Math.Ceiling(appendTimings.Count * .95) - 1);
+                var historyP95 = historyTimings.Order().ElementAt((int)Math.Ceiling(historyTimings.Count * .95) - 1);
+                var firstMean = appendTimings.Take(10).Average(); var lastMean = appendTimings.TakeLast(10).Average();
+                var finalError = window.Panels.Select((p, i) => Math.Abs(p.WordScreenY(2) - backY[i])).Max();
+                File.WriteAllText(Path.Combine(directory, "stream-measurements.json"), JsonSerializer.Serialize(new { pausedError, finalError, appendP95, historyP95, firstMean, lastMean, appendTimings, historyTimings, words = window.Session.Words.Count, answers = inbox.Answers.Count }, new JsonSerializerOptions { WriteIndented = true }));
+                Check(finalError <= 1, "One hundred additional paragraphs preserve the paused active word within one DIP");
+                if (appendP95 < 100 && historyP95 < 100 && lastMean < firstMean + 25)
+                    checks.Add("Bounded demo history and incremental paragraphs keep p95 UI settle latency below 100 ms without material growth");
+                else unmetTargets.Add($"STREAM-006 performance target failed: append p95 {appendP95:F3} ms, history p95 {historyP95:F3} ms; target below 100 ms; first/last mean {firstMean:F3}/{lastMean:F3} ms (growth budget 25 ms).");
+                Capture(demo, Path.Combine(directory, "incoming-answers.png")); Capture(window.Panels[0], Path.Combine(directory, "stream-reader.png"));
+                demo.Close(); await Settle();
+                Check(window.Session.Text == original && window.Session.Position == 7 && window.ScriptEditor.Text == draft, "Closing demo restores the applied script and position without losing the editor draft");
+                var liveDemo = window.OpenStreamDemo(); await liveDemo.StartDemo();
+                for (var wait = 0; wait < 30 && window.Session.Words.Count == 0; wait++) await Task.Delay(100);
+                Check(liveDemo.Inbox.Answers.Count == 3 && window.Session.Answer == liveDemo.Inbox.Answers[0] && window.Session.Words.Count > 0, "User demo starts three queued answers and displays only its first completed paragraph");
+                Capture(liveDemo, Path.Combine(directory, "incoming-demo-controls.png"));
+                liveDemo.Close(); await Settle();
+                Check(!window.Voice.Running && !window.Playback.Playing, "Stream demo tests leave microphone and playback stopped");
+            }
+            else if (phase == "replay")
             {
                 window.ReplayButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Task.Delay(8000);
@@ -223,7 +299,7 @@ internal static class SmokeTest
             var open = window.Panels.ToArray();
             window.Close();
             Check(open.All(p => !p.IsVisible), "Closing main window closes every reader");
-            File.WriteAllText(Path.Combine(directory, phase + ".json"), JsonSerializer.Serialize(new { passed = true, checks }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(directory, phase + ".json"), JsonSerializer.Serialize(new { passed = unmetTargets.Count == 0, functionalPassed = true, checks, unmetTargets }, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex)
         {

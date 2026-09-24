@@ -19,6 +19,7 @@
             <StackPanel.RenderTransform><TranslateTransform x:Name="TextTranslation"/></StackPanel.RenderTransform>
             <Border x:Name="TopSpace" Height="70" />
             <TextBlock x:Name="ScriptText" Foreground="#EDF3E9" FontFamily="Segoe UI" FontSize="32" TextWrapping="Wrap" HorizontalAlignment="Center" LineStackingStrategy="BlockLineHeight" />
+            <StackPanel x:Name="StreamBlocks" />
           </StackPanel>
           </Canvas>
         </Border>

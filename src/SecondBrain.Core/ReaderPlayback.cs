@@ -8,6 +8,7 @@ public sealed class ReaderPlayback
     private double velocity;
     public bool TimedMode { get; private set; }
     public bool Playing { get; private set; }
+    public bool Waiting => Playing && session.AwaitingText && Cursor >= session.Words.Count;
     public double Cursor { get; private set; }
     public double WordsPerMinute { get; private set; } = 150;
     public event Action? StateChanged;
@@ -20,6 +21,7 @@ public sealed class ReaderPlayback
             if (change is ReaderChange.Document or ReaderChange.Position)
             { Cursor = session.Position; Pause(); }
             else if (change == ReaderChange.VoicePosition) Cursor = session.Position;
+            else if (TimedMode && change is (ReaderChange.Append or ReaderChange.StreamState)) StateChanged?.Invoke();
         };
     }
     public void SetSpeed(double wordsPerMinute)
@@ -29,8 +31,8 @@ public sealed class ReaderPlayback
     }
     public void Play()
     {
-        if (session.Words.Count == 0) return;
-        if (Cursor >= session.Words.Count) session.Select(0);
+        if (session.Words.Count == 0 && !session.AwaitingText) return;
+        if (Cursor >= session.Words.Count && session.Answer is null) session.Select(0);
         TimedMode = true; Playing = true; velocity = 0; StateChanged?.Invoke();
     }
     public void Pause() { Playing = false; velocity = 0; StateChanged?.Invoke(); }
@@ -38,6 +40,7 @@ public sealed class ReaderPlayback
     public void Tick(double elapsedSeconds)
     {
         if (!Playing || !double.IsFinite(elapsedSeconds) || elapsedSeconds <= 0) return;
+        var wasWaiting = Waiting;
         var dt = Math.Min(elapsedSeconds, 1d / 30);
         const double smoothing = .3;
         var goal = WordsPerMinute / 60;
@@ -45,7 +48,12 @@ public sealed class ReaderPlayback
         Cursor = Math.Min(session.Words.Count, Cursor + goal * dt + (velocity - goal) * smoothing * (1 - decay));
         velocity = goal + (velocity - goal) * decay;
         session.SelectTimed((int)Cursor);
-        if (Cursor >= session.Words.Count) Pause();
+        if (Cursor >= session.Words.Count)
+        {
+            velocity = 0;
+            if (!session.AwaitingText) Pause();
+            else if (!wasWaiting) StateChanged?.Invoke();
+        }
     }
     public void Sentence(int direction)
     {
