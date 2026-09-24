@@ -471,6 +471,19 @@ Test("Line glide eases in and out without overshoot, then holds during silence",
     for (var i = 0; i < 600; i++) motion.Step(1d / 60, 44.8);
     Assert(motion.Position == 44.8, "Continued scrolling without new progress");
 });
+Test("Subpixel motion tails finish exactly within the existing frame budget", () =>
+{
+    foreach (var hz in new[] { 40, 60, 120 })
+    {
+        var motion = new ReaderMotion(); motion.Reset(1.816666666666677); motion.Follow(46.61666666666669);
+        for (var i = 0; i < hz * 2.2; i++)
+        {
+            var prior = motion.Position; motion.Step(1d / hz, 44.8);
+            Assert(motion.Position >= prior && motion.Position - prior <= 44.8 * 2.2 / hz + .000001, "Tail exceeded frame speed cap");
+        }
+        Assert(motion.Position == motion.Target && !motion.Moving, "Subpixel tail remained active");
+    }
+});
 Test("Burst updates preserve motion; a render stall cannot trigger catch-up", () =>
 {
     var motion = new ReaderMotion(); motion.Follow(45);

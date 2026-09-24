@@ -27,6 +27,7 @@ public sealed class ReaderMotion
         // at different refresh rates without trying to catch up a blocked UI thread.
         var remainingTime = Math.Min(elapsedSeconds, 1d / 30);
         var maxSpeed = Math.Max(1, lineHeight) * 2.2;
+        var frameLimit = Position + maxSpeed * remainingTime;
         const double settleTime = .38;
         const double omega = 2 / settleTime;
         while (remainingTime > 0)
@@ -41,7 +42,8 @@ public sealed class ReaderMotion
             var next = localTarget + (change + temporary) * decay;
             Position = Math.Clamp(next, Position, Math.Min(Target, Position + maxSpeed * dt));
         }
-        if (Target - Position <= .01) { Position = Target; velocity = 0; }
+        // Finish the imperceptible tail exactly, without spending more than this frame's motion budget.
+        if (Target - Position <= .05 && Target <= frameLimit) { Position = Target; velocity = 0; }
         return Position;
     }
 }
