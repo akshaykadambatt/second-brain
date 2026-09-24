@@ -9,7 +9,7 @@ internal static class StorageSmokeTests
 {
     public static async Task Run(MainWindow main, string directory, Action<bool, string> check, Action<Window, string> capture)
     {
-        main.StorageTab.IsSelected = true;
+        main.SettingsTab.IsSelected = true; main.StorageTab.IsSelected = true;
         await main.Recorder.StartAsync("test-mic", "test-output"); await Task.Delay(250);
         var invoked = false;
         var refused = await main.StorageOperation(_ => { invoked = true; return "wrong"; });

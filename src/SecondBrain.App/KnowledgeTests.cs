@@ -69,7 +69,7 @@ internal static class KnowledgeTests
         check(canceledProvider.Prompts.Count == 0 && pending.Fast.Blocks.Count == 0, "Canceled retrieval cannot start a late AI request");
         var settings = new VaultSettings(directory, directory); settings.Save(new());
         check(settings.Load().Folder == "Vault" && new VaultSettings(directory, Path.Combine(directory, "relocated")).Resolve(settings.Load()).EndsWith(Path.Combine("relocated", "Vault")), "Relative vault selection relocates with the executable folder");
-        main.WorkspaceTabs.SelectedIndex = 1; main.VaultQuery.Text = "Cedar release token";
+        main.KnowledgeTab.IsSelected = true; main.VaultQuery.Text = "Cedar release token";
         main.VaultSearch.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
         for (var i = 0; i < 100 && !main.VaultSearch.IsEnabled; i++) await Task.Delay(20);
         check(main.VaultResults.Items.Count > 0, "Knowledge UI displays searchable source excerpts");

@@ -59,5 +59,17 @@
   <Style TargetType="ComboBox"><Setter Property="Padding" Value="8,6"/><Setter Property="Foreground" Value="{StaticResource Ink}"/><Setter Property="BorderBrush" Value="{StaticResource Ink}"/><Setter Property="BorderThickness" Value="{StaticResource ControlBorder}"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/></Style>
   <Style TargetType="ListBox"><Setter Property="Background" Value="{StaticResource Card}"/><Setter Property="Foreground" Value="{StaticResource Ink}"/><Setter Property="BorderBrush" Value="{StaticResource Ink}"/><Setter Property="BorderThickness" Value="{StaticResource ControlBorder}"/></Style>
   <Style TargetType="TabControl"><Setter Property="Background" Value="{StaticResource Card}"/><Setter Property="BorderBrush" Value="{StaticResource Ink}"/><Setter Property="BorderThickness" Value="2"/></Style>
-  <Style TargetType="TabItem"><Setter Property="Padding" Value="12,8"/><Setter Property="HeaderTemplate"><Setter.Value><DataTemplate><TextBlock Text="{Binding}" FontWeight="SemiBold"/></DataTemplate></Setter.Value></Setter></Style>
+  <Style TargetType="TabItem">
+    <Setter Property="Padding" Value="12,10"/><Setter Property="Background" Value="{StaticResource Paper}"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/>
+    <Setter Property="HeaderTemplate"><Setter.Value><DataTemplate><TextBlock Text="{Binding}" FontWeight="SemiBold"/></DataTemplate></Setter.Value></Setter>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem">
+      <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{StaticResource Ink}" BorderThickness="2" Padding="{TemplateBinding Padding}" Margin="0,0,4,4" CornerRadius="2"><ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True"/></Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{StaticResource Subtle}"/></Trigger>
+        <Trigger Property="IsSelected" Value="True"><Setter TargetName="Surface" Property="Background" Value="{StaticResource Accent}"/></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Surface" Property="Opacity" Value="0.5"/></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
 </ResourceDictionary>

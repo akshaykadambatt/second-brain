@@ -56,7 +56,7 @@ internal static class MaintenanceTests
         // Show the real history UI against this finished fixture and exercise undo.
         await Until(() => main.VaultApply.IsEnabled);
         main.VaultFolder.Text = root; main.AutoUpdates.IsChecked = true;
-        main.VaultApply.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); main.HistoryTab.IsSelected = true;
+        main.VaultApply.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); main.MeetingsTab.IsSelected = true; main.HistoryTab.IsSelected = true;
         await Until(() => main.HistoryUpdates.Items.Count == 2 && main.HistoryRevisions.Items.Count >= 2 && main.HistoryUndo.IsEnabled);
         main.HistoryRevisions.SelectedIndex = 0;
         var history = main.Maintenance!; var viewNow = await history.ReadHistory(); var commit = viewNow.Log.Split(' ')[0];
