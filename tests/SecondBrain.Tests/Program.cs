@@ -16,6 +16,7 @@ string Folder(string name) { var path = Path.Combine(run, name); Directory.Creat
 
 HistoryTests.Run(Test, Assert, Folder);
 StorageTests.Run(Test, Assert, Folder);
+SessionContextTests.Run(Test, Assert, Folder);
 
 Test("Appended meeting facts retain their own dates during filtered retrieval", () =>
 {
