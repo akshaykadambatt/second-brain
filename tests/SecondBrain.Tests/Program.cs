@@ -216,15 +216,18 @@ Test("Voice pace uses stable progress; uncertainty and stalls cannot cause catch
     flow.Stop(); flow.Observe(new(2, 1, "our next steps", true, true, .95f));
     Assert(session.Position == position, "Stopped controller accepted delayed speech");
 });
-Test("Per-panel voice travel is bounded to one line even for a delayed recognition burst", () =>
+Test("Multi-line accepted progress settles with bounded frame steps and no overshoot", () =>
 {
     foreach (var hz in new[] { 30, 60, 120 })
     {
-        var motion = new ReaderMotion(); motion.Reset(100); motion.FollowBounded(1000, 145);
-        for (var i = 0; i < hz; i++) motion.Step(1d / hz, 45);
-        for (var i = 0; i < hz; i++) motion.Brake(1d / hz);
-        Assert(motion.Position is >= 100 and <= 145, "Post-evidence line budget exceeded");
-        var held = motion.Position; motion.Brake(10); Assert(Math.Abs(motion.Position - held) < .01, "Brake did not settle");
+        var motion = new ReaderMotion(); motion.Reset(100); motion.Follow(325);
+        for (var i = 0; i < hz * 6; i++)
+        {
+            var prior = motion.Position; motion.Step(i == 10 ? 5 : 1d / hz, 45);
+            Assert(motion.Position >= prior && motion.Position <= 325 && motion.Position - prior <= 45 * 2.2 / 30 + .001, "Catch-up jumped, reversed or overshot its accepted line");
+        }
+        Assert(motion.Position == 325 && !motion.Moving, "Accepted multi-line progress was abandoned");
+        var held = motion.Position; motion.Step(10, 45); Assert(motion.Position == held, "Continued beyond accepted line");
     }
 });
 Test("Manual recovery clears voice momentum and permits timed fallback", () =>

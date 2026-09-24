@@ -20,19 +20,6 @@ public sealed class ReaderMotion
         // Manual selection and layout changes use Reset. Voice must never pull back.
         Target = Math.Max(Target, offset);
     }
-    public void FollowBounded(double offset, double ceiling)
-    { Target = Math.Clamp(offset, Position, Math.Max(Position, ceiling)); }
-    public double Brake(double elapsedSeconds)
-    {
-        if (!double.IsFinite(elapsedSeconds) || elapsedSeconds <= 0) return Position;
-        var dt = Math.Min(elapsedSeconds, 1d / 30);
-        var decay = Math.Exp(-dt / .08);
-        Position = Math.Min(Target, Position + velocity * .08 * (1 - decay));
-        velocity *= decay;
-        if (velocity < .05) Reset(Position);
-        return Position;
-    }
-
     public double Step(double elapsedSeconds, double lineHeight)
     {
         if (!Moving || !double.IsFinite(elapsedSeconds) || elapsedSeconds <= 0) return Position;

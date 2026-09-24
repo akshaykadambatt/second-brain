@@ -28,7 +28,6 @@ public partial class ReaderWindow : Window
     private readonly ReaderMotion motion = new();
     private double lastFrame;
     private long voiceEvidence = -1;
-    private double voiceCeiling;
     private double voiceStartOffset;
     internal double? LastVoiceMotionLatencyMilliseconds { get; private set; }
     private bool layoutDirty = true, snapPending, alignmentQueued, closed;
@@ -43,6 +42,16 @@ public partial class ReaderWindow : Window
     internal double LineHeight => session.Style.FontSize * session.Style.LineSpacing;
     internal double WordLine(int index) => runs[index].ContentStart.GetCharacterRect(LogicalDirection.Forward).Top;
     internal double WordScreenY(int index) => WordTop(index);
+    internal double MarkerGlyphError
+    {
+        get
+        {
+            if (runs.Count == 0) return 0;
+            var i = Math.Min(session.Position, runs.Count - 1);
+            var rect = runs[i].ContentStart.GetPositionAtOffset(1, LogicalDirection.Forward)!.GetCharacterRect(LogicalDirection.Backward);
+            return Math.Abs(wordOwners[i].TranslatePoint(new Point(rect.Left, rect.Top + rect.Height / 2), ReadingArea).Y - (Canvas.GetTop(Band) + Band.Height / 2));
+        }
+    }
     internal int DisplayedBlockCount => displayedBlocks;
     internal double AnchorError => runs.Count == 0 ? 0 : Math.Abs(WordTop(Math.Min(session.Position, runs.Count - 1)) - ReadingArea.ActualHeight * session.Style.ReadingBand);
     public event Action? ResetRequested;
@@ -177,6 +186,11 @@ public partial class ReaderWindow : Window
                     System.Windows.Controls.Canvas.SetTop(Band, band + style.FontSize * .55);
                     }
                 UpdateLayout();
+                if (runs.Count > 0)
+                {
+                    var glyph = runs[Math.Min(session.Position, runs.Count - 1)].ContentStart.GetCharacterRect(LogicalDirection.Forward);
+                    Canvas.SetTop(Band, band + glyph.Height / 2 - Band.Height / 2);
+                }
                 if (layoutDirty) { lines.Clear(); measuredWords = 0; }
                 else if (lines.Count > 0) lines.RemoveAt(lines.Count - 1);
                 for (var i = measuredWords; i < runs.Count; i++)
@@ -213,9 +227,13 @@ public partial class ReaderWindow : Window
             if (alignmentQueued) return;
             var flow = playback.Voice;
             if (voiceEvidence != flow.EvidenceVersion)
-            { voiceEvidence = flow.EvidenceVersion; voiceStartOffset = motion.Position; voiceCeiling = motion.Position + LineHeight; LastVoiceMotionLatencyMilliseconds = null; }
-            motion.FollowBounded(FlowOffset(flow.Cursor), voiceCeiling);
-            TextTranslation.Y = -(flow.Holding ? motion.Brake(dt) : motion.Step(dt, LineHeight));
+            { voiceEvidence = flow.EvidenceVersion; voiceStartOffset = motion.Position; LastVoiceMotionLatencyMilliseconds = null; }
+            // A speech result can span several wrapped lines. Finish that accepted
+            // progress even after silence; stopping after one line strands the word
+            // below the band. Predictive pacing must not scroll beyond its real line.
+            if (runs.Count > 0 && lines.Count >= 2)
+                motion.Follow(lines[LineIndex(Math.Min(session.Position, runs.Count - 1))].Offset);
+            TextTranslation.Y = -motion.Step(dt, LineHeight);
             if (LastVoiceMotionLatencyMilliseconds is null && motion.Position - voiceStartOffset > .1 && flow.LastEvidenceTimestamp != 0)
                 LastVoiceMotionLatencyMilliseconds = Stopwatch.GetElapsedTime(flow.LastEvidenceTimestamp).TotalMilliseconds;
             return;
@@ -231,11 +249,16 @@ public partial class ReaderWindow : Window
     private double FlowOffset(double cursor)
     {
         if (lines.Count < 2) return motion.Position;
+        var left = LineIndex(cursor);
+        var start = lines[left]; var end = lines[left + 1];
+        return start.Offset + (end.Offset - start.Offset) * Math.Clamp((cursor - start.Word) / Math.Max(1, end.Word - start.Word), 0, 1);
+    }
+    private int LineIndex(double cursor)
+    {
         var left = 0; var right = lines.Count - 1;
         while (right - left > 1)
         { var middle = (left + right) / 2; if (lines[middle].Word <= cursor) left = middle; else right = middle; }
-        var start = lines[left]; var end = lines[right];
-        return start.Offset + (end.Offset - start.Offset) * Math.Clamp((cursor - start.Word) / Math.Max(1, end.Word - start.Word), 0, 1);
+        return left;
     }
     private void PlaybackChanged()
     {

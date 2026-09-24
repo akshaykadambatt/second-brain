@@ -29,12 +29,12 @@ internal static class HybridVoiceTests
         try
         {
             flow.Observe(new(0, 1, "today I want to talk", true, true, .95f));
-            await Task.Delay(1400);
+            await Task.Delay(2400);
             var drift = main.Panels.Select((p, i) => (p.ScrollPosition - initial[i]) / p.LineHeight).ToArray();
             check(main.Session.Position == 5 && main.Panels.All(p => p.SelectedWord == 5), "Four layouts share one microphone-confirmed word identity");
-            check(drift.All(value => value is > 0 and <= 1.0001) && flow.Holding, "Every panel decelerates to hold with no more than one line after the last recognized phrase");
+            check(drift.All(value => value >= 0) && main.Panels.All(p => p.AnchorError <= 1 && !p.IsGliding) && flow.Holding, "Every panel finishes accepted progress on its actual wrapped line without speculative drift");
             var motionLatency = main.Panels.Select(p => p.LastVoiceMotionLatencyMilliseconds).ToArray();
-            check(motionLatency.All(value => value is > 0 and < 2000), "Each panel begins visible motion within two seconds of distinctive matched speech");
+            check(motionLatency.Select((value, i) => drift[i] < .01 || value is > 0 and < 2000).All(v => v), "Panels needing a line change begin visible motion within two seconds; same-line panels stay still");
             var held = main.Panels.Select(p => p.ScrollPosition).ToArray(); await Task.Delay(250);
             check(main.Panels.Select((p, i) => Math.Abs(p.ScrollPosition - held[i]) < .01).All(x => x), "Silence holds all panel positions without lingering drift");
             flow.Observe(new(1, .5, "purple elephants fly away", true, true, .95f)); await Task.Delay(150);

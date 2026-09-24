@@ -1,7 +1,8 @@
 namespace SecondBrain.Core;
 
 // Logical matching and continuous motion are separate. This clock does not know
-// pixels. Every panel applies its own one-line post-evidence travel budget.
+// pixels. Panels smoothly finish accepted progress at their own wrapped line,
+// without using predictive pace to move beyond that line.
 public sealed class VoiceFlow(ReaderSession session)
 {
     private DeepgramProgress progress = new(session);
@@ -34,7 +35,7 @@ public sealed class VoiceFlow(ReaderSession session)
         {
             if (match is null) { age = Math.Max(age, .5); Status = "Uncertain or off script · slowing to hold"; }
             // A plausible first interim gently influences speed, but cannot
-            // replenish the travel budget or move the logical reading position.
+            // move the logical reading position.
             else if (!segment.Final && segment.Duration >= .2)
                 WordsPerMinute += .1 * (Math.Clamp(match.Matched / segment.Duration * 60, 60, 300) - WordsPerMinute);
             return false;
@@ -47,7 +48,7 @@ public sealed class VoiceFlow(ReaderSession session)
             WordsPerMinute += .2 * (Math.Clamp(match.Matched / segment.Duration * 60, 60, 300) - WordsPerMinute);
         priorAudioEnd = audioEnd; priorPosition = session.Position;
         // Assimilate confirmed word evidence into the estimate. This is not a
-        // pixel jump: panels still ease toward it with their one-line budget.
+        // pixel jump: panels ease toward the accepted word's actual wrapped line.
         // Without this correction, sparse final results accumulate visual lag.
         Cursor = Math.Max(Cursor, Math.Max(0, session.Position - (segment.Final ? .35 : 1.5)));
         age = 0; EvidenceVersion++;
