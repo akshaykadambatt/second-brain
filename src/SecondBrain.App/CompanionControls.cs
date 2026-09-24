@@ -54,6 +54,8 @@ public partial class MainWindow
             companionSettings!.Save(baseOptions);
             if (!hiddenTestMode) { _ = new ApiKeyStore(dataDirectory).Load(); _ = new ApiKeyStore(dataDirectory, "OpenAI").Load(); }
             var meetingContext = SaveMeetingContext();
+            if (Knowledge?.ForProject(meetingContext.Project) is IStagedKnowledgeSearch prepared)
+                _ = prepared.Prewarm(meetingContext.Goal, CancellationToken.None);
             Assistant?.Close(); StreamDemo?.Close(); study?.Close(); replay?.Stop();
             await StopListening(); await Recorder.StopAsync();
             if (recordingWindow is { IsVisible: true }) recordingWindow.Close();

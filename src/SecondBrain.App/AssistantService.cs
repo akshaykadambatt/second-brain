@@ -64,7 +64,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
             if (knowledge is not null)
             {
                 run.Status = "Looking up vault context…"; Changed?.Invoke();
-                try { run.Knowledge = await knowledge.Search(run.Question, run.Cancellation.Token); }
+                try { run.Knowledge = knowledge is IStagedKnowledgeSearch staged ? await staged.SearchOpening(run.Question, run.Cancellation.Token) : await knowledge.Search(run.Question, run.Cancellation.Token); }
                 catch (Exception) when (!run.Cancellation.IsCancellationRequested) { run.Knowledge = new([], "Vault search unavailable; evidence may be missing."); }
                 if (!run.Active) return;
                 run.RetrievalMs = run.Clock.Elapsed.TotalMilliseconds; run.Status = "Generating opening with retrieved context…"; Changed?.Invoke();
@@ -72,7 +72,20 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
             run.GenerationStartedMs = run.Clock.Elapsed.TotalMilliseconds;
             await Generate(run.Fast, options.FastModel, options.FastEffort, false, !(run.Continuation && options.Deeper));
             if (run.Continuation && options.Deeper && run.Active)
-            { run.Status = "First sentence ready · thinking through the continuation…"; Changed?.Invoke(); await Generate(run.Fast, options.DeepModel, options.DeepEffort, true); }
+            {
+                run.Status = "First sentence ready · retrieving supporting detail…"; Changed?.Invoke();
+                if (knowledge is IStagedKnowledgeSearch)
+                {
+                    try
+                    {
+                        var deeper = await knowledge.Search(run.Question, run.Cancellation.Token);
+                        var hits = (run.Knowledge?.Hits ?? []).Concat(deeper.Hits).DistinctBy(h => h.Chunk.Id).Take(12).ToArray();
+                        run.Knowledge = new(hits, deeper.Status); Changed?.Invoke();
+                    }
+                    catch (Exception) when (!run.Cancellation.IsCancellationRequested) { /* Retain the opening's evidence. */ }
+                }
+                await Generate(run.Fast, options.DeepModel, options.DeepEffort, true);
+            }
             if (run.Deeper is { } deep && run.Active)
             { run.Status = "Quick answer ready · generating deeper answer…"; Changed?.Invoke(); await Generate(deep, options.DeepModel, options.DeepEffort, true); }
             if (run.Active) { run.Status = run.Continuation ? "Answer complete · ready to read" : "Complete · choose an answer to read"; run.CompletedMs = run.Clock.Elapsed.TotalMilliseconds; }

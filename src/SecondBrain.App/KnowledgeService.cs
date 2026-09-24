@@ -22,7 +22,7 @@ internal sealed class VaultSettings(string data, string home)
     }
 }
 
-internal sealed class KnowledgeService : IKnowledgeSearch, IDisposable
+internal sealed class KnowledgeService : IStagedKnowledgeSearch, IDisposable
 {
     private sealed record Cache(string Model, int Dimensions, Dictionary<string, float[]> Vectors);
     private readonly IEmbeddingProvider? embeddings;
@@ -30,6 +30,8 @@ internal sealed class KnowledgeService : IKnowledgeSearch, IDisposable
     private readonly CancellationTokenSource stop = new();
     private readonly object gate = new();
     private Dictionary<string, float[]> vectors = [];
+    private readonly Dictionary<(string Question, KnowledgeFilter Filter), (IReadOnlyList<NoteChunk> Snapshot, KnowledgeResult Result)> openings = [];
+    private readonly Dictionary<string, float[]> queries = [];
     private readonly VaultIndex index = new();
     private Task refresh = Task.CompletedTask;
     private DateTime nextRefresh, retryEmbedding;
@@ -95,10 +97,45 @@ internal sealed class KnowledgeService : IKnowledgeSearch, IDisposable
         if (File.Exists(cachePath)) File.Delete(cachePath);
         retryEmbedding = DateTime.MinValue; await Refresh(true);
     }
-    private sealed class ProjectSearch(KnowledgeService owner, KnowledgeFilter filter) : IKnowledgeSearch
-    { public Task<KnowledgeResult> Search(string question, CancellationToken cancellation) => owner.Search(question, filter, cancellation); }
+    private sealed class ProjectSearch(KnowledgeService owner, KnowledgeFilter filter) : IStagedKnowledgeSearch
+    {
+        public Task<KnowledgeResult> Search(string question, CancellationToken cancellation) => owner.Search(question, filter, cancellation);
+        public Task<KnowledgeResult> SearchOpening(string question, CancellationToken cancellation) => owner.SearchOpening(question, filter, cancellation);
+        public Task Prewarm(string context, CancellationToken cancellation) => owner.Prewarm(context, filter, cancellation);
+    }
     internal IKnowledgeSearch ForProject(string project) => string.IsNullOrWhiteSpace(project) ? this : new ProjectSearch(this, Filter with { Project = project.Trim() });
     public Task<KnowledgeResult> Search(string question, CancellationToken cancellation) => Search(question, Filter, cancellation);
+    public Task<KnowledgeResult> SearchOpening(string question, CancellationToken cancellation) => SearchOpening(question, Filter, cancellation);
+    private async Task<KnowledgeResult> SearchOpening(string question, KnowledgeFilter filter, CancellationToken cancellation)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        var snapshot = index.Chunks; var key = (question, filter);
+        lock (gate) if (openings.TryGetValue(key, out var cached) && ReferenceEquals(cached.Snapshot, snapshot)) return cached.Result;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation, stop.Token); deadline.CancelAfter(250);
+        try
+        {
+            var result = await Task.Run(() => index.Search(question, filter, new Dictionary<string, float[]>(), status: "Opening keyword evidence"), deadline.Token).WaitAsync(deadline.Token);
+            lock (gate)
+            {
+                if (openings.Count >= 64) openings.Remove(openings.Keys.First());
+                if (ReferenceEquals(snapshot, index.Chunks)) openings[key] = (snapshot, result);
+            }
+            return result;
+        }
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested && !stop.IsCancellationRequested)
+        { return new([], "Opening lookup reached its 250 ms budget; no project fact is established yet. Deeper retrieval follows."); }
+    }
+    public Task Prewarm(string context, CancellationToken cancellation) => Prewarm(context, Filter, cancellation);
+    private async Task Prewarm(string context, KnowledgeFilter filter, CancellationToken cancellation)
+    {
+        try
+        {
+            await Refresh();
+            if (!string.IsNullOrWhiteSpace(context))
+            { await SearchOpening(context, filter, cancellation); await Search(context, filter, cancellation); }
+        }
+        catch (Exception) { /* Prewarming is optional; the regular lookup reports missing evidence. */ }
+    }
     private async Task<KnowledgeResult> Search(string question, KnowledgeFilter filter, CancellationToken cancellation)
     {
         Dictionary<string, float[]> saved; lock (gate) saved = new(vectors);
@@ -106,7 +143,16 @@ internal sealed class KnowledgeService : IKnowledgeSearch, IDisposable
         if (embeddings is not null && saved.Count > 0)
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation, stop.Token); deadline.CancelAfter(1500);
-            try { query = (await embeddings.Embed([question], deadline.Token))[0]; status = "Keyword + semantic search"; }
+            try
+            {
+                lock (gate) queries.TryGetValue(question, out query);
+                if (query is null)
+                {
+                    query = (await embeddings.Embed([question], deadline.Token).WaitAsync(deadline.Token))[0];
+                    lock (gate) { if (queries.Count >= 64) queries.Remove(queries.Keys.First()); queries[question] = query; }
+                }
+                status = "Keyword + semantic search";
+            }
             catch (Exception) when (!cancellation.IsCancellationRequested) { status = "Semantic unavailable/slow · keyword fallback"; }
         }
         cancellation.ThrowIfCancellationRequested();

@@ -15,6 +15,7 @@ public partial class MainWindow
     private Task vaultImport = Task.CompletedTask;
     private readonly List<Task> knowledgeStops = [];
     private Guid sourcesRequest;
+    private KnowledgeResult? sourcesSnapshot;
     private string? companionVaultRoot;
     private void InitializeKnowledge()
     {
@@ -112,8 +113,8 @@ public partial class MainWindow
     {
         var selected = Companion?.Selected;
         var request = Companion?.Answers.Requests.FirstOrDefault(r => r.Id == selected?.RequestId);
-        if (request?.Knowledge is not { } result || sourcesRequest == request.Id) return;
-        sourcesRequest = request.Id; LiveSources.Items.Clear();
+        if (request?.Knowledge is not { } result || sourcesRequest == request.Id && ReferenceEquals(sourcesSnapshot, result)) return;
+        sourcesRequest = request.Id; sourcesSnapshot = result; LiveSources.Items.Clear();
         foreach (var hit in result.Hits) LiveSources.Items.Add(SourceRow(hit));
         SourceStatus.Text = result.Status + " · retrieved snapshots, not individually verified citations";
     }
