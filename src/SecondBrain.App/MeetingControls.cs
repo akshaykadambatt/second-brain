@@ -65,4 +65,25 @@ public partial class MainWindow
         try { Process.Start(new ProcessStartInfo(row.Path) { UseShellExecute = true }); }
         catch (Exception) { MeetingListStatus.Text = "The meeting folder could not be opened. Refresh the list and try again."; }
     }
+    private async void MeetingTranscript_Click(object sender, RoutedEventArgs e)
+    {
+        if (MeetingList.SelectedItem is not MeetingRow row) { MeetingListStatus.Text = "Select a meeting first."; return; }
+        await OpenTranscript(row.Path);
+    }
+    internal async Task<TranscriptWindow?> OpenTranscript(string path)
+    {
+        try
+        {
+            var loaded = await Task.Run(() =>
+            {
+                try { return (Records: TranscriptDetails.Read(path), Warning: "Select a segment to inspect its word times."); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+                { return (Records: TranscriptDetails.Read(path, false), Warning: "Word details unavailable or damaged; showing original transcript text."); }
+            });
+            if (closing) return null;
+            var window = new TranscriptWindow(this, loaded.Records, loaded.Warning, hiddenTestMode); window.Show(); return window;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        { MeetingListStatus.Text = "No readable transcript is available for this recording. Its audio remains in the meeting folder."; return null; }
+    }
 }

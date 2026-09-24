@@ -46,3 +46,5 @@ Expand **Answer timing** on Live to see transcription, detection, queue, retriev
 Live-provider scripts require your configured credentials and may incur provider usage charges. Run them intentionally; ordinary build and smoke checks do not require meeting capture.
 
 The Live companion can keep an answer flowing: voice or timed reading near the end requests the next grounded section and appends it to the same reader answer. Manual navigation does not trigger generation. Disable **Keep this answer flowing as I read** to stop future automatic extensions. It stops on missing further supported detail, cancellation, a newer question, or the existing bounded answer size. Opening retrieval uses a 250 ms keyword budget; deeper retrieval can add evidence afterward.
+
+Recorded transcripts retain optional word timestamps and source metadata in a versioned `transcript-details.jsonl` sidecar. Original transcript journals remain unchanged. Choose **Meetings > View selected transcript** to inspect finalized text and word times; older recordings remain readable without invented timestamps. Backups include these sidecars.

@@ -77,11 +77,11 @@ public sealed class TranscriptDetails : IDisposable
             records.Add(item.SegmentId, line); return true;
         }
     }
-    public static TranscriptDetail[] Read(string directory)
+    public static TranscriptDetail[] Read(string directory, bool includeDetails = true)
     {
         var originals = TranscriptLog.Read(directory).Where(e => e.Kind == "Final" && e.Source is not null).ToArray();
         var details = new Dictionary<string, TranscriptDetail>(); var path = Path.Combine(directory, FileName);
-        if (File.Exists(path))
+        if (includeDetails && File.Exists(path))
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var reader = new StreamReader(stream);
