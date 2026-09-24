@@ -72,11 +72,27 @@ public partial class ReaderWindow : Window
             CaptureExcluded = NativeWindows.ExcludeFromCapture(this);
             CaptureText.Text = CaptureExcluded ? "Capture exclusion on · verify your screen share" : "Capture exclusion failed · panel may appear in screen share";
             if (!CaptureExcluded) CaptureText.Foreground = Brushes.Salmon;
+            RefreshChrome();
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook);
         };
-        Loaded += (_, _) => { Rebuild(); CompositionTarget.Rendering += RenderFrame; };
+        Loaded += (_, _) => { Rebuild(); RefreshChrome(); CompositionTarget.Rendering += RenderFrame; };
+        MouseEnter += (_, _) => RefreshChrome(); MouseLeave += (_, _) => RefreshChrome();
+        GotKeyboardFocus += (_, _) => RefreshChrome(); LostKeyboardFocus += (_, _) => RefreshChrome();
         SizeChanged += (_, _) => { layoutDirty = true; QueueAlignment(false); };
         Closed += (_, _) => { closed = true; session.Changed -= SessionChanged; playback.StateChanged -= PlaybackChanged; CompositionTarget.Rendering -= RenderFrame; };
+    }
+
+    private void RefreshChrome() => SetChromeVisibility(IsMouseOver || IsKeyboardFocusWithin);
+    internal void SetChromeVisibility(bool visible)
+    {
+        // Opacity retains the existing header/footer space, so revealing controls
+        // cannot rewrap text or move the accepted word away from its reading band.
+        HeaderChrome.Opacity = visible ? 1 : 0;
+        HeaderChrome.IsHitTestVisible = visible;
+        FooterChrome.Opacity = visible || !CaptureExcluded ? 1 : 0;
+        FooterChrome.IsHitTestVisible = visible || !CaptureExcluded;
+        ResizeGrip.Opacity = visible ? 1 : 0;
+        ResizeGrip.IsHitTestVisible = visible;
     }
 
     private IntPtr WindowHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)

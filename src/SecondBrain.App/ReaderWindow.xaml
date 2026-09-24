@@ -6,7 +6,7 @@
   <Border x:Name="Surface" CornerRadius="12" BorderBrush="#597769" BorderThickness="1">
     <Grid>
       <Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition Height="*"/><RowDefinition Height="75"/></Grid.RowDefinitions>
-      <Grid Background="Transparent" MouseLeftButtonDown="Title_MouseDown" Margin="14,0,8,0">
+      <Grid x:Name="HeaderChrome" Background="Transparent" MouseLeftButtonDown="Title_MouseDown" Margin="14,0,8,0">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <TextBlock Text="READER   ·   drag to move" Foreground="#B5CDBD" FontSize="11" VerticalAlignment="Center" />
         <Button Grid.Column="1" Content="Reset" Click="Reset_Click" Padding="10,5" FontSize="11" Background="#294C3E" Foreground="White" BorderThickness="0" Margin="0,0,6,0" />
@@ -25,7 +25,7 @@
           </Canvas>
         </Border>
       </Grid>
-      <Grid Grid.Row="2" Margin="14,3,24,8">
+      <Grid x:Name="FooterChrome" Grid.Row="2" Margin="14,3,24,8">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <TextBlock x:Name="ProgressText" Foreground="#B5CDBD" FontSize="11" />
@@ -37,7 +37,7 @@
           <Button Content="Next" Click="Next_Click" Padding="8,3" FontSize="11" ToolTip="Next sentence (Right arrow)"/>
         </WrapPanel>
       </Grid>
-      <Thumb Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="22" Height="22" Cursor="SizeNWSE" DragDelta="Resize_DragDelta" AutomationProperties.Name="Resize reader">
+      <Thumb x:Name="ResizeGrip" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="22" Height="22" Cursor="SizeNWSE" DragDelta="Resize_DragDelta" AutomationProperties.Name="Resize reader">
         <Thumb.Template><ControlTemplate><Border Background="Transparent"><TextBlock Text="◢" Foreground="#8BAF98" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14" /></Border></ControlTemplate></Thumb.Template>
       </Thumb>
     </Grid>
