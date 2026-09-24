@@ -97,6 +97,8 @@ public partial class MainWindow
                 await Recorder.StopAsync(); await answers;
                 CompanionStatus.Text = Recorder.State == RecordingState.Completed ? "Stopped · audio and transcripts saved. Your answer stays in the reader." : Recorder.Message;
                 await ExportCurrentMeeting();
+                if (Recorder.LastDirectory is { } folder && !await SaveCompanionTiming(folder))
+                    CompanionStatus.Text += " Timing report could not be saved; audio is unaffected.";
             }
             Playback.Pause(); RefreshCompanionControls();
         }
@@ -150,6 +152,7 @@ public partial class MainWindow
         if (LiveAnswer.Text != text) LiveAnswer.Text = text;
         RefreshCompanionControls();
         RefreshSources();
+        RefreshLatency();
     }
     private void LiveAsk_Click(object sender, RoutedEventArgs e) => Companion?.Ask(LiveQuestion.Text);
     private void CompanionPrevious_Click(object sender, RoutedEventArgs e) => Companion?.Navigate(-1);

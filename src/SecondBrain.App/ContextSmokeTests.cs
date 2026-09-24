@@ -42,6 +42,16 @@ internal static class ContextSmokeTests
         var recording = main.Recorder.LastDirectory!; var snapshot = SessionContextStore.ReadSnapshot(recording)!;
         check(snapshot.SessionId == RecordingSession.ReadManifest(recording).Id && snapshot.Context.ProfileId == context.ProfileId, "Recorded context is linked to the correct session and client profile");
         await main.StopCompanion();
+        var timings = System.Text.Json.JsonSerializer.Deserialize<LatencyReport>(File.ReadAllText(Path.Combine(recording, "latency.json")))!;
+        check(timings.Samples.Length == 1 && timings.Samples[0].SessionId == snapshot.SessionId && timings.Samples[0].RequestToReadableMs > 0,
+            "Stopping saves request timings alongside the correct meeting");
+        check(main.TimingSummary.Text.Contains("Cold session") && main.ExportTiming.IsEnabled, "Live timing surface reports cold/warm groups and enables export");
+        var reportBeforeFailure = File.ReadAllText(Path.Combine(recording, "latency.json"));
+        Directory.CreateDirectory(Path.Combine(recording, "latency.json.tmp"));
+        check(!await main.SaveCompanionTiming(recording) && !main.Recorder.HasSession
+            && File.ReadAllText(Path.Combine(recording, "latency.json")) == reportBeforeFailure,
+            "Timing storage failure preserves the earlier report and leaves recording stopped");
+        Directory.Delete(Path.Combine(recording, "latency.json.tmp"));
         check(main.ClientPicker.IsEnabled && main.ContextEditor.IsEnabled, "Stopping re-enables preparation for the next session");
         main.ContextGoal.Text = "Plan the next phase"; main.SaveMeetingContext();
         check(SessionContextStore.ReadSnapshot(recording)!.Context.Goal == "Confirm release scope", "Later profile edits preserve the original meeting brief");

@@ -70,6 +70,14 @@
                     <Button Content="Open selected source in Obsidian" Click="SourceOpen_Click" HorizontalAlignment="Left" Padding="8,5" />
                   </StackPanel>
                 </Expander>
+                <Expander x:Name="LatencyDetails" Header="Answer timing" Margin="0,10,0,0" IsExpanded="False">
+                  <StackPanel Margin="0,8,0,0">
+                    <TextBlock x:Name="TimingSummary" Text="No answer timings yet." TextWrapping="Wrap" />
+                    <TextBlock Text="Cold/warm groups mean first/later requests in this session; provider cache state is unknown. Speech end uses the last timed word. Readable means text ready, not measured screen presentation. Typed questions have no speech timing." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,0" />
+                    <Button x:Name="ExportTiming" Content="Export timing report…" Click="ExportTiming_Click" IsEnabled="False" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                    <TextBlock x:Name="TimingMessage" Text="Timings are saved with the meeting when listening stops." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,6,0,0" />
+                  </StackPanel>
+                </Expander>
                 <Expander x:Name="LiveDetails" Header="Live transcript &amp; capture details" Margin="0,10,0,0" IsExpanded="False">
                   <StackPanel Margin="0,8,0,0">
                     <TextBlock x:Name="CaptureStatus" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
