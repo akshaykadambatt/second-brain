@@ -69,12 +69,20 @@ internal static class CompanionTests
         main.Playback.StartVoice();
         companion.Observe(new(id, AudioSource.System, connection, new(3, 1, "What is the next milestone?", true, true, .99f), AudioClock.Now));
         await Until(() => provider.Calls.Count == 3);
-        check(provider.Calls.Count == 3 && main.Session.Answer == run.Fast, "New system questions are detected while voice following remains active and do not erase the current answer");
+        check(provider.Calls.Count == 3 && main.Session.Answer == run.Fast, "New question keeps the previous text visible while waiting for its opening");
         await provider.Calls[2].Delta("The next milestone is a reading trial.\n\n");
         provider.Calls[2].Done.SetResult(); await Until(() => provider.Calls.Count == 4);
         var failed = companion.Answers.Requests[^1];
+        check(main.Session.Answer == failed.Fast && main.Session.Position == 0 && main.Playback.Voice.Active, "New opening automatically switches the reader from an unfinished previous answer and resumes following");
+        companion.Navigate(-1);
+        check(main.Session.Answer == run.Fast && main.Session.Position == 3, "Previous answer restores the earlier reading position");
+        main.Session.Select(main.Session.Words.Count); main.Playback.StartVoice(); companion.Tick();
+        check(main.Session.Answer == run.Fast, "Revisiting the end of an earlier answer does not immediately jump forward again");
+        main.Session.Select(3);
+        await provider.Calls[3].Delta("Later details must remain with their own answer.\n\n");
+        check(main.Session.Answer == run.Fast && main.Session.Position == 3, "Continuation arriving after Previous does not override manual navigation");
         provider.Calls[3].Done.SetException(new IOException("Injected continuation failure.")); await failed.Work;
-        check(failed.Fast.State == AnswerState.Failed && failed.Fast.Blocks.Count == 1 && main.Session.Answer == run.Fast, "Failed deeper continuation retains its opening and does not affect the active answer");
+        check(failed.Fast.State == AnswerState.Failed && failed.Fast.Blocks.Count == 2 && main.Session.Answer == run.Fast, "Failed deeper continuation retains readable text and does not affect the manually selected answer");
         companion.Ask("What should we test after this?");
         await Until(() => provider.Calls.Count == 5);
         main.LiveQuestion.Text = "Optional typed question";
@@ -89,6 +97,27 @@ internal static class CompanionTests
         await Until(() => main.AssistantContext.SessionId != id);
         check(main.Companion!.Answers.Requests.Count == 0 && main.Session.Words.Count == 0, "Restart has a new context session and does not replay old questions or answers");
         await main.StopCompanion();
+        await CheckOutOfOrder(main, directory, check);
+    }
+    private static async Task CheckOutOfOrder(MainWindow main, string directory, Action<bool, string> check)
+    {
+        var reader = new ReaderSession(); var playback = new ReaderPlayback(reader); var provider = new Provider();
+        using var companion = new CompanionSession(reader, playback, new(), new(main.Dispatcher, provider, new(directory)), new(Deeper: false));
+        var older = companion.Ask("What is the earlier question?")!;
+        var newer = companion.Ask("What is the latest question?")!;
+        await Until(() => provider.Calls.Count == 2);
+        await provider.Calls[1].Delta("Here is the newest answer ready to read.\n\n"); provider.Calls[1].Done.SetResult(); await newer.Work;
+        reader.Select(2);
+        await provider.Calls[0].Delta("This older opening arrived after the newer answer.\n\n"); provider.Calls[0].Done.SetResult(); await older.Work;
+        check(reader.Answer == newer.Fast && reader.Position == 2, "Out-of-order older opening cannot replace the newest answer");
+        companion.Navigate(-1); check(reader.Answer == older.Fast, "Late older answers remain available through Previous");
+        playback.Pause();
+        var latest = companion.Ask("What follows the latest question?")!;
+        await provider.Calls[2].Delta("A partial opening without its ending");
+        check(reader.Answer == older.Fast, "Incomplete new opening does not clear manually selected text");
+        await provider.Calls[2].Delta(" is now complete.\n\n"); provider.Calls[2].Done.SetResult(); await latest.Work;
+        check(reader.Answer == latest.Fast && reader.Position == 0 && playback.Voice.Active, "A subsequent new question takes over when ready even while reviewing a paused older answer");
+        await companion.Stop();
     }
     public static async Task RunLive(MainWindow main, string directory, Action<bool, string> check)
     {

@@ -48,7 +48,7 @@ public partial class App : Application
                 Shutdown(0); return;
             }
             log = new DiagnosticLog(dataDirectory);
-            var loggingAvailable = log.Write("Application started v0.11.0");
+            var loggingAvailable = log.Write("Application started v0.11.1");
             var store = new SettingsStore(dataDirectory);
             var settings = store.Load(out var warning);
             var window = new MainWindow(store, settings, log, dataDirectory, hiddenTestMode: smokePhase is not null);

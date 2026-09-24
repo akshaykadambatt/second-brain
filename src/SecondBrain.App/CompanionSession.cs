@@ -13,6 +13,7 @@ internal sealed class CompanionSession : IDisposable
     private readonly IDisposable? provider;
     private readonly Queue<(string Text, double Time)> microphone = new();
     private readonly Queue<(string Question, string Context, Guid Session)> pending = new();
+    private readonly HashSet<Guid> readableAnswers = [];
     private Guid microphoneConnection;
     private readonly QuestionUtterance utterance = new();
     private Guid systemConnection;
@@ -91,16 +92,14 @@ internal sealed class CompanionSession : IDisposable
             Received(new(context.SessionId, "Final", AudioSource.System, 0, 0, question));
         if (pending.Count > 0 && Answers.ActiveCount < 3)
         { var next = pending.Dequeue(); Ask(next.Question, true, next.Context, next.Session); }
-        if (Selected is { State: AnswerState.Complete } && reader.Position >= reader.Words.Count && playback.Voice.Active)
-        {
-            var list = Answers.Inbox.Answers; var index = list.ToList().IndexOf(Selected);
-            var next = list.Skip(index + 1).FirstOrDefault(a => a.WordCount > 0); if (next is not null) Select(next);
-        }
     }
     private void Updated(StreamAnswer answer)
     {
         if (!Active) return;
-        if (Selected is null && answer.WordCount > 0) Select(answer);
+        // Switch once when the newest question has a readable opening. Older
+        // requests finishing late and continuations must not steal navigation.
+        if (answer.WordCount > 0 && readableAnswers.Add(answer.Id)
+            && Answers.Requests.LastOrDefault()?.Fast == answer) Select(answer);
         else reader.RefreshAnswer(answer);
         Changed?.Invoke();
     }
