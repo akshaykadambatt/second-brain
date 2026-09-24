@@ -66,11 +66,14 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
         if (Requests.LastOrDefault() != run || run.Active || run.FlowFinished || !run.Continuation || ActiveCount >= 3 || run.Fast.State != AnswerState.Complete) return false;
         if (!Inbox.Resume(run.Id, run.Fast.Id)) { run.FlowFinished = true; run.Status = "Answer length limit reached · readable text retained"; Changed?.Invoke(); return false; }
         run.Cancellation = new(); run.Active = true; run.Status = "Continuing this answer…";
+        log.Write($"AI continuation request={run.Id}; started; wordsBefore={run.Fast.WordCount}");
         run.Work = Run(run, run.Options, run.Conversation, extend: true); Changed?.Invoke(); return true;
     }
     private async Task Run(AnswerRequest run, AssistantOptions options, string conversation, bool extend = false)
     {
         var sequences = run.Sequences;
+        var wordsBefore = run.Fast.WordCount;
+        var stageClock = Stopwatch.StartNew();
         try
         {
             if (knowledge is not null)
@@ -120,6 +123,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
         finally
         {
             run.Active = false; run.CompletedMs ??= run.Clock.Elapsed.TotalMilliseconds;
+            if (extend) log.Write($"AI continuation request={run.Id}; elapsedMs={stageClock.Elapsed.TotalMilliseconds:F0}; addedWords={run.Fast.WordCount - wordsBefore}; groundedEnd={run.FlowFinished}; state={run.Fast.State}");
             log.Write("AI pipeline " + System.Text.Json.JsonSerializer.Serialize(run.Latency));
             log.Write($"AI timing request={run.Id}; firstTextMs={run.FirstTextMs:F0}; firstReadableMs={run.FirstReadableMs:F0}; firstContinuationMs={run.FirstContinuationMs:F0}; completedMs={run.CompletedMs:F0}; fastState={run.Fast.State}; deeperState={run.Deeper?.State}");
             run.Cancellation.Dispose(); Changed?.Invoke();

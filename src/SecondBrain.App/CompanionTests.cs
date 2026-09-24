@@ -104,6 +104,9 @@ internal static class CompanionTests
     {
         var reader = new ReaderSession(); var playback = new ReaderPlayback(reader); var provider = new Provider();
         using var companion = new CompanionSession(reader, playback, new(), new(main.Dispatcher, provider, new(directory)), new(Deeper: false));
+        // This fixture controls question completions by call index. Forward
+        // taps now request extensions, which have their own flowing fixture.
+        companion.KeepFlowing = false;
         var older = companion.Ask("What is the earlier question?")!;
         var newer = companion.Ask("What is the latest question?")!;
         await Until(() => provider.Calls.Count == 2);

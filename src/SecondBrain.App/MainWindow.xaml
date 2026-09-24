@@ -60,7 +60,7 @@
                   <Button Content="Resume following" Click="ResumeFollowing_Click" Padding="8,6" Margin="0,0,6,5" />
                 </WrapPanel>
                 <DockPanel Margin="0,0,0,8">
-                  <CheckBox x:Name="FlowCheck" Content="Keep this answer flowing as I read" IsChecked="True" Click="FlowCheck_Click" ToolTip="Appends grounded detail near the end during voice or timed following. Manual navigation never requests more text." />
+                  <CheckBox x:Name="FlowCheck" Content="Keep this answer flowing as I read" IsChecked="True" Click="FlowCheck_Click" ToolTip="Appends grounded detail as you approach the end by voice, timed following or forward taps. Tapping keeps your chosen position and pauses automatic motion. Older answers do not generate more text." />
                 </DockPanel>
                 <DockPanel Margin="0,0,0,8">
                   <Button x:Name="LiveAsk" Content="Ask" DockPanel.Dock="Right" Click="LiveAsk_Click" Padding="12,6" />
@@ -358,7 +358,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.23.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.23.1" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

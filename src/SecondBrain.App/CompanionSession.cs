@@ -21,6 +21,8 @@ internal sealed class CompanionSession : IDisposable
     private Guid systemConnection;
     private bool disposed;
     private bool flowDemand;
+    private bool manualFlowDemand;
+    private int observedPosition;
     public bool KeepFlowing { get; set; } = true;
     public AssistantService Answers { get; }
     public bool Active { get; private set; } = true;
@@ -109,14 +111,25 @@ internal sealed class CompanionSession : IDisposable
             Received(new(context.SessionId, "Final", AudioSource.System, 0, 0, question), TakeTiming());
         if (pending.Count > 0 && Answers.ActiveCount < 3)
         { var next = pending.Dequeue(); Ask(next.Question, true, next.Context, next.Session, next.Timing); }
-        if (KeepFlowing && flowDemand && (playback.Voice.Active || playback.Playing) && Selected is { } selected
-            && reader.Position >= Math.Max(1, Math.Max(selected.WordCount * .6, selected.WordCount - 40))
+        TryContinue();
+    }
+    private void TryContinue()
+    {
+        if (Active && KeepFlowing && flowDemand && (manualFlowDemand || playback.Voice.Active || playback.Playing) && Selected is { } selected
+            && reader.Answer == selected && reader.Position >= Math.Max(1, selected.WordCount - 40)
             && Answers.Requests.LastOrDefault() is { } latest && latest.Fast == selected && Answers.Extend(latest)) flowDemand = false;
     }
     private void ReaderProgress(ReaderChange change)
     {
-        if (change is ReaderChange.VoicePosition or ReaderChange.TimedPosition) flowDemand = true;
-        else if (change is ReaderChange.Position or ReaderChange.Document) flowDemand = false;
+        if (change is not (ReaderChange.VoicePosition or ReaderChange.TimedPosition or ReaderChange.Position or ReaderChange.Document)) return;
+        // Forward taps express reading progress too, without restarting voice
+        // motion. Backtracking, reset and answer selection never request text.
+        flowDemand = change != ReaderChange.Document && reader.Position > observedPosition;
+        manualFlowDemand = flowDemand && change == ReaderChange.Position;
+        observedPosition = reader.Position;
+        // Start before timed playback can pause at the last word. Tick retries
+        // demand that arrived while the previous generation was still active.
+        TryContinue();
     }
     private void Updated(StreamAnswer answer)
     {
