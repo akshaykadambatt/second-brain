@@ -251,8 +251,31 @@ Test("Manual recovery clears voice momentum and permits timed fallback", () =>
 {
     var session = new ReaderSession(); session.Load(ReaderSession.Sample); var playback = new ReaderPlayback(session); playback.StartVoice();
     playback.Voice.Observe(new(0, 1, "today I want to talk", true, true, .95f)); playback.Tick(.03);
-    session.Select(1); Assert(!playback.Voice.Active && playback.Cursor == 1, "Manual click retained voice ownership");
+    session.Select(1); Assert(playback.Voice.Active && playback.Voice.Holding && playback.Cursor == 1 && playback.Voice.Cursor == 1, "Manual click lost voice tracking or retained old momentum");
+    playback.Voice.Observe(new(0, 1, "today I want to talk", true, true, .95f));
+    Assert(session.Position == 1, "Late finalized phrase moved the manual position");
+    playback.Voice.Observe(new(1, 1, "I want to talk", true, true, .95f));
+    Assert(session.Position == 5 && playback.Voice.Active, "Fresh speech did not follow from the manually selected word");
     playback.Play(); playback.Tick(.03); Assert(playback.TimedMode && playback.Playing && !playback.Voice.Active, "Timed fallback failed");
+});
+Test("Manual voice reposition rejects in-flight revisions but accepts the next phrase", () =>
+{
+    var session = new ReaderSession(); session.Load("alpha beta gamma delta epsilon zeta");
+    var playback = new ReaderPlayback(session); playback.StartVoice();
+    playback.Voice.Observe(new(0, 1, "alpha beta", false, false, .99f));
+    session.Select(2); session.Select(2);
+    playback.Voice.Observe(new(0, 1, "gamma delta", true, true, .99f));
+    Assert(session.Position == 2 && playback.Voice.Active, "Old in-flight phrase defeated manual position");
+    playback.Voice.Observe(new(1, 1, "gamma delta", true, true, .99f));
+    Assert(session.Position == 4, "Fresh final needed an extra resume or sacrificial phrase");
+    playback.Pause(); session.Select(0);
+    playback.Voice.Observe(new(2, 1, "alpha beta", true, true, .99f));
+    Assert(!playback.Voice.Active && session.Position == 0, "Navigation restarted explicitly paused voice");
+    playback.StartVoice(); session.Select(2);
+    playback.Voice.Observe(new(0, 1, "gamma delta", true, true, .99f));
+    Assert(session.Position == 4, "Navigation before first speech discarded the first fresh phrase");
+    session.Load("A different document stays paused.");
+    Assert(!playback.Voice.Active && !playback.Playing, "Document replacement inherited active voice tracking");
 });
 
 Test("Missing settings use defaults without writing", () =>

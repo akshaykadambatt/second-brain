@@ -77,8 +77,8 @@ public partial class MainWindow : Window
         Voice.Stopped += () => { MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true; PracticeListenButton.Content = "Start listening"; MicLabel.Text = "Mic off"; MicLevel.Value = 0; };
         Session.Changed += change =>
         {
-            if (change is ReaderChange.Position or ReaderChange.Document)
-            { replay?.Stop(); Voice.Reanchor(); if (Voice.Running || startingVoice) _ = StopListening(); }
+            if (change is ReaderChange.Position or ReaderChange.Document) replay?.Stop();
+            if (change == ReaderChange.Document && (Voice.Running || startingVoice)) _ = StopListening();
         };
         SourceInitialized += (_, _) => { HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowHook); InitializeShortcuts(); };
         Loaded += (_, _) =>
@@ -168,7 +168,7 @@ public partial class MainWindow : Window
     private async void Apply_Click(object sender, RoutedEventArgs e) => await ApplyText();
     private async void Sample_Click(object sender, RoutedEventArgs e) { ScriptEditor.Text = ReaderSession.Sample; await ApplyText(); }
     private void Reset_Click(object sender, RoutedEventArgs e) => ResetPosition();
-    private void ResetPosition() { Session.Select(0); Voice.Reanchor(); HeardText.Text = "Position reset. Read from the beginning."; }
+    private void ResetPosition() { Session.Select(0); HeardText.Text = "Position reset. Read from the beginning."; }
     private void ScriptEditor_Changed(object sender, TextChangedEventArgs e) { if (initialized) SetStatus("Text edited. Apply it or start listening to use this script."); }
     internal async Task<bool> ApplyText()
     {

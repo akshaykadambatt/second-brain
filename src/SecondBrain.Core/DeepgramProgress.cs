@@ -53,17 +53,25 @@ public sealed class DeepgramProgress(ReaderSession session)
     private readonly SpeechFollower follower = new(session);
     private double currentStart = -1, finalizedThrough = -1;
     private bool suppressUntilFinal;
+    private double repositionedAfterStart = -1;
     public SpeechMatch? LastMatch { get; private set; }
     public bool Ignored { get; private set; }
     public string Reason => follower.Reason;
 
     public void Reanchor() { follower.BeginUtterance(); suppressUntilFinal = true; }
+    public void Reposition()
+    {
+        follower.BeginUtterance(); LastMatch = null;
+        // Ignore revisions/finals of the phrase already being recognized when
+        // the user moved. A new phrase can match immediately at the new anchor.
+        repositionedAfterStart = currentStart;
+    }
 
     public bool Observe(SpeechSegment segment, AudioSource source = AudioSource.Microphone)
     {
         LastMatch = null; Ignored = true;
         if (source != AudioSource.Microphone || !double.IsFinite(segment.Start) || segment.Start < 0 || !double.IsFinite(segment.Duration) || segment.Duration < 0) return false;
-        if (segment.Start < currentStart || segment.Start < finalizedThrough - .001) return false;
+        if (segment.Start <= repositionedAfterStart || segment.Start < currentStart || segment.Start < finalizedThrough - .001) return false;
         Ignored = false;
         if (segment.Start != currentStart) { currentStart = segment.Start; follower.BeginUtterance(); }
         var moved = !suppressUntilFinal && !string.IsNullOrWhiteSpace(segment.Text)

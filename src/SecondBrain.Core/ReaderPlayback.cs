@@ -20,7 +20,12 @@ public sealed class ReaderPlayback
         Voice = new(session);
         session.Changed += change =>
         {
-            if (change is ReaderChange.Document or ReaderChange.Position)
+            if (change == ReaderChange.Position && Voice.Active)
+            {
+                Cursor = session.Position; velocity = 0; Playing = false;
+                Voice.Reposition(); StateChanged?.Invoke();
+            }
+            else if (change is ReaderChange.Document or ReaderChange.Position)
             { Voice.Stop(); Cursor = session.Position; Pause(); }
             else if (change == ReaderChange.VoicePosition && !Voice.Active) Cursor = session.Position;
             else if (TimedMode && change is (ReaderChange.Append or ReaderChange.StreamState)) StateChanged?.Invoke();

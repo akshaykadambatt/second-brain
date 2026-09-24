@@ -60,7 +60,7 @@
                   <Button Content="Resume following" Click="ResumeFollowing_Click" Padding="8,6" Margin="0,0,6,5" />
                 </WrapPanel>
                 <DockPanel Margin="0,0,0,8">
-                  <CheckBox x:Name="FlowCheck" Content="Keep this answer flowing as I read" IsChecked="True" Click="FlowCheck_Click" ToolTip="Appends grounded detail as you approach the end by voice, timed following or forward taps. Tapping keeps your chosen position and pauses automatic motion. Older answers do not generate more text." />
+                  <CheckBox x:Name="FlowCheck" Content="Keep this answer flowing as I read" IsChecked="True" Click="FlowCheck_Click" ToolTip="Appends grounded detail as you approach the end by voice, timed following or forward taps. Tapping or scrolling moves active voice following to your chosen position. Explicitly paused readers stay paused. Older answers do not generate more text." />
                 </DockPanel>
                 <DockPanel Margin="0,0,0,8">
                   <Button x:Name="LiveAsk" Content="Ask" DockPanel.Dock="Right" Click="LiveAsk_Click" Padding="12,6" />

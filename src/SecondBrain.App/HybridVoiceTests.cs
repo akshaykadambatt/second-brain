@@ -61,8 +61,9 @@ internal static class HybridVoiceTests
             main.FontSlider.Value = 38; await Settle();
             check(main.Panels.All(p => p.SelectedWord == 9 && p.AnchorError <= 1), "Font changes preserve the selected word under active voice following");
             main.Session.Select(2); await Settle();
-            check(!flow.Active && main.Panels.All(p => p.SelectedWord == 2 && p.AnchorError <= 1), "Manual selection immediately cancels voice ownership and momentum on every panel");
-            main.Playback.StartVoice();
+            check(flow.Active && flow.Holding && main.Panels.All(p => p.SelectedWord == 2 && p.AnchorError <= 1), "Manual selection resets momentum on every panel while retaining voice tracking");
+            flow.Observe(new(3, 1, "want to talk about", true, true, .99f));
+            check(main.Session.Position == 6 && flow.Active, "Fresh speech moves the highlight after manual navigation without Resume");
             main.Panels[0].ReaderPlay.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settle();
             check(!flow.Active && !main.Playback.Playing, "Reader Pause voice command stops instead of unexpectedly starting timed scrolling");
             await main.ToggleTimed(); await Task.Delay(200);

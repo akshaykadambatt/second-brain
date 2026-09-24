@@ -1,4 +1,8 @@
 using System.Windows.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Input;
 using SecondBrain.Core;
 
 namespace SecondBrain.App;
@@ -28,10 +32,25 @@ internal static class FlowingAnswerTests
         using var companion = new CompanionSession(main.Session, main.Playback, new(), answers, new());
         var run = companion.Ask("How can we explain the delivery approach?")!; await run.Work;
         var original = run.Fast.Blocks[0]; var count = run.Fast.WordCount;
+        var connection = Guid.NewGuid(); var speechStart = 0d;
+        companion.KeepFlowing = false;
+        var tapped = main.Panels[0].StreamBlocks.Children.OfType<TextBlock>().SelectMany(b => b.Inlines.OfType<Run>()).ElementAt(10);
+        tapped.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonDownEvent });
+        check(main.Session.Position == 10 && main.Playback.Voice.Active, "Reader word tap preserves active voice following");
+        SayNextWords();
+        check(main.Session.Position == 14, "Shared microphone events move the highlight after a real reader word-tap event");
+        main.Panels[0].StreamBlocks.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, -120) { RoutedEvent = Mouse.PreviewMouseWheelEvent });
+        check(main.Session.Position == 17 && main.Playback.Voice.Active, "Reader wheel navigation preserves active voice following at its new position");
+        SayNextWords();
+        check(main.Session.Position == 21, "Shared microphone events move the highlight after a real reader wheel event");
+        void SayNextWords()
+        {
+            var phrase = string.Join(" ", main.Session.Words.Skip(main.Session.Position).Take(4).Select(w => w.Text));
+            companion.Observe(new(Guid.NewGuid(), AudioSource.Microphone, connection, new(speechStart++, 1, phrase, true, true, .99f), AudioClock.Now));
+        }
         companion.KeepFlowing = false; main.Session.Select(count - 2); companion.Tick();
         check(provider.Extensions.Count == 0, "Turning off continuous flow prevents generation from forward taps");
         main.Session.Select(0); companion.KeepFlowing = true; main.Playback.StartVoice();
-        var connection = Guid.NewGuid(); var speechStart = 0d;
         while (main.Session.Position < count - 38)
         {
             var phrase = string.Join(" ", main.Session.Words.Skip(main.Session.Position).Take(Math.Min(6, count - 38 - main.Session.Position)).Select(w => w.Text));

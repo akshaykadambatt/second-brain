@@ -122,8 +122,8 @@ internal sealed class CompanionSession : IDisposable
     private void ReaderProgress(ReaderChange change)
     {
         if (change is not (ReaderChange.VoicePosition or ReaderChange.TimedPosition or ReaderChange.Position or ReaderChange.Document)) return;
-        // Forward taps express reading progress too, without restarting voice
-        // motion. Backtracking, reset and answer selection never request text.
+        // Forward taps express reading progress too. Backtracking, reset and
+        // answer selection never request text; explicit pauses stay paused.
         flowDemand = change != ReaderChange.Document && reader.Position > observedPosition;
         manualFlowDemand = flowDemand && change == ReaderChange.Position;
         observedPosition = reader.Position;

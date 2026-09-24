@@ -24,6 +24,12 @@ public sealed class VoiceFlow(ReaderSession session)
     }
     public void Stop() { Active = false; velocity = 0; Status = "Voice following paused"; }
     public void Reanchor() { progress.Reanchor(); velocity = 0; age = 10; }
+    public void Reposition()
+    {
+        progress.Reposition(); Cursor = session.Position; priorPosition = session.Position;
+        priorAudioEnd = -1; velocity = 0; age = 10; LastEvidenceTimestamp = 0;
+        EvidenceVersion++; Status = "Listening · read from the selected word";
+    }
     public bool Observe(SpeechSegment segment, AudioSource source = AudioSource.Microphone)
     {
         if (!Active || source != AudioSource.Microphone) return false;
