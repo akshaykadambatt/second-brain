@@ -28,6 +28,7 @@ OfficeImportTests.Run(Test, Assert, Folder);
 ClientKnowledgeTests.Run(Test, Assert, Folder);
 ScopedKnowledgeTests.Run(Test, Assert, Folder);
 MeetingMemoryTests.Run(Test, Assert);
+RequestDetectionTests.Run(Test, Assert);
 
 Test("Continuing a completed answer retains identities and sequence protection", () =>
 {

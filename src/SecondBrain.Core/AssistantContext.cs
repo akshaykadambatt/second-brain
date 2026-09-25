@@ -66,12 +66,20 @@ public sealed class QuestionGate
     {
         if (entry.Kind != "Final" || entry.Source != AudioSource.System || entry.Text.Length > 2000) return null;
         var text = entry.Text.Trim();
-        // Deliberately conservative v1 English detector. Implicit questions can
-        // be typed manually; punctuation or a clear interrogative is required.
+        // English, directed requests only. Reported speech and ordinary plans are not requests.
         var sentence = Regex.Split(text, @"(?<=[.!?])\s+").LastOrDefault(s => s.EndsWith('?'));
         if (sentence is not null && Normalize(sentence).Split(' ').Length >= 3) return sentence;
-        return Regex.IsMatch(text, @"^(what|why|how|when|where|who|which|can you|could you|would you|do you|did you|are you|is there)\b", RegexOptions.IgnoreCase)
-            && Normalize(text).Split(' ').Length >= 4 ? text : null;
+        if (Regex.IsMatch(text, @"^(what|why|how|when|where|who|which|can you|could you|would you|do you|did you|are you|is there)\b", RegexOptions.IgnoreCase)
+            && Normalize(text).Split(' ').Length >= 4) return text;
+        foreach (var part in Regex.Split(text, @"(?<=[.!?])\s+").Reverse())
+        {
+            var normalized = Normalize(part);
+            if (normalized.Split(' ').Length < 3 || Regex.IsMatch(normalized, @"^(please )?(do not|don t|dont|never|no need|you don t need)\b")) continue;
+            if (Regex.IsMatch(normalized, @"^(please )?(explain|clarify|summarize|summarise|compare|describe|recommend|outline|walk (me|us) through|tell (me|us)|help (me|us)|give (me|us)|share your)\b")
+                || Regex.IsMatch(normalized, @"^(i d|we d|i would|we would) like (you to|your (view|recommendation|opinion|assessment)|an explanation|a comparison)\b")
+                || Regex.IsMatch(normalized, @"^(i|we) need (you to (explain|clarify|compare|describe|outline)|your (view|recommendation|assessment))\b")) return part.Trim();
+        }
+        return null;
     }
 }
 
