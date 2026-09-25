@@ -16,7 +16,7 @@ public partial class MainWindow
     {
         Suggestions.Enabled = SuggestionCheck.IsChecked == true; Suggestions.Tick(AudioClock.Now);
         if (Companion?.Active != true) Suggestions.EndSession();
-        else if (Companion.Answers.Requests.LastOrDefault() is { } run)
+        else if (Companion.Answers.LatestPrimary is { } run)
         {
             Suggestions.Topic(run.Id);
             if (AudioClock.Now - run.CreatedAt <= 45 && run.Knowledge is { } result) OfferSuggestion(run.Id, result, AudioClock.Now);

@@ -117,7 +117,7 @@ internal sealed class CompanionSession : IDisposable
     {
         if (Active && KeepFlowing && flowDemand && (manualFlowDemand || playback.Voice.Active || playback.Playing) && Selected is { } selected
             && reader.Answer == selected && reader.Position >= Math.Max(1, selected.WordCount - 40)
-            && Answers.Requests.LastOrDefault() is { } latest && latest.Fast == selected && Answers.Extend(latest)) flowDemand = false;
+            && Answers.LatestPrimary is { } latest && latest.Fast == selected && Answers.Extend(latest)) flowDemand = false;
     }
     private void ReaderProgress(ReaderChange change)
     {
@@ -137,7 +137,7 @@ internal sealed class CompanionSession : IDisposable
         // Switch once when the newest question has a readable opening. Older
         // requests finishing late and continuations must not steal navigation.
         if (answer.WordCount > 0 && readableAnswers.Add(answer.Id)
-            && Answers.Requests.LastOrDefault()?.Fast == answer) Select(answer);
+            && Answers.LatestPrimary?.Fast == answer) Select(answer);
         else reader.RefreshAnswer(answer);
         Changed?.Invoke();
     }

@@ -88,9 +88,13 @@ public sealed record AssistantPrompt(Guid RequestId, string Question, string Con
     bool Continuation = false, string Opening = "", string Knowledge = "")
 {
     public bool Extension { get; init; }
+    public AnswerRefinement? Refinement { get; init; }
+    public string OriginalAnswer { get; init; } = "";
     public bool AllowGeneralGuidance { get; init; }
 }
 public interface IAnswerProvider
 {
     Task Generate(AssistantPrompt prompt, Func<string, Task> delta, CancellationToken cancellation);
 }
+
+public enum AnswerRefinement { Shorter, Explain, Example }

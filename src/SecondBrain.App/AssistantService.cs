@@ -35,6 +35,9 @@ internal sealed class AnswerRequest(Guid id, string question, Guid sessionId, St
     public double? FirstContinuationMs { get; set; }
     public KnowledgeResult? Knowledge { get; set; }
     public double? RetrievalMs { get; set; }
+    public AnswerRefinement? Refinement { get; init; }
+    public bool IsVariant => Refinement is not null;
+    public string OriginalAnswer { get; init; } = "";
 }
 
 internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider provider, DiagnosticLog log, IKnowledgeSearch? knowledge = null)
@@ -44,6 +47,22 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
     public List<AnswerRequest> Requests { get; } = [];
     public event Action? Changed;
     public int ActiveCount => Requests.Count(r => r.Active);
+    public AnswerRequest? LatestPrimary => Requests.LastOrDefault(r => !r.IsVariant);
+    public AnswerRequest Refine(AnswerRequest parent, StreamAnswer source, AnswerRefinement refinement, IAnswerProvider? refinementProvider = null)
+    {
+        dispatcher.VerifyAccess();
+        if (!Enum.IsDefined(refinement) || !Requests.Contains(parent) || source.RequestId != parent.Id || !Inbox.Answers.Contains(source) || source.WordCount == 0)
+            throw new InvalidOperationException("Choose a readable answer to refine.");
+        if (ActiveCount >= 3 || Inbox.Answers.Count >= AnswerInbox.Capacity) throw new InvalidOperationException("Wait for current generation or start a new answer history.");
+        var original = string.Join("\n\n", source.Blocks.Select(b => b.Text));
+        if (original.Length > 20000) throw new InvalidOperationException("This answer is too long to refine in one request.");
+        var options = parent.Options with { Deeper = false, FastModel = refinement == AnswerRefinement.Shorter ? parent.Options.FastModel : parent.Options.DeepModel,
+            FastEffort = refinement == AnswerRefinement.Shorter ? parent.Options.FastEffort : parent.Options.DeepEffort };
+        var id = Guid.NewGuid(); var answer = Inbox.Begin(id, Guid.NewGuid(), refinement + " · " + parent.Question[..Math.Min(80, parent.Question.Length)], source.Id);
+        var run = new AnswerRequest(id, parent.Question, parent.SessionId, answer, null) { Options = options, Conversation = parent.Conversation, Refinement = refinement,
+            OriginalAnswer = original, Knowledge = parent.Knowledge is { } evidence ? new(evidence.Hits.ToArray(), evidence.Status) : null };
+        Requests.Add(run); run.Work = Run(run, options, run.Conversation, refinementProvider: refinementProvider); Changed?.Invoke(); return run;
+    }
     public AnswerRequest Ask(string question, AssistantOptions options, string conversation, Guid sessionId, bool automatic = false, bool continuation = false, QuestionTiming? timing = null)
     {
         dispatcher.VerifyAccess(); question = question.Trim();
@@ -63,20 +82,20 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
     public bool Extend(AnswerRequest run)
     {
         dispatcher.VerifyAccess();
-        if (Requests.LastOrDefault() != run || run.Active || run.FlowFinished || !run.Continuation || ActiveCount >= 3 || run.Fast.State != AnswerState.Complete) return false;
+        if (LatestPrimary != run || run.Active || run.FlowFinished || !run.Continuation || ActiveCount >= 3 || run.Fast.State != AnswerState.Complete) return false;
         if (!Inbox.Resume(run.Id, run.Fast.Id)) { run.FlowFinished = true; run.Status = "Answer length limit reached · readable text retained"; Changed?.Invoke(); return false; }
         run.Cancellation = new(); run.Active = true; run.Status = "Continuing this answer…";
         log.Write($"AI continuation request={run.Id}; started; wordsBefore={run.Fast.WordCount}");
         run.Work = Run(run, run.Options, run.Conversation, extend: true); Changed?.Invoke(); return true;
     }
-    private async Task Run(AnswerRequest run, AssistantOptions options, string conversation, bool extend = false)
+    private async Task Run(AnswerRequest run, AssistantOptions options, string conversation, bool extend = false, IAnswerProvider? refinementProvider = null)
     {
         var sequences = run.Sequences;
         var wordsBefore = run.Fast.WordCount;
         var stageClock = Stopwatch.StartNew();
         try
         {
-            if (knowledge is not null)
+            if (knowledge is not null && !run.IsVariant)
             {
                 run.Status = "Looking up vault context…"; Changed?.Invoke();
                 try
@@ -117,7 +136,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
                 run.Status = ex is OperationCanceledException ? "AI request timed out. Earlier paragraphs retained." : ex is InvalidOperationException or InvalidDataException or IOException ? ex.Message : "AI connection failed. Check the network and try again.";
                 Inbox.Fail(run.Fast.Id, run.Status); if (run.Deeper is { } deep) Inbox.Fail(deep.Id, run.Status);
                 log.Write("AI request=" + run.Id + "; failure=" + ex.GetType().Name);
-                Questions.Forget(run.Question);
+                if (!run.IsVariant) Questions.Forget(run.Question);
             }
         }
         finally
@@ -133,8 +152,8 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
             var buffer = new ReadableAnswerBuffer(); var priorWords = answer.WordCount;
             var prompt = new AssistantPrompt(run.Id, run.Question, options.Context, conversation, model, effort, deeper, run.Continuation,
                 deeper && run.Continuation ? string.Join("\n\n", answer.Blocks.Select(b => b.Text)) : "",
-                run.Knowledge is { } evidence ? evidence.Status + "\n" + evidence.Evidence : "") { Extension = extend, AllowGeneralGuidance = options.AllowGeneralGuidance };
-            await provider.Generate(prompt, async text => await dispatcher.InvokeAsync(() =>
+                run.Knowledge is { } evidence ? evidence.Status + "\n" + evidence.Evidence : "") { Extension = extend, AllowGeneralGuidance = options.AllowGeneralGuidance, Refinement = run.Refinement, OriginalAnswer = run.OriginalAnswer };
+            await (refinementProvider ?? provider).Generate(prompt, async text => await dispatcher.InvokeAsync(() =>
             {
                 if (!run.Active || run.Cancellation.IsCancellationRequested) return;
                 run.FirstTextMs ??= run.Clock.Elapsed.TotalMilliseconds;
@@ -163,7 +182,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
     {
         dispatcher.VerifyAccess();
         foreach (var run in Requests.Where(r => r.Active))
-        { run.Active = false; run.Status = "Canceled · readable paragraphs retained"; run.Cancellation.Cancel(); Inbox.Supersede(run.Id); Questions.Forget(run.Question); }
+        { run.Active = false; run.Status = "Canceled · readable paragraphs retained"; run.Cancellation.Cancel(); Inbox.Supersede(run.Id); if (!run.IsVariant) Questions.Forget(run.Question); }
         Changed?.Invoke();
     }
     public Task Stop() { CancelAll(); return Task.WhenAll(Requests.Select(r => r.Work)); }
