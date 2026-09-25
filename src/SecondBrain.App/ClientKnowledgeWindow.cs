@@ -71,4 +71,5 @@ internal sealed class ClientKnowledgeWindow : Window
         catch (Exception ex) { Status.Text = "Not saved: " + ex.Message; }
         finally { busy = false; Clients.IsEnabled = Records.IsEnabled = true; }
     }
+    internal void Draft(ClientKnowledge value) { Show(new(value, "")); selected = null; Status.Text = "Review this guidance against its source, supply the source date if missing, then save explicitly."; }
 }

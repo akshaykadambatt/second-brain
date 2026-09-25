@@ -64,7 +64,7 @@ public partial class MainWindow
             await StopListening(); await Recorder.StopAsync();
             if (recordingWindow is { IsVisible: true }) recordingWindow.Close();
             Transcriber.DrainAssistantEvents(out _); Transcriber.DrainSpeech();
-            Companion?.Dispose();
+            if (Companion is { } previous) { await previous.Answers.Stop(); previous.Dispose(); }
             var provider = testProvider ?? new OpenAiAnswerProvider(new ApiKeyStore(dataDirectory, "OpenAI").Load);
             Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log, Knowledge?.ForClient(meetingContext.ProfileId, meetingContext.Project)), options, testProvider is null ? provider as IDisposable : null, () => Recorder.ClockOrigin);
             Companion.KeepFlowing = FlowCheck.IsChecked == true;
@@ -103,6 +103,7 @@ public partial class MainWindow
         try
         {
             NameHints.StopSampling(); Visuals.Listen(false);
+            if (Companion is { Active: false } idle) await idle.Answers.Stop();
             if (Companion is { Active: true } companion)
             {
                 var answers = companion.Stop(); // Disable new questions before flushing transcript finals.
@@ -151,6 +152,7 @@ public partial class MainWindow
     {
         if (!initialized) return;
         var active = Companion?.Active == true;
+        OriginalAnswerButton.IsEnabled = Companion?.Selected?.ParentAnswerId is not null;
         SessionStateText.Text = companionBusy ? companionPhase : active ? "LISTENING" : companionError || Recorder.State == RecordingState.Failed ? "ATTENTION" : "READY";
         SessionStateBadge.Background = (System.Windows.Media.Brush)FindResource(active ? "Accent" : "Subtle");
         ListenButton.IsEnabled = !companionBusy && !closing;

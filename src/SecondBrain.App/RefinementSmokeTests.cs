@@ -36,6 +36,18 @@ internal static class RefinementSmokeTests
         check(service.Extend(newer), "A variant does not block continuation of the newest primary answer"); await newer.Work;
         provider.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously); var cancelled = service.Refine(newer, newer.Fast, AnswerRefinement.Example);
         await companion.Stop(); check(!cancelled.Active && cancelled.Cancellation.IsCancellationRequested, "Stopping cancels pending refinements");
+        var key = System.IO.Path.Combine(directory, "synthetic-key.txt"); System.IO.File.WriteAllText(key, "synthetic-deepgram-key-for-offline-tests");
+        try { new ApiKeyStore(directory).Import(key); } finally { System.IO.File.Delete(key); }
+        var liveProvider = new Provider(); check(await main.StartCompanion(liveProvider), "Integrated companion starts for refinement controls");
+        var liveId = RecordingSession.ReadManifest(main.Recorder.LastDirectory!).Id;
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4))) while (main.AssistantContext.SessionId != liveId) await Task.Delay(20, timeout.Token);
+        var live = main.Companion!.Ask("Explain the review plan?")!; await live.Work;
+        var chosen = await main.RefineAnswer(AnswerRefinement.Shorter, liveProvider);
+        check(chosen is not null && main.Session.Answer == chosen.Fast && chosen.Fast.ParentAnswerId == live.Fast.Id, "Explicit refinement selects its completed variant and retains its parent");
+        main.ShowOriginalAnswer(); check(main.Session.Answer == live.Fast, "Original answer navigation follows the exact parent identity");
+        await main.StopCompanion();
+        var offline = await main.RefineAnswer(AnswerRefinement.Example, liveProvider);
+        check(offline is not null && main.Session.Answer == offline.Fast && !main.Recorder.HasSession, "Refinement after stopping uses saved context without starting capture");
         capture(main, System.IO.Path.Combine(directory, "answer-variants.png"));
     }
 }

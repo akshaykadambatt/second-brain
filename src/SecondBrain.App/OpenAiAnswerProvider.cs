@@ -42,7 +42,7 @@ internal sealed class OpenAiAnswerProvider(Func<string> loadKey, HttpMessageHand
         request.Content = new StringContent(JsonSerializer.Serialize(new
         {
             model = prompt.Model, stream = true, store = false, instructions,
-            reasoning = new { effort = prompt.Effort }, max_output_tokens = prompt.Deeper ? 4096 : 1200,
+            reasoning = new { effort = prompt.Effort }, max_output_tokens = prompt.Deeper || prompt.Refinement is AnswerRefinement.Explain or AnswerRefinement.Example ? 4096 : 1200,
             input = JsonSerializer.Serialize(new { question = prompt.Question, user_context = prompt.Context, recent_conversation = prompt.Conversation, spoken_opening = prompt.Opening, retrieved_vault_evidence = prompt.Knowledge, original_answer = prompt.OriginalAnswer })
         }), Encoding.UTF8, "application/json");
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);

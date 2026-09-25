@@ -54,6 +54,14 @@
                     <TextBox x:Name="LiveAnswer" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="150" MaxHeight="240" FontSize="20" BorderThickness="0" Padding="0" Text="Answers will appear here and in your reader when a question comes through." AutomationProperties.Name="Current answer" />
                   </StackPanel>
                 </Border>
+                <WrapPanel x:Name="RefinementButtons" Margin="0,8,0,0">
+                  <Button Content="Shorter" Tag="Shorter" Click="Refine_Click" Margin="0,0,6,4" />
+                  <Button Content="Explain" Tag="Explain" Click="Refine_Click" Margin="0,0,6,4" />
+                  <Button Content="Example" Tag="Example" Click="Refine_Click" Margin="0,0,6,4" />
+                  <Button x:Name="OriginalAnswerButton" Content="Original answer" Click="OriginalAnswer_Click" IsEnabled="False" Margin="0,0,6,4" />
+                  <Button Content="Save client talk track…" Click="SaveTalkTrack_Click" Margin="0,0,6,4" />
+                </WrapPanel>
+                <TextBlock x:Name="RefinementStatus" TextWrapping="Wrap" FontSize="11" />
                 <WrapPanel Margin="0,10,0,10">
                   <Button Content="Previous answer" Click="CompanionPrevious_Click" Padding="8,6" Margin="0,0,6,5" />
                   <Button Content="Next answer" Click="CompanionNext_Click" Padding="8,6" Margin="0,0,6,5" />
