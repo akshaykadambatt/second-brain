@@ -19,7 +19,8 @@ public static class DocumentImports
 {
     private static readonly UTF8Encoding Utf8 = new(false, true);
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
-    public static ImportResult Import(string root, string source, string project, CancellationToken cancellation = default)
+    public static ImportResult Import(string root, string source, string project, CancellationToken cancellation = default,
+        Func<byte[], CancellationToken, ImportExtraction>? pdfExtractor = null)
     {
         var name = Path.GetFileName(source);
         try
@@ -29,11 +30,11 @@ public static class DocumentImports
                 throw new InvalidDataException("Use a project name of at most 120 characters without quotes or control characters.");
             source = LocalBackup.Root(source);
             var extension = Path.GetExtension(source).ToLowerInvariant();
-            if (extension is not (".md" or ".txt")) throw new InvalidDataException("Choose a Markdown (.md) or text (.txt) file.");
+            if (extension is not (".md" or ".txt" or ".pdf")) throw new InvalidDataException("Choose a Markdown (.md), text (.txt) or PDF (.pdf) file.");
             byte[] bytes;
             using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                if (input.Length > 2_000_000) throw new InvalidDataException("Text imports are limited to 2 MB per file.");
+                if (input.Length > (extension == ".pdf" ? 20_000_000 : 2_000_000)) throw new InvalidDataException(extension == ".pdf" ? "PDF imports are limited to 20 MB per file." : "Text imports are limited to 2 MB per file.");
                 bytes = new byte[checked((int)input.Length)]; input.ReadExactly(bytes);
             }
             cancellation.ThrowIfCancellationRequested();
@@ -52,7 +53,7 @@ public static class DocumentImports
                     throw new InvalidDataException("Existing import is incomplete or changed. Restore its preserved source before retrying.");
                 return new(name, "Already imported", "Identical content in this project; existing source and edited note kept.", existing);
             }
-            var extraction = ExtractText(bytes);
+            var extraction = extension == ".pdf" ? (pdfExtractor ?? PdfText.Read)(bytes, cancellation) : ExtractText(bytes);
             var original = folder + "/Attachments/original" + extension;
             var manifest = new ImportManifest(1, id, hash, name, source, project, DateTimeOffset.UtcNow, original, folder + "/Content.md", extraction.Warnings);
             var note = Render(manifest, extraction);
@@ -80,7 +81,7 @@ public static class DocumentImports
                     Directory.Delete(staging);
                 }
             }
-            var message = "Source preserved; searchable note includes original line references. Changed source files create separate imports.";
+            var message = "Source preserved; searchable note includes original source locations. Changed source files create separate imports. " + string.Join(" ", extraction.Warnings);
             try { engine.Git.Checkpoint(engine.Capture(), "Import source document"); }
             catch (Exception) { message += " Imported files are safe, but history checkpoint failed; reconnect the vault to retry."; }
             return new(name, "Imported", message, manifest);
@@ -121,9 +122,12 @@ public static class DocumentImports
     {
         var title = Plain(manifest.Name[..Math.Min(100, manifest.Name.Length)]);
         var note = new StringBuilder($"---\nproject: \"{manifest.Project}\"\n---\n# Imported: {title}\n\nPreserved source: [Open original](Attachments/original{Path.GetExtension(manifest.Original)})\n\nImport date: {manifest.ImportedUtc:yyyy-MM-dd} (not the date of the source facts).\n\n");
+        foreach (var warning in extraction.Warnings) note.AppendLine(Plain(warning) + "\n");
         foreach (var passage in extraction.Passages)
         {
             note.AppendLine($"## {title} · source {passage.Location}\n");
+            if (Regex.Match(passage.Location, @"^page (\d+),") is { Success: true } page)
+                note.AppendLine($"[Original page {page.Groups[1].Value}](Attachments/original.pdf#page={page.Groups[1].Value})\n");
             foreach (var line in passage.Text.Split('\n')) note.AppendLine("> " + Plain(line.TrimEnd('\r')));
             note.AppendLine();
             if (note.Length > 1_900_000) throw new InvalidDataException("Extracted note exceeds the searchable 1.9 MB limit. Split the source and retry.");
@@ -140,7 +144,7 @@ public static class DocumentImports
         if (value.Schema != 1 || value.Project is null || value.Sha256 is null || !Regex.IsMatch(value.Sha256, "^[A-F0-9]{64}$")
             || value.Id != Identity(value.Project, value.Sha256) || relative != $"Imports/{value.Id}/import.json"
             || value.Note != $"Imports/{value.Id}/Content.md" || value.Original is null
-            || (value.Original != $"Imports/{value.Id}/Attachments/original.md" && value.Original != $"Imports/{value.Id}/Attachments/original.txt")
+            || (value.Original != $"Imports/{value.Id}/Attachments/original.md" && value.Original != $"Imports/{value.Id}/Attachments/original.txt" && value.Original != $"Imports/{value.Id}/Attachments/original.pdf")
             || string.IsNullOrWhiteSpace(value.Name) || value.Warnings is null)
             throw new InvalidDataException("Import metadata is invalid or unsupported.");
         return value;
@@ -151,7 +155,7 @@ public static class DocumentImports
         return Directory.EnumerateDirectories(folder).Take(1000).Select(path =>
         {
             var relative = "Imports/" + Path.GetFileName(path) + "/import.json";
-            try { var item = Read(root, relative); return new ImportResult(item.Name, "Saved", "Project: " + (item.Project.Length == 0 ? "unscoped" : item.Project), item); }
+            try { var item = Read(root, relative); return new ImportResult(item.Name, "Saved", "Project: " + (item.Project.Length == 0 ? "unscoped" : item.Project) + ". " + string.Join(" ", item.Warnings), item); }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or ArgumentException)
             { return new ImportResult(Path.GetFileName(path), "Unreadable import", ex.Message); }
         }).OrderByDescending(r => r.Document?.ImportedUtc).ToArray();

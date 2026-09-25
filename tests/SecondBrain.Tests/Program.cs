@@ -23,6 +23,7 @@ TranscriptReviewTests.Run(Test, Assert, Folder);
 AudioSpeakerTests.Run(Test, Assert, Folder);
 SpeakerHintTests.Run(Test, Assert, Folder);
 ImportTests.Run(Test, Assert, Folder);
+PdfImportTests.Run(Test, Assert, Folder);
 
 Test("Continuing a completed answer retains identities and sequence protection", () =>
 {
@@ -341,7 +342,7 @@ Test("Unavailable diagnostics do not throw", () =>
     Assert(!new DiagnosticLog(path).Write("entry"), "Failure was not reported");
 });
 
-Test("Audio sprint excludes recognition fallback and unrelated AI capabilities", () =>
+Test("Approved runtime dependencies exclude recognition fallback and unrelated AI capabilities", () =>
 {
     var forbidden = new[] { "SpeechRecognitionEngine", "DictationGrammar", "api.anthropic.com" };
     foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
@@ -353,7 +354,8 @@ Test("Audio sprint excludes recognition fallback and unrelated AI capabilities",
     foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.csproj", SearchOption.AllDirectories))
     {
         var xml = System.Xml.Linq.XDocument.Load(file);
-        Assert(xml.Descendants("PackageReference").All(p => new[] { "System.Speech", "NAudio.Wasapi", "System.Security.Cryptography.ProtectedData" }.Contains((string?)p.Attribute("Include"))), "Unexpected external runtime dependency");
+        Assert(xml.Descendants("PackageReference").All(p => new[] { "System.Speech", "NAudio.Wasapi", "System.Security.Cryptography.ProtectedData" }.Contains((string?)p.Attribute("Include"))
+            || (string?)p.Attribute("Include") == "PdfPig" && (string?)p.Attribute("Version") == "0.1.16"), "Unexpected external runtime dependency");
     }
 });
 Test("Words retain identity across styling and manual selection", () =>
