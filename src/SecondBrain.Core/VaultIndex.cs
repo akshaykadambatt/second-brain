@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace SecondBrain.Core;
@@ -80,11 +81,17 @@ public sealed class VaultIndex
                 {
                     var pair = line.Split(':', 2); if (pair.Length != 2) continue;
                     var value = pair[1].Trim().Trim('"', '\'');
+                    if (pair[1].TrimStart().StartsWith('"'))
+                        try { value = JsonSerializer.Deserialize<string>(pair[1].Trim()) ?? ""; } catch (JsonException) { }
                     if (pair[0].Trim() == "project") project = value;
                     if (pair[0].Trim() == "date" && DateOnly.TryParseExact(value, "yyyy-MM-dd", out var parsed)) date = parsed;
                     if (pair[0].Trim() == "client_id") client = ++clientFields == 1 && Guid.TryParse(value, out var parsedClient) ? parsedClient : new Guid("ffffffff-ffff-ffff-ffff-ffffffffffff");
                     if (pair[0].Trim() == "title") entityTitle = value;
-                    if (pair[0].Trim() == "aliases") aliases = value;
+                    if (pair[0].Trim() == "aliases")
+                    {
+                        aliases = value;
+                        try { aliases = string.Join(' ', JsonSerializer.Deserialize<string[]>(pair[1].Trim()) ?? []); } catch (JsonException) { }
+                    }
                     if (pair[0].Trim() == "kind") kind = value;
                     if (pair[0].Trim() == "status") factStatus = value;
                 }
