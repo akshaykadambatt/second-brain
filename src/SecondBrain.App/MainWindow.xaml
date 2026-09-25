@@ -66,6 +66,10 @@
                   <Button x:Name="LiveAsk" Content="Ask" DockPanel.Dock="Right" Click="LiveAsk_Click" Padding="12,6" />
                   <TextBox x:Name="LiveQuestion" MaxLength="2000" ToolTip="Optional typed question while listening" AutomationProperties.Name="Ask about this meeting" />
                 </DockPanel>
+                <CheckBox x:Name="SuggestionCheck" Content="Quiet suggestions" Click="SuggestionCheck_Click" ToolTip="Optional source reminders and follow-up prompts. One at a time, at least 30 seconds apart; never changes your reader." Margin="0,4,0,6" />
+                <Border x:Name="SuggestionCard" Visibility="Collapsed" BorderBrush="{StaticResource Ink}" BorderThickness="2" Padding="10" Margin="0,0,0,8">
+                  <StackPanel><TextBlock x:Name="SuggestionText" TextWrapping="Wrap" /><TextBlock x:Name="SuggestionSource" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,5,0,4" /><Button Content="Dismiss suggestion" Click="SuggestionDismiss_Click" HorizontalAlignment="Left" /></StackPanel>
+                </Border>
                 <Expander Header="Evidence for this answer" Margin="0,4,0,0" x:Name="LiveEvidence" IsExpanded="False">
                   <StackPanel>
                     <TextBlock x:Name="SourceStatus" Text="Relevant vault passages will appear here, separate from the spoken answer." TextWrapping="Wrap" FontSize="11" />
@@ -401,7 +405,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.35.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.36.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

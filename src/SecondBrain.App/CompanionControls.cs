@@ -23,11 +23,12 @@ public partial class MainWindow
         LiveFastModel.Text = options.FastModel; LiveDeepModel.Text = options.DeepModel;
         LiveFastEffort.SelectedItem = options.FastEffort; LiveDeepEffort.SelectedItem = options.DeepEffort; LiveContext.Text = options.Context;
         GeneralGuidanceCheck.IsChecked = options.AllowGeneralGuidance;
+        SuggestionCheck.IsChecked = options.QuietSuggestions;
         RefreshOutputDevices();
         if (!hiddenTestMode) Session.ShowAnswer(new AnswerInbox().Begin(Guid.NewGuid(), Guid.NewGuid(), "Start listening to begin your companion session."));
     }
     private AssistantOptions CompanionOptions() => new(LiveFastModel.Text.Trim(), LiveDeepModel.Text.Trim(),
-        LiveFastEffort.SelectedItem as string ?? "none", LiveDeepEffort.SelectedItem as string ?? "medium", true, LiveContext.Text, GeneralGuidanceCheck.IsChecked == true);
+        LiveFastEffort.SelectedItem as string ?? "none", LiveDeepEffort.SelectedItem as string ?? "medium", true, LiveContext.Text, GeneralGuidanceCheck.IsChecked == true) { QuietSuggestions = SuggestionCheck.IsChecked == true };
     private void RefreshOutputDevices()
     {
         try
@@ -139,6 +140,7 @@ public partial class MainWindow
         Companion?.Tick();
         TickKnowledge();
         RefreshMeetingMemory();
+        RefreshQuietSuggestions();
         if (Companion?.Active == true)
         {
             CaptureStatus.Text = $"{TimeSpan.FromSeconds(Recorder.Elapsed):hh\\:mm\\:ss} · {Recorder.Message}\n{Transcriber.View.Status}";

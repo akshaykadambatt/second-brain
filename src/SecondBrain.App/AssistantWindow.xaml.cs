@@ -21,6 +21,7 @@ public partial class AssistantWindow : Window
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private bool closed, ready;
     private bool allowGeneralGuidance;
+    private bool quietSuggestions;
     private int navigation;
     internal AssistantService Service { get; }
     internal Task ShutdownTask { get; private set; } = Task.CompletedTask;
@@ -38,6 +39,7 @@ public partial class AssistantWindow : Window
         FastModel.Text = options.FastModel; DeepModel.Text = options.DeepModel; FastEffort.SelectedItem = options.FastEffort; DeepEffort.SelectedItem = options.DeepEffort;
         Deeper.IsChecked = options.Deeper; ContextNotes.Text = options.Context;
         allowGeneralGuidance = options.AllowGeneralGuidance;
+        quietSuggestions = options.QuietSuggestions;
         Service.Inbox.Changed += Updated; Service.Changed += ServiceChanged;
         context.Received += Received; context.SessionChanged += SessionChanged;
         timer.Tick += (_, _) =>
@@ -57,7 +59,7 @@ public partial class AssistantWindow : Window
         };
         async Task Finish() { try { await Service.Stop(); } finally { ownedProvider?.Dispose(); } }
     }
-    private AssistantOptions Options() => new(FastModel.Text.Trim(), DeepModel.Text.Trim(), FastEffort.SelectedItem as string ?? "none", DeepEffort.SelectedItem as string ?? "medium", Deeper.IsChecked == true, ContextNotes.Text, allowGeneralGuidance);
+    private AssistantOptions Options() => new(FastModel.Text.Trim(), DeepModel.Text.Trim(), FastEffort.SelectedItem as string ?? "none", DeepEffort.SelectedItem as string ?? "medium", Deeper.IsChecked == true, ContextNotes.Text, allowGeneralGuidance) { QuietSuggestions = quietSuggestions };
     internal AnswerRequest? Ask(string question, bool automatic = false)
     {
         try
