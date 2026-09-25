@@ -8,6 +8,50 @@ namespace SecondBrain.Core;
 // Read-only OOXML extraction. Never launches Office, evaluates fields, or follows external links.
 public static class OfficeText
 {
+    public static ImportExtraction Presentation(byte[] bytes, CancellationToken cancellation = default)
+    {
+        try
+        {
+            using var package = new Package(bytes, cancellation);
+            var document = package.Xml("ppt/presentation.xml"); var ns = document.Root?.Name.Namespace ?? XNamespace.None;
+            if (document.Root?.Name.LocalName != "presentation" || ns.NamespaceName is not ("http://schemas.openxmlformats.org/presentationml/2006/main" or "http://purl.oclc.org/ooxml/presentationml/main"))
+                throw new InvalidDataException("Not a supported presentation.");
+            var strict = ns.NamespaceName.Contains("purl.oclc.org");
+            XNamespace relationship = strict ? "http://purl.oclc.org/ooxml/officeDocument/relationships" : "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+            XNamespace drawing = strict ? "http://purl.oclc.org/ooxml/drawingml/main" : "http://schemas.openxmlformats.org/drawingml/2006/main";
+            XNamespace packageNs = "http://schemas.openxmlformats.org/package/2006/relationships";
+            var relations = package.Xml("ppt/_rels/presentation.xml.rels").Root?.Elements(packageNs + "Relationship").ToArray() ?? [];
+            var slides = document.Root.Element(ns + "sldIdLst")?.Elements(ns + "sldId").ToArray() ?? [];
+            if (slides.Length is 0 or > 500) throw new InvalidDataException("Presentation must contain 1–500 slides.");
+            var passages = new List<ImportPassage>(); var empty = new List<int>(); var characters = 0;
+            for (var i = 0; i < slides.Length; i++)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                var id = (string?)slides[i].Attribute(relationship + "id");
+                var matches = relations.Where(r => (string?)r.Attribute("Id") == id).ToArray();
+                if (id is null || matches.Length != 1) throw new InvalidDataException("Slide relationship is missing or ambiguous.");
+                var rel = matches[0]; var target = (string?)rel.Attribute("Target") ?? "";
+                if ((string?)rel.Attribute("TargetMode") is not (null or "Internal") || (string?)rel.Attribute("Type") != relationship.NamespaceName + "/slide"
+                    || target.Contains('\\') || target.Contains('%') || target.Split('/').Any(p => p is ".." or ".")) throw new InvalidDataException("External or ambiguous slide references are unsupported.");
+                var path = target.StartsWith('/') ? target[1..] : "ppt/" + target;
+                if (!path.StartsWith("ppt/slides/", StringComparison.Ordinal) || !path.EndsWith(".xml", StringComparison.Ordinal)) throw new InvalidDataException("Unsupported slide part location.");
+                var slide = package.Xml(path);
+                if (slide.Root?.Name != ns + "sld") throw new InvalidDataException("Invalid slide XML.");
+                var text = string.Join('\n', slide.Descendants(drawing + "p").Select(p => string.Concat(p.Descendants().Where(n => n.Name == drawing + "t" || n.Name == drawing + "br").Select(n => n.Name.LocalName == "br" ? "\n" : n.Value))));
+                characters += text.Length;
+                if (characters > 500_000) throw new InvalidDataException("Presentation text exceeds 500,000 characters. Split the presentation.");
+                if (string.IsNullOrWhiteSpace(text)) { empty.Add(i + 1); continue; }
+                foreach (var part in DocumentImports.ExtractText(Encoding.UTF8.GetBytes(text)).Passages)
+                    passages.Add(new($"slide {i + 1}{((string?)slide.Root.Attribute("show") == "0" ? " (hidden)" : "")}, extracted {part.Location}", part.Text));
+            }
+            if (passages.Count == 0) throw new InvalidDataException("No extractable slide text. Image-only presentations need OCR first.");
+            var warnings = new List<string> { "Slide shape and table text extracted in presentation order, including hidden slides. Notes, masters, charts and image text are excluded; verify reading order against the preserved presentation." };
+            if (empty.Count > 0) warnings.Add("Slides without extractable text: " + string.Join(", ", empty));
+            return new(passages.ToArray(), warnings.ToArray());
+        }
+        catch (XmlException) { throw new InvalidDataException("PowerPoint XML is malformed or contains unsupported entities."); }
+        catch (InvalidDataException ex) { throw new InvalidDataException("PPTX could not be imported: " + ex.Message + " Encrypted files must be exported as unencrypted PPTX."); }
+    }
     internal sealed class Package : IDisposable
     {
         private readonly ZipArchive archive;
