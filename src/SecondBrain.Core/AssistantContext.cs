@@ -16,6 +16,8 @@ public sealed class AssistantContext
 {
     private readonly Queue<TranscriptEntry> entries = new();
     private readonly HashSet<string> seen = [];
+    private readonly Queue<string> seenOrder = new();
+    public MeetingMemory Memory { get; } = new();
     private int characters;
     public Guid SessionId { get; private set; }
     public bool Truncated { get; private set; }
@@ -25,17 +27,18 @@ public sealed class AssistantContext
     public void Observe(TranscriptEntry entry)
     {
         if (entry.SessionId != SessionId)
-        { SessionId = entry.SessionId; entries.Clear(); seen.Clear(); characters = 0; Truncated = false; SessionChanged?.Invoke(); }
+        { SessionId = entry.SessionId; entries.Clear(); seen.Clear(); seenOrder.Clear(); Memory.Clear(); characters = 0; Truncated = false; SessionChanged?.Invoke(); }
         if (entry.Kind is not ("Final" or "Gap")) return;
         if (entry.Id is not null && !seen.Add(entry.Id)) return;
+        if (entry.Id is not null) { seenOrder.Enqueue(entry.Id); if (seenOrder.Count > 4096) seen.Remove(seenOrder.Dequeue()); }
         var bounded = entry with { Text = entry.Text.Length > 4000 ? entry.Text[..4000] : entry.Text };
-        entries.Enqueue(bounded); characters += bounded.Text.Length;
+        entries.Enqueue(bounded); characters += bounded.Text.Length + 64;
         while (entries.Count > 100 || characters > 16000)
-        { var removed = entries.Dequeue(); characters -= removed.Text.Length; if (removed.Id is not null) seen.Remove(removed.Id); Truncated = true; }
+        { var removed = entries.Dequeue(); characters -= removed.Text.Length + 64; Memory.Observe(removed); Truncated = true; }
         if (entry.Text.Length > 4000) Truncated = true;
         Received?.Invoke(bounded);
     }
-    public string Snapshot() => (Truncated ? "[Some earlier context is omitted.]\n" : "") + string.Join("\n", entries.Select(e =>
+    public string Snapshot() => Memory.Snapshot(3500) + (Truncated ? "[Some earlier context is omitted.]\n" : "") + string.Join("\n", entries.Select(e =>
         $"[{e.Start:F2}s {e.Source?.ToString() ?? "Session"} {e.Kind}] {e.Text}"));
 }
 
