@@ -144,7 +144,7 @@
                 <TextBlock Text="The companion and Obsidian use this same folder. Notes remain beside the app by default; links become edges in Obsidian’s graph." TextWrapping="Wrap" Margin="0,8,0,12" />
                 <Expander Header="Import documents" IsExpanded="True" Margin="0,0,0,12">
                   <StackPanel Margin="0,8,0,0">
-                    <TextBlock Text="Bring Markdown, text, PDFs and Word documents into your knowledge. Originals are preserved; changed files become separate versions." TextWrapping="Wrap" />
+                    <TextBlock Text="Bring Markdown, text, PDFs, Word documents and PowerPoint presentations into your knowledge. Originals are preserved; changed files become separate versions." TextWrapping="Wrap" />
                     <TextBlock Text="Project for these imports (optional)" Margin="0,8,0,4" />
                     <TextBox x:Name="ImportProject" MaxLength="120" ToolTip="Project saved with imported passages; blank means unscoped" />
                     <WrapPanel Margin="0,8,0,0">
@@ -391,7 +391,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.30.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.31.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

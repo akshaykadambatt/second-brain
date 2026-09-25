@@ -8,6 +8,17 @@ namespace SecondBrain.App;
 
 internal static class OfficeImportSmokeTests
 {
+    internal static async Task RunPresentation(MainWindow main, string directory, Action<bool, string> check, Action<Window, string> capture)
+    {
+        main.KnowledgeTab.IsSelected = true;
+        var bytes = PresentationFixture(); var path = Path.Combine(directory, "Deck.pptx"); File.WriteAllBytes(path, bytes);
+        var result = (await main.ImportDocuments([path], "Cedar")).Single(); check(result.State == "Imported", result.Message);
+        await main.Knowledge!.Refresh(true); var hits = await main.Knowledge.Search("Cobalt", CancellationToken.None);
+        check(hits.Hits.Any(h => h.Chunk.Text.Contains("slide 1 (hidden)")), "Slide references remain searchable");
+        check(File.ReadAllBytes(VaultFiles.SafePath(main.Knowledge.Root, result.Document!.Original)).SequenceEqual(bytes), "Original presentation is unchanged");
+        check((await main.ImportDocuments([path], "Cedar")).Single().State == "Already imported", "Duplicate presentation preserves existing note");
+        check(!main.Recorder.HasSession, "Import never starts capture"); capture(main, Path.Combine(directory, "powerpoint-import.png"));
+    }
     internal static byte[] Package(params (string Path, string Text)[] parts)
     {
         using var bytes = new MemoryStream();
@@ -15,6 +26,13 @@ internal static class OfficeImportSmokeTests
         { using var writer = new StreamWriter(zip.CreateEntry(part.Path).Open(), Encoding.UTF8); writer.Write(part.Text); }
         return bytes.ToArray();
     }
+    internal static byte[] PresentationFixture(string mode = "") => Package(
+        ("ppt/presentation.xml", "<p:presentation xmlns:p='http://schemas.openxmlformats.org/presentationml/2006/main' xmlns:r='http://schemas.openxmlformats.org/officeDocument/2006/relationships'><p:sldIdLst><p:sldId r:id='first'/><p:sldId r:id='second'/><p:sldId r:id='blank'/></p:sldIdLst></p:presentation>"),
+        ("ppt/_rels/presentation.xml.rels", $"<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'><Relationship Id='first' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide' Target='slides/slide9.xml'{mode}/><Relationship Id='second' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide' Target='slides/slide1.xml'/><Relationship Id='blank' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide' Target='slides/slide3.xml'/></Relationships>"),
+        ("ppt/slides/slide9.xml", "<p:sld show='0' xmlns:p='http://schemas.openxmlformats.org/presentationml/2006/main' xmlns:a='http://schemas.openxmlformats.org/drawingml/2006/main'><a:p><a:r><a:t>Cobalt rollout</a:t></a:r></a:p></p:sld>"),
+        ("ppt/slides/slide1.xml", "<p:sld xmlns:p='http://schemas.openxmlformats.org/presentationml/2006/main' xmlns:a='http://schemas.openxmlformats.org/drawingml/2006/main'><a:p><a:r><a:t>Second slide</a:t></a:r></a:p></p:sld>"),
+        ("ppt/slides/slide3.xml", "<p:sld xmlns:p='http://schemas.openxmlformats.org/presentationml/2006/main'/>"));
+
     internal static byte[] WordFixture() => Package(("word/document.xml", "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body><w:p><w:r><w:t>Cobalt Word rollout needs review.</w:t></w:r></w:p></w:body></w:document>"));
     internal static async Task Run(MainWindow main, string directory, Action<bool, string> check, Action<Window, string> capture)
     {

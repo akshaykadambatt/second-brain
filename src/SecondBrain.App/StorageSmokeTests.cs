@@ -38,6 +38,8 @@ internal static class StorageSmokeTests
         check(importedPdf.State == "Imported", "A PDF document is imported before backup");
         var wordSource = Path.Combine(directory, "Backup.docx"); var wordBytes = OfficeImportSmokeTests.WordFixture(); File.WriteAllBytes(wordSource, wordBytes);
         var importedWord = (await main.ImportDocuments([wordSource], "Cedar")).Single(); check(importedWord.State == "Imported", "Word source imported before backup");
+        var deckSource = Path.Combine(directory, "Backup.pptx"); var deckBytes = OfficeImportSmokeTests.PresentationFixture(); File.WriteAllBytes(deckSource, deckBytes);
+        var importedDeck = (await main.ImportDocuments([deckSource], "Cedar")).Single(); check(importedDeck.State == "Imported", "Presentation imported before backup");
         var backup = await main.StorageOperation(root => LocalBackup.Create(directory, root, Environment.ProcessPath!, backupParent));
         check(backup is not null, "Packaged UI quiesces writers and creates a verified snapshot");
         var manifest = LocalBackup.Verify(backup!);
@@ -47,6 +49,7 @@ internal static class StorageSmokeTests
         var restoredImport = DocumentImports.List(Path.Combine(restored!, "Vault")).Single(r => r.Document!.Id == imported.Document!.Id).Document!;
         check(restoredImport.Sha256 == imported.Document!.Sha256 && File.ReadAllBytes(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), restoredImport.Original)).SequenceEqual(File.ReadAllBytes(importSource)), "Backup restore retains original document bytes, searchable note and metadata");
         check(File.ReadAllBytes(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), importedWord.Document!.Original)).SequenceEqual(wordBytes), "Backup restores original Word bytes and metadata");
+        check(File.ReadAllBytes(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), importedDeck.Document!.Original)).SequenceEqual(deckBytes), "Backup restores original presentation bytes");
         var restoredPdf = DocumentImports.List(Path.Combine(restored!, "Vault")).Single(r => r.Document!.Id == importedPdf.Document!.Id).Document!;
         check(File.ReadAllBytes(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), restoredPdf.Original)).SequenceEqual(pdfBytes) && File.ReadAllText(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), restoredPdf.Note)).Contains("source page 1"), "Backup restores PDF originals and page-linked searchable notes");
         check(new SessionContextStore(Path.Combine(restored!, "data")).Load().SelectedProfileId == brief.ProfileId
