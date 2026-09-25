@@ -152,7 +152,8 @@
                       <Button Content="Saved imports" Click="DocumentHistory_Click" Margin="0,0,6,6" />
                       <Button x:Name="DocumentCancel" Content="Cancel import" IsEnabled="False" Click="DocumentCancel_Click" Margin="0,0,6,6" />
                     </WrapPanel>
-                    <TextBlock x:Name="DocumentImportStatus" Text="UTF-8 or BOM-marked UTF-16 · up to 2 MB / 500,000 characters per file · 20 files per batch" TextWrapping="Wrap" FontSize="11" />
+                    <TextBlock Text="Text: 2 MB · PDF: 20 MB / 250 pages · 500,000 characters · 20 files per batch. Scanned PDFs need OCR first." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,4" />
+                    <TextBlock x:Name="DocumentImportStatus" Text="Choose files or browse your saved imports. Text files use UTF-8 or BOM-marked UTF-16." TextWrapping="Wrap" FontSize="11" />
                     <ListBox x:Name="DocumentImportResults" Height="120" Margin="0,6,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                       <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
