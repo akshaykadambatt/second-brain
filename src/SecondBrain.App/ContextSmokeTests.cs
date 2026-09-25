@@ -19,7 +19,7 @@ internal static class ContextSmokeTests
         var context = main.SaveMeetingContext();
         check(!main.Recorder.HasSession && !main.Voice.Running && context.Client == "Cedar", "Editing and saving a client brief does not start capture");
         check(new SessionContextStore(directory).Load().SelectedProfileId == context.ProfileId, "Client selection and brief survive a fresh settings store");
-        File.WriteAllText(Path.Combine(main.Knowledge!.Root, "cedar-release.md"), "---\nproject: Cedar\n---\n# Release\nThe Cedar release is Friday.");
+        File.WriteAllText(Path.Combine(main.Knowledge!.Root, "cedar-release.md"), $"---\nclient_id: {context.ProfileId}\nproject: Cedar\n---\n# Release\nThe Cedar release is Friday.");
         File.WriteAllText(Path.Combine(main.Knowledge.Root, "acorn-release.md"), "---\nproject: Acorn\n---\n# Release\nACORN-PRIVATE release is Monday.");
         await main.Knowledge.Refresh(true);
         var key = Path.Combine(directory, "synthetic-key.txt"); File.WriteAllText(key, "synthetic-deepgram-key-for-offline-tests");

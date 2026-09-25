@@ -142,6 +142,10 @@
               <StackPanel Margin="18">
                 <TextBlock Text="Your Markdown vault" FontSize="22" FontWeight="SemiBold" />
                 <TextBlock Text="The companion and Obsidian use this same folder. Notes remain beside the app by default; links become edges in Obsidian’s graph." TextWrapping="Wrap" Margin="0,8,0,12" />
+                <TextBlock Text="Client scope for imports and knowledge answers" Margin="0,0,0,4" />
+                <ComboBox x:Name="KnowledgeClient" DisplayMemberPath="DisplayName" SelectionChanged="KnowledgeClient_Changed" Margin="0,0,0,8" />
+                <Button Content="Assign an existing vault note to this client…" Click="AssignSource_Click" HorizontalAlignment="Left" Margin="0,0,0,8" />
+                <TextBlock Text="General contains unassigned notes. Client meetings use only assigned client material. Assign older notes explicitly; project names alone do not grant access." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
                 <Button Content="Clients, people, projects and facts…" Click="ClientKnowledge_Click" HorizontalAlignment="Left" Margin="0,0,0,12" />
                 <Expander Header="Import documents" IsExpanded="True" Margin="0,0,0,12">
                   <StackPanel Margin="0,8,0,0">
@@ -196,6 +200,8 @@
                   <Button x:Name="VaultSearch" Content="Search" Click="VaultSearch_Click" DockPanel.Dock="Right" Padding="10,6" />
                   <TextBox x:Name="VaultQuery" MaxLength="2000" ToolTip="Search notes and previous meetings" />
                 </DockPanel>
+                <Button Content="Answer from this client’s sources" Click="KnowledgeAnswer_Click" HorizontalAlignment="Left" Margin="0,8,0,6" />
+                <TextBox x:Name="KnowledgeAnswer" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="260" VerticalScrollBarVisibility="Auto" />
                 <TextBlock x:Name="VaultSearchStatus" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,6" />
                 <ListBox x:Name="VaultResults" Height="200" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
                 <Button Content="Open selected note in Obsidian" Click="VaultOpenResult_Click" Padding="8,6" HorizontalAlignment="Left" Margin="0,8,0,0" />
@@ -392,7 +398,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.32.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.33.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

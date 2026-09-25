@@ -11,9 +11,9 @@ public partial class MainWindow
     private async void DocumentChoose_Click(object sender, RoutedEventArgs e)
     {
         var picker = new OpenFileDialog { Title = "Import source documents", Filter = "Supported documents|*.md;*.txt;*.pdf;*.docx;*.pptx|Markdown and text|*.md;*.txt|PDF documents|*.pdf|Word documents|*.docx|PowerPoint presentations|*.pptx", Multiselect = true, CheckFileExists = true };
-        if (picker.ShowDialog(this) == true) await ImportDocuments(picker.FileNames, ImportProject.Text);
+        if (picker.ShowDialog(this) == true) await ImportDocuments(picker.FileNames, ImportProject.Text, KnowledgeClientId);
     }
-    internal Task<ImportResult[]> ImportDocuments(string[] paths, string project)
+    internal Task<ImportResult[]> ImportDocuments(string[] paths, string project, Guid clientId = default)
     {
         if (closing || storageBusy || Knowledge is null || !vaultImport.IsCompleted)
         { DocumentImportStatus.Text = "Wait for the current operation and connect a vault before importing."; return Task.FromResult(Array.Empty<ImportResult>()); }
@@ -29,8 +29,8 @@ public partial class MainWindow
             try
             {
                 await historyConnection;
-                var results = Maintenance is { } maintenance ? await maintenance.ImportDocuments(paths, project, token)
-                    : await Task.Run(() => paths.Select(path => DocumentImports.Import(knowledge.Root, path, project, token, PdfImportWorker.Extract)).ToArray(), token);
+                var results = Maintenance is { } maintenance ? await maintenance.ImportDocuments(paths, project, token, clientId)
+                    : await Task.Run(() => paths.Select(path => DocumentImports.Import(knowledge.Root, path, project, token, PdfImportWorker.Extract, clientId)).ToArray(), token);
                 if (!closing && Knowledge == knowledge)
                 {
                     DocumentImportResults.ItemsSource = results;

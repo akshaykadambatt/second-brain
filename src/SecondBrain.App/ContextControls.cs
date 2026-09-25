@@ -22,6 +22,9 @@ public partial class MainWindow
         ClientPicker.ItemsSource = contextBook.Profiles.OrderBy(p => p.ProfileId != Guid.Empty).ThenBy(p => p.DisplayName).ToArray();
         ClientPicker.SelectedItem = contextBook.Profiles.First(p => p.ProfileId == selected);
         contextLoading = false;
+        var knowledgeClient = (KnowledgeClient.SelectedItem as SessionContext)?.ProfileId ?? Guid.Empty;
+        KnowledgeClient.ItemsSource = contextBook.Profiles;
+        KnowledgeClient.SelectedItem = contextBook.Profiles.FirstOrDefault(p => p.ProfileId == knowledgeClient) ?? contextBook.Profiles[0];
         ShowContext((SessionContext)ClientPicker.SelectedItem);
     }
     private void ShowContext(SessionContext context)

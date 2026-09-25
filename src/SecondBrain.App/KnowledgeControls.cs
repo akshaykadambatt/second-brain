@@ -89,21 +89,7 @@ public partial class MainWindow
         }
         catch (Exception) { VaultSearchStatus.Text = "Open Obsidian once, choose Open folder as vault, and select the displayed Vault folder. Or use Open folder to edit the notes."; }
     }
-    private async void VaultSearch_Click(object sender, RoutedEventArgs e)
-    {
-        if (Knowledge is not { } knowledge || string.IsNullOrWhiteSpace(VaultQuery.Text)) return;
-        VaultSearch.IsEnabled = false;
-        try
-        {
-            var result = await knowledge.Search(VaultQuery.Text, CancellationToken.None);
-            if (Knowledge != knowledge || closing) return;
-            VaultResults.Items.Clear();
-            foreach (var hit in result.Hits) VaultResults.Items.Add(SourceRow(hit));
-            VaultSearchStatus.Text = result.Status;
-        }
-        catch (Exception) { VaultSearchStatus.Text = "Search unavailable; reconnect or rebuild the vault."; }
-        finally { VaultSearch.IsEnabled = true; }
-    }
+    private async void VaultSearch_Click(object sender, RoutedEventArgs e) => await SearchClientKnowledge(false);
     private static ListBoxItem SourceRow(KnowledgeHit hit) => new() { Tag = hit, Content = new TextBlock { Text = $"{hit.Chunk.File}:{hit.Chunk.Line} · {hit.Chunk.Date?.ToString("yyyy-MM-dd") ?? "undated"}\n{hit.Chunk.Text}", TextWrapping = TextWrapping.Wrap, MaxHeight = 140 }, Padding = new Thickness(6) };
     private void VaultOpenResult_Click(object sender, RoutedEventArgs e)
     { if (Knowledge is { } knowledge && VaultResults.SelectedItem is ListBoxItem { Tag: KnowledgeHit hit }) OpenVaultNote(knowledge.Root, hit.Chunk.File, true); }

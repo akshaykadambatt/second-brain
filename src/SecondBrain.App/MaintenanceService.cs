@@ -103,17 +103,23 @@ internal sealed class MaintenanceService : IDisposable
     public Task<HistoryView> ReadHistory() => Exclusive(() =>
     { MaintenanceJob[] snapshot; lock (jobsGate) snapshot = jobs.Values.ToArray(); return new HistoryView(engine.Git.Log(), engine.Receipts(), snapshot); }, stop.Token);
     public Task<string> Diff(string commit) => Exclusive(() => engine.Git.Diff(commit), stop.Token);
-    public async Task<ImportResult[]> ImportDocuments(string[] paths, string project, CancellationToken cancellation)
+    public async Task<ImportResult[]> ImportDocuments(string[] paths, string project, CancellationToken cancellation, Guid clientId = default)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop.Token, cancellation);
         await gate.WaitAsync(linked.Token);
-        try { return await Task.Run(() => paths.Select(path => DocumentImports.Import(Root, path, project, linked.Token, PdfImportWorker.Extract)).ToArray(), linked.Token); }
+        try { return await Task.Run(() => paths.Select(path => DocumentImports.Import(Root, path, project, linked.Token, PdfImportWorker.Extract, clientId)).ToArray(), linked.Token); }
         finally { gate.Release(); Revision++; }
     }
     public async Task<KnowledgeDocument> SaveClientKnowledge(ClientKnowledge value, string? revision)
     {
         await gate.WaitAsync(stop.Token);
         try { return await Task.Run(() => new ClientKnowledgeStore(Root).Save(value, revision), stop.Token); }
+        finally { gate.Release(); Revision++; }
+    }
+    public async Task AssignClientSource(string relative, Guid client, string expected)
+    {
+        await gate.WaitAsync(stop.Token);
+        try { await Task.Run(() => ScopedKnowledge.Assign(Root, relative, client, expected), stop.Token); }
         finally { gate.Release(); Revision++; }
     }
     public async Task Revert(Guid meeting)

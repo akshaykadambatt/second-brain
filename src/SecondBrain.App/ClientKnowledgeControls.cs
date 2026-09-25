@@ -9,7 +9,7 @@ public partial class MainWindow
     private void ClientKnowledge_Click(object sender, RoutedEventArgs e)
     {
         if (Knowledge is not { } knowledge) return;
-        new ClientKnowledgeWindow(knowledge.Root, contextBook.Profiles, contextBook.SelectedProfileId, SaveClientKnowledge,
+        new ClientKnowledgeWindow(knowledge.Root, contextBook.Profiles, KnowledgeClientId, SaveClientKnowledge,
             relative => OpenVaultNote(knowledge.Root, relative, true), (VaultResults.SelectedItem as ListBoxItem)?.Tag as KnowledgeHit) { Owner = this }.ShowDialog();
     }
     internal Task<KnowledgeDocument> SaveClientKnowledge(ClientKnowledge value, string? revision)

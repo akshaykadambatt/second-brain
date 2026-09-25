@@ -57,7 +57,7 @@ public partial class MainWindow
             if (!hiddenTestMode) { _ = new ApiKeyStore(dataDirectory).Load(); _ = new ApiKeyStore(dataDirectory, "OpenAI").Load(); }
             var meetingContext = SaveMeetingContext();
             ConfigureSpeakers(); Transcriber.Vocabulary = meetingContext.Vocabulary.ToArray();
-            if (Knowledge?.ForProject(meetingContext.Project) is IStagedKnowledgeSearch prepared)
+            if (Knowledge?.ForClient(meetingContext.ProfileId, meetingContext.Project) is IStagedKnowledgeSearch prepared)
                 _ = prepared.Prewarm(meetingContext.Goal, CancellationToken.None);
             Assistant?.Close(); StreamDemo?.Close(); study?.Close(); replay?.Stop();
             await StopListening(); await Recorder.StopAsync();
@@ -65,7 +65,7 @@ public partial class MainWindow
             Transcriber.DrainAssistantEvents(out _); Transcriber.DrainSpeech();
             Companion?.Dispose();
             var provider = testProvider ?? new OpenAiAnswerProvider(new ApiKeyStore(dataDirectory, "OpenAI").Load);
-            Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log, Knowledge?.ForProject(meetingContext.Project)), options, testProvider is null ? provider as IDisposable : null, () => Recorder.ClockOrigin);
+            Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log, Knowledge?.ForClient(meetingContext.ProfileId, meetingContext.Project)), options, testProvider is null ? provider as IDisposable : null, () => Recorder.ClockOrigin);
             Companion.KeepFlowing = FlowCheck.IsChecked == true;
             companionVaultRoot = Knowledge?.Root;
             sourcesRequest = Guid.Empty; LiveSources.Items.Clear(); SourceStatus.Text = "Waiting for retrieved sources.";

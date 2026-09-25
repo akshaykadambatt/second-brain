@@ -103,6 +103,7 @@ internal sealed class KnowledgeService : IStagedKnowledgeSearch, IDisposable
         public Task<KnowledgeResult> SearchOpening(string question, CancellationToken cancellation) => owner.SearchOpening(question, filter, cancellation);
         public Task Prewarm(string context, CancellationToken cancellation) => owner.Prewarm(context, filter, cancellation);
     }
+    internal IStagedKnowledgeSearch ForClient(Guid client, string? project = null) => new ProjectSearch(this, Filter with { ClientId = client, Project = project ?? Filter.Project });
     internal IKnowledgeSearch ForProject(string project) => string.IsNullOrWhiteSpace(project) ? this : new ProjectSearch(this, Filter with { Project = project.Trim() });
     public Task<KnowledgeResult> Search(string question, CancellationToken cancellation) => Search(question, Filter, cancellation);
     public Task<KnowledgeResult> SearchOpening(string question, CancellationToken cancellation) => SearchOpening(question, Filter, cancellation);
