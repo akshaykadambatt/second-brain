@@ -4,6 +4,16 @@ internal static class ClientKnowledgeTests
 {
     public static void Run(Action<string, Action> test, Action<bool, string> check, Func<string, string> folder)
     {
+        test("Reusable talk tracks require a matching dated source and retain client scope", () =>
+        {
+            var root = folder("talk-tracks"); VaultFiles.Initialize(root); var client = Guid.NewGuid();
+            File.WriteAllText(Path.Combine(root, "source.md"), $"---\nclient_id: {client}\n---\nCobalt review remains provisional.");
+            var store = new ClientKnowledgeStore(root); var draft = new ClientKnowledge { ClientId = client, Kind = KnowledgeKind.TalkTrack, Name = "Cobalt review", Text = "Describe the provisional review and ask for confirmation." };
+            try { store.Save(draft); throw new Exception("Unsourced guidance published"); } catch (InvalidDataException) { }
+            var saved = store.Save(draft with { Source = "source.md", SourceLine = 4, Quote = "Cobalt review remains provisional.", Date = new(2026, 1, 2) });
+            var index = new VaultIndex(); index.Rebuild(root); var result = index.Search("Cobalt", new(ClientId: client), new Dictionary<string, float[]>());
+            check(result.Hits.Any(h => h.Chunk.File == saved.Value.Relative && h.Chunk.FactStatus == "Observation"), "Talk track lost client scope or became a confirmed fact");
+        });
         test("Client records retain Markdown, aliases and reversible sourced confirmation", () =>
         {
             var root = folder("client-records"); VaultFiles.Initialize(root); var client = Guid.NewGuid(); var store = new ClientKnowledgeStore(root);

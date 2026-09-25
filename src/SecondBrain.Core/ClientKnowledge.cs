@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace SecondBrain.Core;
 
-public enum KnowledgeKind { Client, Person, Project, Decision, Commitment }
+public enum KnowledgeKind { Client, Person, Project, Decision, Commitment, TalkTrack }
 public sealed record ClientKnowledge
 {
     public Guid Id { get; init; } = Guid.NewGuid();
@@ -100,7 +100,7 @@ public sealed class ClientKnowledgeStore(string root)
             || value.Name.Any(char.IsControl) || value.Project.Length > 120 || value.Text.Length > 16000 || value.Aliases.Length > 20 || value.Aliases.Any(a => string.IsNullOrWhiteSpace(a) || a.Length > 100)
             || value.Status is not ("Observation" or "Confirmed") || value.Source.Length > 500 || value.SourceLine < 1 || value.Quote.Length > 4000 || value.Owner.Length > 100 || value.Due.Length > 100)
             throw new InvalidDataException("Check the record name, client, aliases and content limits.");
-        if ((value.Status == "Confirmed" || value.Kind is KnowledgeKind.Decision or KnowledgeKind.Commitment) && (value.Source.Length == 0 || value.Date is null || value.Quote.Length == 0))
+        if ((value.Status == "Confirmed" || value.Kind is KnowledgeKind.Decision or KnowledgeKind.Commitment or KnowledgeKind.TalkTrack) && (value.Source.Length == 0 || value.Date is null || value.Quote.Length == 0))
             throw new InvalidDataException("Confirmed records, decisions and commitments need a dated source quote.");
         if (value.Owner.Length > 0 && !value.Quote.Contains(value.Owner, StringComparison.OrdinalIgnoreCase) || value.Due.Length > 0 && !value.Quote.Contains(value.Due, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Owner and due wording must occur in the source quote. Leave them blank when unsupported.");
