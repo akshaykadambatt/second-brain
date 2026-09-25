@@ -30,11 +30,11 @@ public static class DocumentImports
                 throw new InvalidDataException("Use a project name of at most 120 characters without quotes or control characters.");
             source = LocalBackup.Root(source);
             var extension = Path.GetExtension(source).ToLowerInvariant();
-            if (extension is not (".md" or ".txt" or ".pdf")) throw new InvalidDataException("Choose a Markdown (.md), text (.txt) or PDF (.pdf) file.");
+            if (extension is not (".md" or ".txt" or ".pdf" or ".docx")) throw new InvalidDataException("Choose Markdown, text, PDF or DOCX.");
             byte[] bytes;
             using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                if (input.Length > (extension == ".pdf" ? 20_000_000 : 2_000_000)) throw new InvalidDataException(extension == ".pdf" ? "PDF imports are limited to 20 MB per file." : "Text imports are limited to 2 MB per file.");
+                if (input.Length > (extension is ".pdf" or ".docx" ? 20_000_000 : 2_000_000)) throw new InvalidDataException("Text imports are limited to 2 MB; PDF and Office files to 20 MB.");
                 bytes = new byte[checked((int)input.Length)]; input.ReadExactly(bytes);
             }
             cancellation.ThrowIfCancellationRequested();
@@ -53,7 +53,7 @@ public static class DocumentImports
                     throw new InvalidDataException("Existing import is incomplete or changed. Restore its preserved source before retrying.");
                 return new(name, "Already imported", "Identical content in this project; existing source and edited note kept.", existing);
             }
-            var extraction = extension == ".pdf" ? (pdfExtractor ?? PdfText.Read)(bytes, cancellation) : ExtractText(bytes);
+            var extraction = extension switch { ".pdf" => (pdfExtractor ?? PdfText.Read)(bytes, cancellation), ".docx" => OfficeText.Word(bytes, cancellation), _ => ExtractText(bytes) };
             var original = folder + "/Attachments/original" + extension;
             var manifest = new ImportManifest(1, id, hash, name, source, project, DateTimeOffset.UtcNow, original, folder + "/Content.md", extraction.Warnings);
             var note = Render(manifest, extraction);
@@ -144,7 +144,7 @@ public static class DocumentImports
         if (value.Schema != 1 || value.Project is null || value.Sha256 is null || !Regex.IsMatch(value.Sha256, "^[A-F0-9]{64}$")
             || value.Id != Identity(value.Project, value.Sha256) || relative != $"Imports/{value.Id}/import.json"
             || value.Note != $"Imports/{value.Id}/Content.md" || value.Original is null
-            || (value.Original != $"Imports/{value.Id}/Attachments/original.md" && value.Original != $"Imports/{value.Id}/Attachments/original.txt" && value.Original != $"Imports/{value.Id}/Attachments/original.pdf")
+            || !(new[] { ".md", ".txt", ".pdf", ".docx" }).Any(extension => value.Original == $"Imports/{value.Id}/Attachments/original{extension}")
             || string.IsNullOrWhiteSpace(value.Name) || value.Warnings is null)
             throw new InvalidDataException("Import metadata is invalid or unsupported.");
         return value;

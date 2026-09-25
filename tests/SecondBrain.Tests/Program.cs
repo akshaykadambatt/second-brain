@@ -24,6 +24,7 @@ AudioSpeakerTests.Run(Test, Assert, Folder);
 SpeakerHintTests.Run(Test, Assert, Folder);
 ImportTests.Run(Test, Assert, Folder);
 PdfImportTests.Run(Test, Assert, Folder);
+OfficeImportTests.Run(Test, Assert, Folder);
 
 Test("Continuing a completed answer retains identities and sequence protection", () =>
 {
