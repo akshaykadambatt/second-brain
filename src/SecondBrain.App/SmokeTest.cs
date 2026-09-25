@@ -26,6 +26,7 @@ internal static class SmokeTest
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
             if (phase == "scoped") { await ScopedKnowledgeSmokeTests.Run(window, directory, Check, Capture); }
+            else if (phase == "memory") { await MeetingMemorySmokeTests.Run(window, directory, Check, Capture); }
             else if (phase == "clientknowledge") { await ClientKnowledgeSmokeTests.Run(window, directory, Check, Capture); }
             else if (phase == "powerpoint") { await OfficeImportSmokeTests.RunPresentation(window, directory, Check, Capture); }
             else if (phase == "word") { await OfficeImportSmokeTests.Run(window, directory, Check, Capture); }

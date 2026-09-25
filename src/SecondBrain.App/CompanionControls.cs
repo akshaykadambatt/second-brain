@@ -108,6 +108,7 @@ public partial class MainWindow
                 await Recorder.StopAsync(); await answers;
                 CompanionStatus.Text = Recorder.State == RecordingState.Completed ? "Stopped · audio and transcripts saved. Your answer stays in the reader." : Recorder.Message;
                 await ExportCurrentMeeting();
+                if (Recorder.LastDirectory is { } memoryFolder) await SaveMeetingMemory(memoryFolder);
                 if (Recorder.LastDirectory is { } folder && !await SaveCompanionTiming(folder))
                     CompanionStatus.Text += " Timing report could not be saved; audio is unaffected.";
             }
@@ -137,6 +138,7 @@ public partial class MainWindow
         foreach (var speech in speeches.Where(s => s.Source == AudioSource.System)) Companion?.Observe(speech);
         Companion?.Tick();
         TickKnowledge();
+        RefreshMeetingMemory();
         if (Companion?.Active == true)
         {
             CaptureStatus.Text = $"{TimeSpan.FromSeconds(Recorder.Elapsed):hh\\:mm\\:ss} · {Recorder.Message}\n{Transcriber.View.Status}";

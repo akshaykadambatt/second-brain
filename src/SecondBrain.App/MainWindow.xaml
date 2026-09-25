@@ -73,6 +73,9 @@
                     <Button Content="Open selected source in Obsidian" Click="SourceOpen_Click" HorizontalAlignment="Left" Padding="8,5" />
                   </StackPanel>
                 </Expander>
+                <Expander x:Name="MeetingMemoryDetails" Header="Earlier meeting context" Margin="0,10,0,0" IsExpanded="False">
+                  <TextBox x:Name="MeetingMemoryText" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="220" VerticalScrollBarVisibility="Auto" />
+                </Expander>
                 <Expander x:Name="LatencyDetails" Header="Answer timing" Margin="0,10,0,0" IsExpanded="False">
                   <StackPanel Margin="0,8,0,0">
                     <TextBlock x:Name="TimingSummary" Text="No answer timings yet." TextWrapping="Wrap" />
@@ -398,7 +401,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.33.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.34.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

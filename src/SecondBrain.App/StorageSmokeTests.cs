@@ -24,6 +24,7 @@ internal static class StorageSmokeTests
         var transcriptId = RecordingSession.ReadManifest(recording).Id;
         var detailEntry = new TranscriptEntry(transcriptId, "Final", AudioSource.System, 0, .2, "Saved.", Guid.NewGuid(), "backup-word-fixture");
         using (var transcript = new TranscriptLog(recording, transcriptId)) transcript.Append(detailEntry);
+        MeetingMemory.Save(recording);
         new SpeakerSettings(directory).Save(new(true, "Morgan"));
         using (var details = new TranscriptDetails(recording, transcriptId)) details.Append(new AudioSpeakers(transcriptId, new()).Label(TranscriptDetails.From(detailEntry, [new("Saved.", 0, .2, .9f, 0)], "Word timing available")));
         var hinted = TranscriptDetails.Read(recording).Single();
@@ -51,6 +52,7 @@ internal static class StorageSmokeTests
         check(File.ReadAllBytes(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), importedWord.Document!.Original)).SequenceEqual(wordBytes), "Backup restores original Word bytes and metadata");
         check(File.ReadAllBytes(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), importedDeck.Document!.Original)).SequenceEqual(deckBytes), "Backup restores original presentation bytes");
         var restoredPdf = DocumentImports.List(Path.Combine(restored!, "Vault")).Single(r => r.Document!.Id == importedPdf.Document!.Id).Document!;
+        check(MeetingMemory.Read(Path.Combine(restored!, "data/recordings", Path.GetFileName(recording)))?.Excerpts.Single().Id == "backup-word-fixture", "Backup restores source-validated meeting memory");
         check(File.ReadAllBytes(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), restoredPdf.Original)).SequenceEqual(pdfBytes) && File.ReadAllText(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), restoredPdf.Note)).Contains("source page 1"), "Backup restores PDF originals and page-linked searchable notes");
         check(new SessionContextStore(Path.Combine(restored!, "data")).Load().SelectedProfileId == brief.ProfileId
             && SessionContextStore.ReadSnapshot(Path.Combine(restored!, "data/recordings", Path.GetFileName(recording)))?.Context.Goal == brief.Goal,
