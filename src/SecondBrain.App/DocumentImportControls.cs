@@ -10,7 +10,7 @@ public partial class MainWindow
     private CancellationTokenSource? documentImportCancellation;
     private async void DocumentChoose_Click(object sender, RoutedEventArgs e)
     {
-        var picker = new OpenFileDialog { Title = "Import source documents", Filter = "Supported documents|*.md;*.txt;*.pdf|Markdown and text|*.md;*.txt|PDF documents|*.pdf", Multiselect = true, CheckFileExists = true };
+        var picker = new OpenFileDialog { Title = "Import source documents", Filter = "Supported documents|*.md;*.txt;*.pdf;*.docx|Markdown and text|*.md;*.txt|PDF documents|*.pdf|Word documents|*.docx", Multiselect = true, CheckFileExists = true };
         if (picker.ShowDialog(this) == true) await ImportDocuments(picker.FileNames, ImportProject.Text);
     }
     internal Task<ImportResult[]> ImportDocuments(string[] paths, string project)

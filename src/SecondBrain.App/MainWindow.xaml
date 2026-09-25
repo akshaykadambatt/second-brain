@@ -144,7 +144,7 @@
                 <TextBlock Text="The companion and Obsidian use this same folder. Notes remain beside the app by default; links become edges in Obsidian’s graph." TextWrapping="Wrap" Margin="0,8,0,12" />
                 <Expander Header="Import documents" IsExpanded="True" Margin="0,0,0,12">
                   <StackPanel Margin="0,8,0,0">
-                    <TextBlock Text="Bring Markdown, text and PDFs into your knowledge. Originals are preserved; changed files become separate versions." TextWrapping="Wrap" />
+                    <TextBlock Text="Bring Markdown, text, PDFs and Word documents into your knowledge. Originals are preserved; changed files become separate versions." TextWrapping="Wrap" />
                     <TextBlock Text="Project for these imports (optional)" Margin="0,8,0,4" />
                     <TextBox x:Name="ImportProject" MaxLength="120" ToolTip="Project saved with imported passages; blank means unscoped" />
                     <WrapPanel Margin="0,8,0,0">
@@ -152,7 +152,7 @@
                       <Button Content="Saved imports" Click="DocumentHistory_Click" Margin="0,0,6,6" />
                       <Button x:Name="DocumentCancel" Content="Cancel import" IsEnabled="False" Click="DocumentCancel_Click" Margin="0,0,6,6" />
                     </WrapPanel>
-                    <TextBlock Text="Text: 2 MB · PDF: 20 MB / 250 pages · 500,000 characters · 20 files per batch. Scanned PDFs need OCR first." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,4" />
+                    <TextBlock Text="Text: 2 MB · Office: 20 MB; PDF: 20 MB / 250 pages · 500,000 characters · 20 files per batch. Scanned PDFs need OCR first." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,4" />
                     <TextBlock x:Name="DocumentImportStatus" Text="Choose files or browse your saved imports. Text files use UTF-8 or BOM-marked UTF-16." TextWrapping="Wrap" FontSize="11" />
                     <ListBox x:Name="DocumentImportResults" Height="120" Margin="0,6,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                       <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ListBox.ItemTemplate>
@@ -391,7 +391,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.29.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.30.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

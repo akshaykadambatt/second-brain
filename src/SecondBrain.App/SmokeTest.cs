@@ -25,7 +25,8 @@ internal static class SmokeTest
             void Check(bool condition, string message)
             { if (!condition) throw new InvalidOperationException(message); checks.Add(message); }
             await Settle();
-            if (phase == "pdf") { await PdfImportSmokeTests.Run(window, directory, Check, Capture); }
+            if (phase == "word") { await OfficeImportSmokeTests.Run(window, directory, Check, Capture); }
+            else if (phase == "pdf") { await PdfImportSmokeTests.Run(window, directory, Check, Capture); }
             else if (phase == "imports") { await ImportSmokeTests.Run(window, directory, Check, Capture); }
             else if (phase == "meet") { await NameHintSmokeTests.Run(window, directory, Check, meet: true); }
             else if (phase == "names") { await NameHintSmokeTests.Run(window, directory, Check); }
