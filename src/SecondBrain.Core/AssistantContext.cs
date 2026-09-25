@@ -8,6 +8,7 @@ public sealed record AssistantOptions(string FastModel = "gpt-6-luna", string De
     public bool IsValid => ValidModel(FastModel) && ValidModel(DeepModel) && Context is not null && Context.Length <= 16000
         && new[] { "none", "low", "medium", "high" }.Contains(FastEffort) && new[] { "none", "low", "medium", "high" }.Contains(DeepEffort);
     private static bool ValidModel(string text) => text is not null && Regex.IsMatch(text, @"^[a-zA-Z0-9][a-zA-Z0-9._:-]{1,100}$");
+    public bool QuietSuggestions { get; init; }
 }
 
 // UI-thread owned, bounded current-session context. Source transcript files remain
