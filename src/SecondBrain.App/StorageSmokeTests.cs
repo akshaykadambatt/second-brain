@@ -33,14 +33,19 @@ internal static class StorageSmokeTests
         var importSource = Path.Combine(directory, "Backup source.txt"); File.WriteAllText(importSource, "Preserved document fixture.");
         var imported = (await main.ImportDocuments([importSource], "Cedar")).Single();
         check(imported.State == "Imported", "A source document is imported before the backup");
+        var pdfSource = Path.Combine(directory, "Backup source.pdf"); var pdfBytes = PdfImportSmokeTests.Fixture("Preserved PDF evidence."); File.WriteAllBytes(pdfSource, pdfBytes);
+        var importedPdf = (await main.ImportDocuments([pdfSource], "Cedar")).Single();
+        check(importedPdf.State == "Imported", "A PDF document is imported before backup");
         var backup = await main.StorageOperation(root => LocalBackup.Create(directory, root, Environment.ProcessPath!, backupParent));
         check(backup is not null, "Packaged UI quiesces writers and creates a verified snapshot");
         var manifest = LocalBackup.Verify(backup!);
         check(manifest.Files.Any(f => f.Path.Contains("history.git/objects/")) && manifest.Files.Any(f => f.Path.EndsWith("session.json")), "Snapshot contains the private Git repository and saved recording");
         var restored = await main.StorageOperation(_ => LocalBackup.Restore(backup!, backupParent));
         check(restored is not null && File.Exists(Path.Combine(restored, "SecondBrain.exe")) && new VaultSettings(Path.Combine(restored, "data"), restored).Resolve(new("Vault")) == Path.Combine(restored, "Vault"), "Restore creates an adjacent EXE, data and portable vault");
-        var restoredImport = DocumentImports.List(Path.Combine(restored!, "Vault")).Single().Document!;
+        var restoredImport = DocumentImports.List(Path.Combine(restored!, "Vault")).Single(r => r.Document!.Id == imported.Document!.Id).Document!;
         check(restoredImport.Sha256 == imported.Document!.Sha256 && File.ReadAllBytes(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), restoredImport.Original)).SequenceEqual(File.ReadAllBytes(importSource)), "Backup restore retains original document bytes, searchable note and metadata");
+        var restoredPdf = DocumentImports.List(Path.Combine(restored!, "Vault")).Single(r => r.Document!.Id == importedPdf.Document!.Id).Document!;
+        check(File.ReadAllBytes(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), restoredPdf.Original)).SequenceEqual(pdfBytes) && File.ReadAllText(VaultFiles.SafePath(Path.Combine(restored!, "Vault"), restoredPdf.Note)).Contains("source page 1"), "Backup restores PDF originals and page-linked searchable notes");
         check(new SessionContextStore(Path.Combine(restored!, "data")).Load().SelectedProfileId == brief.ProfileId
             && SessionContextStore.ReadSnapshot(Path.Combine(restored!, "data/recordings", Path.GetFileName(recording)))?.Context.Goal == brief.Goal,
             "Backup and restore retain client profiles and per-meeting context snapshots");

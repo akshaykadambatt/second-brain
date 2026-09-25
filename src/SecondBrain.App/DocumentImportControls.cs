@@ -10,7 +10,7 @@ public partial class MainWindow
     private CancellationTokenSource? documentImportCancellation;
     private async void DocumentChoose_Click(object sender, RoutedEventArgs e)
     {
-        var picker = new OpenFileDialog { Title = "Import source documents", Filter = "Markdown and text|*.md;*.txt", Multiselect = true, CheckFileExists = true };
+        var picker = new OpenFileDialog { Title = "Import source documents", Filter = "Supported documents|*.md;*.txt;*.pdf|Markdown and text|*.md;*.txt|PDF documents|*.pdf", Multiselect = true, CheckFileExists = true };
         if (picker.ShowDialog(this) == true) await ImportDocuments(picker.FileNames, ImportProject.Text);
     }
     internal Task<ImportResult[]> ImportDocuments(string[] paths, string project)
@@ -30,7 +30,7 @@ public partial class MainWindow
             {
                 await historyConnection;
                 var results = Maintenance is { } maintenance ? await maintenance.ImportDocuments(paths, project, token)
-                    : await Task.Run(() => paths.Select(path => DocumentImports.Import(knowledge.Root, path, project, token)).ToArray(), token);
+                    : await Task.Run(() => paths.Select(path => DocumentImports.Import(knowledge.Root, path, project, token, PdfImportWorker.Extract)).ToArray(), token);
                 if (!closing && Knowledge == knowledge)
                 {
                     DocumentImportResults.ItemsSource = results;
@@ -58,6 +58,17 @@ public partial class MainWindow
     }
     private void DocumentOriginal_Click(object sender, RoutedEventArgs e) => OpenImport(false);
     private void DocumentNote_Click(object sender, RoutedEventArgs e) => OpenImport(true);
+    internal static string PdfNotices()
+    {
+        var assembly = typeof(PdfText).Assembly;
+        return "PdfPig 0.1.16 · https://github.com/UglyToad/PdfPig\n\n" + string.Join("\n\n", assembly.GetManifestResourceNames().Where(n => n.Contains("Licenses.PdfPig")).Order().Select(name =>
+        { using var reader = new StreamReader(assembly.GetManifestResourceStream(name)!); return reader.ReadToEnd(); }));
+    }
+    private void PdfNotices_Click(object sender, RoutedEventArgs e)
+    {
+        new Window { Owner = this, Title = "PDF library notices", Width = 720, Height = 520, Content = new System.Windows.Controls.TextBox
+            { Text = PdfNotices(), IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto } }.Show();
+    }
     private void OpenImport(bool note)
     {
         if (Knowledge is not { } knowledge || DocumentImportResults.SelectedItem is not ImportResult { Document: { } item })

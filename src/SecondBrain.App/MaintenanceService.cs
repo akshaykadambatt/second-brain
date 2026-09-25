@@ -107,7 +107,7 @@ internal sealed class MaintenanceService : IDisposable
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop.Token, cancellation);
         await gate.WaitAsync(linked.Token);
-        try { return await Task.Run(() => paths.Select(path => DocumentImports.Import(Root, path, project, linked.Token)).ToArray(), linked.Token); }
+        try { return await Task.Run(() => paths.Select(path => DocumentImports.Import(Root, path, project, linked.Token, PdfImportWorker.Extract)).ToArray(), linked.Token); }
         finally { gate.Release(); Revision++; }
     }
     public async Task Revert(Guid meeting)
