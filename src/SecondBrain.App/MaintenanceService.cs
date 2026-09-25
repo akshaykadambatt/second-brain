@@ -110,6 +110,12 @@ internal sealed class MaintenanceService : IDisposable
         try { return await Task.Run(() => paths.Select(path => DocumentImports.Import(Root, path, project, linked.Token, PdfImportWorker.Extract)).ToArray(), linked.Token); }
         finally { gate.Release(); Revision++; }
     }
+    public async Task<KnowledgeDocument> SaveClientKnowledge(ClientKnowledge value, string? revision)
+    {
+        await gate.WaitAsync(stop.Token);
+        try { return await Task.Run(() => new ClientKnowledgeStore(Root).Save(value, revision), stop.Token); }
+        finally { gate.Release(); Revision++; }
+    }
     public async Task Revert(Guid meeting)
     { await Exclusive(() => { engine.Revert(meeting); return true; }, stop.Token); Status = "Selected update reverted; later unrelated edits retained."; Revision++; }
     public async Task Recover()
