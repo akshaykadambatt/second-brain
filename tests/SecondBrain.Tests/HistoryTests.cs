@@ -21,6 +21,21 @@ internal static class HistoryTests
     private static MaintenanceProposal Proposal(MaintenanceInput input) => new([new("Projects/Cedar.md", [new(input.Evidence[0].Text, [new(input.Evidence[0].Id, input.Evidence[0].Text)])])]);
     public static void Run(Action<string, Action> test, Action<bool, string> check, Func<string, string> folder)
     {
+        test("Meeting note maintenance cannot read or publish into another client's notes", () =>
+        {
+            var root = folder("history-client-scope"); var client = Guid.NewGuid(); var other = Guid.NewGuid();
+            VaultFiles.Create(root, "Projects/Foreign.md", $"---\nclient_id: {other}\n---\n# FOREIGN_SECRET\nFriday review.");
+            var engine = new VaultMaintenance(root); using var held = engine.Acquire();
+            var summary = Source(root, Guid.NewGuid(), "Cedar review Friday."); var transcript = summary.Replace("Summary.md", "Transcript.md");
+            var path = VaultFiles.SafePath(root, transcript); File.WriteAllText(path, $"---\nclient_id: {client}\n---\n" + File.ReadAllText(path));
+            var provider = new Provider(input =>
+            {
+                check(input.Notes.Length > 0 && input.Notes.All(n => !n.Text.Contains("FOREIGN_SECRET") && VaultIndex.Parse(n.Path, n.Text).All(c => c.ClientId == client)), "Provider saw foreign notes");
+                return new([new("Projects/Foreign.md", [new(input.Evidence[0].Text, [new(input.Evidence[0].Id, input.Evidence[0].Text)])])]);
+            });
+            try { engine.Process(summary, provider, default).GetAwaiter().GetResult(); throw new Exception("Foreign publication accepted"); } catch (InvalidDataException) { }
+            check(!File.ReadAllText(VaultFiles.SafePath(root, "Projects/Foreign.md")).Contains("Cedar review"), "Foreign note was changed");
+        });
         test("Private Git saves manual edits, sourced AI updates, idempotency and selective undo", () =>
         {
             var root = folder("history-main"); VaultFiles.Create(root, "Projects/Cedar.md", "# Cedar\nManual introduction.\n");

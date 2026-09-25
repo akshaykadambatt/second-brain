@@ -76,6 +76,8 @@ public sealed class ClientKnowledgeStore(string root)
             var source = VaultFiles.SafePath(root, value.Source);
             if (!value.Source.EndsWith(".md", StringComparison.OrdinalIgnoreCase) || new FileInfo(source).Length > 2_000_000) throw new InvalidDataException("Choose a readable Markdown source within the vault.");
             var content = File.ReadAllText(source).Replace("\r", "");
+            var sourceClient = VaultIndex.Parse(value.Source, content).FirstOrDefault()?.ClientId ?? Guid.Empty;
+            if (sourceClient != Guid.Empty && sourceClient != value.ClientId) throw new InvalidDataException("The source is assigned to a different client.");
             var fromLine = string.Join('\n', content.Split('\n').Skip(value.SourceLine - 1));
             if (value.Quote.Length == 0 || !fromLine.StartsWith(value.Quote.Replace("\r", ""), StringComparison.Ordinal)) throw new InvalidDataException("The quote must match the source at the selected line. Refresh changed sources before confirming.");
         }

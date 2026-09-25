@@ -87,6 +87,10 @@ public sealed class VaultMaintenance
             .Select(x => new MeetingEvidence($"t{x.i:D6}", x.e.Text, x.e.Source?.ToString() ?? "Unknown", x.e.Start)).ToArray();
         if (evidence.Sum(e => e.Text.Length) > 200_000) throw new InvalidDataException("Meeting exceeds the 200,000-character automatic update limit. Original transcript retained.");
         var sourceBytes = File.ReadAllBytes(Path.Combine(directory, "transcript.jsonl"));
+        var transcriptNote = File.ReadAllText(Path.Combine(directory, "Transcript.md"));
+        var client = VaultIndex.Parse(sourceFolder + "/Transcript.md", transcriptNote).FirstOrDefault()?.ClientId ?? Guid.Empty;
+        var updates = client == Guid.Empty ? "Knowledge/Meeting updates.md" : $"Knowledge/Clients/{client:N}/Meeting updates.md";
+        if (client != Guid.Empty) VaultFiles.Create(Root, updates, $"---\nclient_id: {client}\n---\n# Meeting updates\n\nDated observations; verify sources before treating them as current facts.\n");
         var date = sourceFolder.Split('/')[1][..10]; if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", out _)) throw new InvalidDataException("Meeting date is missing.");
         for (var attempt = 0; attempt < 3; attempt++)
         {
@@ -94,11 +98,14 @@ public sealed class VaultMaintenance
             var before = Capture(); Git.Checkpoint(before, "Manual edits before meeting analysis");
             var keywords = VaultIndex.Terms(string.Join(' ', evidence.Select(e => e.Text))).ToHashSet();
             var candidates = before.Where(p => p.Key.EndsWith(".md", StringComparison.OrdinalIgnoreCase) && !p.Key.StartsWith("Meetings/") && !p.Key.StartsWith("Templates/") && !p.Key.StartsWith("Imports/") && !p.Key.StartsWith("Clients/") && p.Key != "Home.md")
-                .Select(p => new NoteContext(p.Key, Utf8.GetString(p.Value))).OrderByDescending(p => p.Path == "Knowledge/Meeting updates.md" ? int.MaxValue : VaultIndex.Terms(p.Text).Distinct().Count(keywords.Contains)).Take(12).ToArray();
+                .Select(p => new NoteContext(p.Key, Utf8.GetString(p.Value)))
+                .Where(p => (VaultIndex.Parse(p.Path, p.Text).FirstOrDefault()?.ClientId ?? Guid.Empty) == client)
+                .OrderByDescending(p => p.Path == updates ? int.MaxValue : VaultIndex.Terms(p.Text).Distinct().Count(keywords.Contains)).Take(12).ToArray();
             var input = new MaintenanceInput(id, date, sourceFolder + "/Transcript", evidence,
                 candidates.Select(n => n with { Text = n.Text.Length > 5000 ? n.Text[..5000] + "\n[Remaining existing note omitted; append only.]" : n.Text }).ToArray());
             var proposal = evidence.Length == 0 ? new MaintenanceProposal([]) : await provider.Propose(input, cancellation);
             cancellation.ThrowIfCancellationRequested();
+            if (File.ReadAllText(Path.Combine(directory, "Transcript.md")) != transcriptNote) throw new VaultConflictException("Meeting scope changed during analysis; retry with its current assignment.");
             var current = Capture();
             if (candidates.Any(n => !current.TryGetValue(n.Path, out var bytes) || !bytes.AsSpan().SequenceEqual(before[n.Path])) || !File.ReadAllBytes(Path.Combine(directory, "transcript.jsonl")).AsSpan().SequenceEqual(sourceBytes))
             {

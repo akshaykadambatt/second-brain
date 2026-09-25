@@ -4,13 +4,20 @@ using System.Text.RegularExpressions;
 
 namespace SecondBrain.Core;
 
-public sealed record KnowledgeFilter(string Project = "", DateOnly? From = null, DateOnly? Until = null);
-public sealed record NoteChunk(string Id, string File, int Line, string Title, string Text, string Project, DateOnly? Date);
+public sealed record KnowledgeFilter(string Project = "", DateOnly? From = null, DateOnly? Until = null, Guid? ClientId = null);
+public sealed record NoteChunk(string Id, string File, int Line, string Title, string Text, string Project, DateOnly? Date)
+{
+    public Guid ClientId { get; init; }
+    public string FactKey { get; init; } = "";
+    public string FactStatus { get; init; } = "Source";
+}
 public sealed record KnowledgeHit(NoteChunk Chunk, double Score);
 public sealed record KnowledgeResult(IReadOnlyList<KnowledgeHit> Hits, string Status)
 {
+    public string[] Conflicts => Hits.Where(h => h.Chunk.FactKey.Length > 0).GroupBy(h => h.Chunk.FactKey, StringComparer.OrdinalIgnoreCase)
+        .Where(g => g.Select(h => h.Chunk.File).Distinct().Count() > 1 && g.Select(h => h.Chunk.Text).Distinct().Count() > 1).Select(g => "Different sourced accounts for " + g.Key + ". Review dates and sources; no current value is assumed.").ToArray();
     public string Evidence => Hits.Count == 0 ? "No relevant vault evidence was found. Do not invent private/project facts."
-        : string.Join("\n\n", Hits.Select((h, i) => $"[S{i + 1}] {h.Chunk.File}:{h.Chunk.Line}; date={h.Chunk.Date?.ToString("yyyy-MM-dd") ?? "undated"}; project={h.Chunk.Project}\n{h.Chunk.Text}"));
+        : string.Join("\n", Conflicts) + "\n" + string.Join("\n\n", Hits.Select((h, i) => $"[S{i + 1}] {h.Chunk.File}:{h.Chunk.Line}; date={h.Chunk.Date?.ToString("yyyy-MM-dd") ?? "undated"}; project={h.Chunk.Project}; status={h.Chunk.FactStatus}\n{h.Chunk.Text}"));
 }
 public interface IKnowledgeSearch
 {
@@ -63,6 +70,7 @@ public sealed class VaultIndex
     public static IReadOnlyList<NoteChunk> Parse(string file, string text)
     {
         var lines = text.Replace("\r", "").Split('\n'); var first = 0; var project = ""; DateOnly? date = null;
+        var client = Guid.Empty; var clientFields = 0; var entityTitle = ""; var aliases = ""; var kind = ""; var factStatus = "Source";
         if (lines.Length > 1 && lines[0].Trim() == "---")
         {
             var end = Array.FindIndex(lines, 1, line => line.Trim() == "---");
@@ -74,6 +82,11 @@ public sealed class VaultIndex
                     var value = pair[1].Trim().Trim('"', '\'');
                     if (pair[0].Trim() == "project") project = value;
                     if (pair[0].Trim() == "date" && DateOnly.TryParseExact(value, "yyyy-MM-dd", out var parsed)) date = parsed;
+                    if (pair[0].Trim() == "client_id") client = ++clientFields == 1 && Guid.TryParse(value, out var parsedClient) ? parsedClient : new Guid("ffffffff-ffff-ffff-ffff-ffffffffffff");
+                    if (pair[0].Trim() == "title") entityTitle = value;
+                    if (pair[0].Trim() == "aliases") aliases = value;
+                    if (pair[0].Trim() == "kind") kind = value;
+                    if (pair[0].Trim() == "status") factStatus = value;
                 }
                 first = end + 1;
             }
@@ -84,7 +97,8 @@ public sealed class VaultIndex
         void Flush()
         {
             var value = buffer.ToString().Trim(); buffer.Clear();
-            if (value.Length > 0) chunks.Add(new(Hash(file + "\n" + start + "\n" + chunks.Count + "\n" + title + "\n" + value), file, start, title, value, project, date));
+            if (value.Length > 0) chunks.Add(new(Hash(file + "\n" + start + "\n" + chunks.Count + "\n" + title + "\n" + value), file, start, entityTitle.Length == 0 ? title : entityTitle + " " + aliases + " · " + title, value, project, date)
+                { ClientId = client, FactKey = entityTitle.Length > 0 && kind is "Decision" or "Commitment" ? kind + ": " + entityTitle : "", FactStatus = factStatus });
         }
         for (var i = first; i < lines.Length; i++)
         {
@@ -105,7 +119,7 @@ public sealed class VaultIndex
     }
     public KnowledgeResult Search(string query, KnowledgeFilter filter, IReadOnlyDictionary<string, float[]> vectors, float[]? embedding = null, string status = "Keyword search")
     {
-        var eligible = Chunks.Where(c => (filter.Project.Length == 0 || c.Project.Equals(filter.Project, StringComparison.OrdinalIgnoreCase))
+        var eligible = Chunks.Where(c => (filter.ClientId is null || c.ClientId == filter.ClientId) && (filter.Project.Length == 0 || c.Project.Equals(filter.Project, StringComparison.OrdinalIgnoreCase))
             && (filter.From is null || c.Date >= filter.From) && (filter.Until is null || c.Date <= filter.Until)).ToArray();
         var terms = Terms(query).Distinct().ToArray();
         var tokens = eligible.ToDictionary(c => c.Id, c => Terms(c.Title + " " + c.Text));

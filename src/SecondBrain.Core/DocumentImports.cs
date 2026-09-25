@@ -6,9 +6,9 @@ using System.Text.RegularExpressions;
 namespace SecondBrain.Core;
 
 public sealed record ImportPassage(string Location, string Text);
-public sealed record ImportExtraction(ImportPassage[] Passages, string[] Warnings);
+public sealed record ImportExtraction(ImportPassage[] Passages, string[] Warnings) { public Guid ClientId { get; init; } }
 public sealed record ImportManifest(int Schema, string Id, string Sha256, string Name, string SourcePath, string Project,
-    DateTimeOffset ImportedUtc, string Original, string Note, string[] Warnings);
+    DateTimeOffset ImportedUtc, string Original, string Note, string[] Warnings) { public Guid ClientId { get; init; } }
 public sealed record ImportResult(string Name, string State, string Message, ImportManifest? Document = null)
 {
     public override string ToString() => $"{Name} · {State}\n{Message}";
@@ -20,7 +20,7 @@ public static class DocumentImports
     private static readonly UTF8Encoding Utf8 = new(false, true);
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
     public static ImportResult Import(string root, string source, string project, CancellationToken cancellation = default,
-        Func<byte[], CancellationToken, ImportExtraction>? pdfExtractor = null)
+        Func<byte[], CancellationToken, ImportExtraction>? pdfExtractor = null, Guid clientId = default)
     {
         var name = Path.GetFileName(source);
         try
@@ -38,7 +38,7 @@ public static class DocumentImports
                 bytes = new byte[checked((int)input.Length)]; input.ReadExactly(bytes);
             }
             cancellation.ThrowIfCancellationRequested();
-            var hash = Convert.ToHexString(SHA256.HashData(bytes)); var id = Identity(project, hash);
+            var hash = Convert.ToHexString(SHA256.HashData(bytes)); var id = Identity(project, hash, clientId);
             var folder = "Imports/" + id; var destination = VaultFiles.SafePath(root, folder);
             var engine = new VaultMaintenance(root);
             using var held = engine.Acquire();
@@ -55,7 +55,7 @@ public static class DocumentImports
             }
             var extraction = extension switch { ".pdf" => (pdfExtractor ?? PdfText.Read)(bytes, cancellation), ".docx" => OfficeText.Word(bytes, cancellation), ".pptx" => OfficeText.Presentation(bytes, cancellation), _ => ExtractText(bytes) };
             var original = folder + "/Attachments/original" + extension;
-            var manifest = new ImportManifest(1, id, hash, name, source, project, DateTimeOffset.UtcNow, original, folder + "/Content.md", extraction.Warnings);
+            var manifest = new ImportManifest(1, id, hash, name, source, project, DateTimeOffset.UtcNow, original, folder + "/Content.md", extraction.Warnings) { ClientId = clientId };
             var note = Render(manifest, extraction);
             // Hidden staging is not indexed. A crash before the final rename cannot expose partial content.
             var staging = VaultFiles.SafePath(root, ".secondbrain/import-" + Guid.NewGuid().ToString("N"));
@@ -90,7 +90,7 @@ public static class DocumentImports
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or JsonException or InvalidOperationException)
         { return new(name, "Failed", ex.Message); }
     }
-    private static string Identity(string project, string hash) => VaultIndex.Hash(project.ToUpperInvariant() + "\n" + hash)[..24];
+    private static string Identity(string project, string hash, Guid clientId = default) => VaultIndex.Hash((clientId == Guid.Empty ? "" : clientId.ToString("N") + "\n") + project.ToUpperInvariant() + "\n" + hash)[..24];
     private static void Write(string path, byte[] bytes)
     { using var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None); file.Write(bytes); file.Flush(true); }
     public static ImportExtraction ExtractText(byte[] bytes)
@@ -121,7 +121,7 @@ public static class DocumentImports
     private static string Render(ImportManifest manifest, ImportExtraction extraction)
     {
         var title = Plain(manifest.Name[..Math.Min(100, manifest.Name.Length)]);
-        var note = new StringBuilder($"---\nproject: \"{manifest.Project}\"\n---\n# Imported: {title}\n\nPreserved source: [Open original](Attachments/original{Path.GetExtension(manifest.Original)})\n\nImport date: {manifest.ImportedUtc:yyyy-MM-dd} (not the date of the source facts).\n\n");
+        var note = new StringBuilder($"---\nclient_id: {manifest.ClientId}\nproject: \"{manifest.Project}\"\n---\n# Imported: {title}\n\nPreserved source: [Open original](Attachments/original{Path.GetExtension(manifest.Original)})\n\nImport date: {manifest.ImportedUtc:yyyy-MM-dd} (not the date of the source facts).\n\n");
         foreach (var warning in extraction.Warnings) note.AppendLine(Plain(warning) + "\n");
         foreach (var passage in extraction.Passages)
         {
@@ -142,7 +142,7 @@ public static class DocumentImports
         if (new FileInfo(path).Length > 32_000) throw new InvalidDataException("Import metadata is too large.");
         var value = JsonSerializer.Deserialize<ImportManifest>(File.ReadAllText(path)) ?? throw new InvalidDataException("Import metadata is missing.");
         if (value.Schema != 1 || value.Project is null || value.Sha256 is null || !Regex.IsMatch(value.Sha256, "^[A-F0-9]{64}$")
-            || value.Id != Identity(value.Project, value.Sha256) || relative != $"Imports/{value.Id}/import.json"
+            || value.Id != Identity(value.Project, value.Sha256, value.ClientId) || relative != $"Imports/{value.Id}/import.json"
             || value.Note != $"Imports/{value.Id}/Content.md" || value.Original is null
             || !(new[] { ".md", ".txt", ".pdf", ".docx", ".pptx" }).Any(extension => value.Original == $"Imports/{value.Id}/Attachments/original{extension}")
             || string.IsNullOrWhiteSpace(value.Name) || value.Warnings is null)

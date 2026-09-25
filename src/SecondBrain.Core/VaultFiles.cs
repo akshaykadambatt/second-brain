@@ -48,9 +48,12 @@ public static class VaultFiles
         if (new FileInfo(rawPath).Length > 40_000_000) throw new InvalidDataException("Transcript exceeds the 40 MB import limit.");
         var raw = File.ReadAllText(rawPath); var entries = TranscriptLog.Read(recording);
         if (entries.Any(e => e.SessionId != manifest.Id)) throw new InvalidDataException("Transcript session identity mismatch.");
+        var context = SessionContextStore.ReadSnapshot(recording);
+        if (context is not null && context.SessionId != manifest.Id) throw new InvalidDataException("Meeting context belongs to another session.");
+        if (context is not null) project = context.Context.Project;
         var date = manifest.StartedUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var folder = $"Meetings/{date}-{manifest.Id:N}-{VaultIndex.Hash(raw)[..8]}";
-        var prefix = $"---\ndate: {date}\nproject: \"{project.Replace("\"", "'").Replace("\n", " ").Replace("\r", " ")}\"\nsession_id: {manifest.Id}\nstarted_utc: {manifest.StartedUtc:O}\n---\n";
+        var prefix = $"---\nclient_id: {context?.Context.ProfileId ?? Guid.Empty}\ndate: {date}\nproject: \"{project.Replace("\"", "'").Replace("\n", " ").Replace("\r", " ")}\"\nsession_id: {manifest.Id}\nstarted_utc: {manifest.StartedUtc:O}\n---\n";
         var transcript = new StringBuilder(prefix + "# Meeting transcript\n\n[[" + folder + "/Summary]] · [[Meetings/Meetings]]\n\nFinalized machine transcription; gaps are explicit. Verify important facts against original audio.\n\n");
         for (var i = 0; i < entries.Length; i++)
         {
