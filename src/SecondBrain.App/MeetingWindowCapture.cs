@@ -125,7 +125,7 @@ internal sealed class MeetingWindowCapture : IMeetingCapture
             session?.Dispose(); pool?.Dispose(); device?.Dispose(); session = null; pool = null; device = null; item = null;
         }
     }
-    private static GraphicsCaptureItem CreateItem(nint window)
+    internal static GraphicsCaptureItem CreateItem(nint window, bool monitor = false)
     {
         const string name = "Windows.Graphics.Capture.GraphicsCaptureItem";
         Marshal.ThrowExceptionForHR(WindowsCreateString(name, name.Length, out var text));
@@ -134,14 +134,14 @@ internal sealed class MeetingWindowCapture : IMeetingCapture
         {
             var iid = new Guid("3628E81B-3CAC-4C60-B7F4-23CE0E0C3356");
             Marshal.ThrowExceptionForHR(RoGetActivationFactory(text, ref iid, out factory));
-            var method = Marshal.GetDelegateForFunctionPointer<CreateWindow>(Marshal.ReadIntPtr(Marshal.ReadIntPtr(factory), 3 * nint.Size));
+            var method = Marshal.GetDelegateForFunctionPointer<CreateWindow>(Marshal.ReadIntPtr(Marshal.ReadIntPtr(factory), (monitor ? 4 : 3) * nint.Size));
             var itemId = new Guid("79C3F95B-31F7-4EC2-A464-632EF5D30760");
             Marshal.ThrowExceptionForHR(method(factory, window, ref itemId, out result));
             return WinRT.MarshalInspectable<GraphicsCaptureItem>.FromAbi(result);
         }
         finally { if (result != 0) Marshal.Release(result); if (factory != 0) Marshal.Release(factory); WindowsDeleteString(text); }
     }
-    private static IDirect3DDevice CreateDevice()
+    internal static IDirect3DDevice CreateDevice()
     {
         nint d3d = 0, context = 0, dxgi = 0, inspectable = 0;
         try

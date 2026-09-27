@@ -118,10 +118,11 @@ public partial class MainWindow
             Playback.Pause(); RefreshCompanionControls();
         }
         finally { companionBusy = false; companionControls.Release(); RefreshCompanionControls(); }
+        await StopVideo();
     }
     private void DrainCompanion()
     {
-        Visuals.Tick(); NameHints.Tick();
+        Visuals.Tick(); NameHints.Tick(); TickVideo();
         var entries = Transcriber.DrainAssistantEvents(out var dropped);
         foreach (var entry in entries.Where(e => e.Kind == "RunStart")) AssistantContext.Observe(entry);
         var speeches = Transcriber.DrainSpeech();
@@ -155,7 +156,8 @@ public partial class MainWindow
         OriginalAnswerButton.IsEnabled = Companion?.Selected?.ParentAnswerId is not null;
         SessionStateText.Text = companionBusy ? companionPhase : active ? "LISTENING" : companionError || Recorder.State == RecordingState.Failed ? "ATTENTION" : "READY";
         SessionStateBadge.Background = (System.Windows.Media.Brush)FindResource(active ? "Accent" : "Subtle");
-        ListenButton.IsEnabled = !companionBusy && !closing;
+        ListenButton.IsEnabled = !companionBusy && !videoBusy && !closing;
+        RefreshVideoControls();
         ListenButton.Content = companionBusy ? "Please wait…" : active ? "Stop listening and save" : "Start listening";
         MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = LiveOutputPicker.IsEnabled = !active && !companionBusy;
         PracticeTab.IsEnabled = !active && !companionBusy;

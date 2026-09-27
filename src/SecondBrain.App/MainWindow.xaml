@@ -35,6 +35,7 @@
 </StackPanel></Expander><WrapPanel Margin="0,0,0,10">
                   <Button x:Name="ListenButton" Content="Start listening" Click="Listen_Click" Padding="20,12" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
                   <Button Content="Open reader" Click="OpenReader_Click" Padding="16,12" Margin="10,0,0,0" />
+                  <Button x:Name="RecordMeetingButton" Content="Record meeting…" Click="RecordMeeting_Click" Padding="16,12" Margin="10,0,0,0" />
                 </WrapPanel>
                 <DockPanel Margin="0,0,0,8">
                   <Button Content="Audio settings" Click="AudioSettings_Click" DockPanel.Dock="Right" Padding="8,4" Margin="10,0,0,0" FontSize="12" />
@@ -47,6 +48,7 @@
                     </TextBlock.Text>
                   </TextBlock>
                 </DockPanel>
+                <WrapPanel Margin="0,0,0,8"><Button x:Name="OpenVideoButton" Content="Open saved video" Click="OpenVideo_Click" IsEnabled="False" Margin="0,0,10,0"/><TextBlock x:Name="VideoStatus" Text="Display recording is optional." TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" FontSize="12"/></WrapPanel>
                 <TextBlock x:Name="CompanionStatus" Text="Ready when you are. Start listening to get answers during your meeting." TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Border Style="{StaticResource CardSurface}" Padding="16">
                   <StackPanel>

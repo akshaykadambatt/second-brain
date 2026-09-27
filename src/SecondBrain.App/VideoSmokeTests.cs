@@ -26,7 +26,33 @@ internal static class VideoSmokeTests
             var rejected = false; try { using var duplicate = new NativeVideoWriter(path, 320, 180); } catch (IOException) { rejected = true; }
             check(rejected, "Recording cannot overwrite an existing clip");
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        var selection = new VideoSelection(new(1, 320, 180, "Synthetic display"), false);
+        check(new VideoSelection(new(1, 3840, 2160, "4k"), false).Size == (1920, 1080) && new VideoSelection(new(1, 1080, 1920, "Portrait"), false).Size == (606, 1080), "Default sizing fits the whole landscape or portrait display without cropping");
+        var before = main.Recorder.LastDirectory;
+        check(!await main.StartVideo(null) && main.Recorder.LastDirectory == before && main.Companion?.Active != true, "Cancelling selection does not start audio or video");
+        var key = Path.Combine(directory, "synthetic-key.txt"); File.WriteAllText(key, "synthetic-deepgram-key-for-offline-tests");
+        try { new ApiKeyStore(directory).Import(key); } finally { File.Delete(key); }
+        check(await main.StartVideo(selection, new Provider(), (_, receive, _) => new Frames(receive)), "Selecting video while idle starts integrated audio and the native encoder");
+        await Task.Delay(600); var video = main.VideoRecording!; var session = main.Recorder.LastDirectory;
+        await main.StopVideo();
+        check(video.FrameCount > 0 && video.Error is null && main.Companion?.Active == true && main.Recorder.State == RecordingState.Recording, "Stopping video finalizes the clip while listening continues");
+        check(Boxes(video.Path).Contains("moof") && File.Exists(Path.ChangeExtension(video.Path, ".json")), "Display pipeline produces fragmented video and meeting-relative metadata");
+        check(await main.StartVideo(selection, null, (_, receive, _) => new Frames(receive)), "A second clip reuses the same listening session");
+        await Task.Delay(200); var second = main.VideoRecording!; await main.StopCompanion();
+        check(second.Error is null && !second.Active && main.Recorder.State == RecordingState.Completed && main.Recorder.LastDirectory == session, "Stopping listening finalizes video without replacing the session");
         capture(main, Path.Combine(directory, "video-controls.png"));
+    }
+    private sealed class Provider : SecondBrain.Core.IAnswerProvider
+    { public Task Generate(SecondBrain.Core.AssistantPrompt prompt, Func<string, Task> delta, CancellationToken cancellation) => Task.CompletedTask; }
+    private sealed class Frames : IDisplayCapture
+    {
+        private readonly Timer timer;
+        internal Frames(Action<DisplayFrame> observe)
+        {
+            var pixels = new byte[320 * 180 * 4]; Array.Fill(pixels, (byte)120);
+            timer = new Timer(_ => observe(new(AudioClock.Now, 320, 180, pixels)), null, 0, 33);
+        }
+        public void Dispose() => timer.Dispose();
     }
     internal static HashSet<string> Boxes(string path)
     {
@@ -72,3 +98,4 @@ internal static class VideoSmokeTests
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int Contiguous(nint self, out nint buffer);
     [DllImport("mfreadwrite.dll", CharSet = CharSet.Unicode)] private static extern int MFCreateSourceReaderFromURL(string path, nint attributes, out nint reader);
 }
+
