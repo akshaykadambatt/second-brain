@@ -30,6 +30,7 @@ ScopedKnowledgeTests.Run(Test, Assert, Folder);
 MeetingMemoryTests.Run(Test, Assert);
 RequestDetectionTests.Run(Test, Assert);
 QuietSuggestionTests.Run(Test, Assert);
+VideoAudioTests.Run(Test, Assert);
 
 Test("Continuing a completed answer retains identities and sequence protection", () =>
 {

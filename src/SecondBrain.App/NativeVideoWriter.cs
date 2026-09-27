@@ -8,9 +8,9 @@ internal sealed class NativeVideoWriter : IDisposable
 {
     internal static readonly Guid Major = new("48eba18e-f8c9-4687-bf11-0a74c9f96a8f"), Subtype = new("f7e34c9a-42e8-4714-b74b-cb29d72c35e5");
     internal static readonly Guid Video = new("73646976-0000-0010-8000-00aa00389b71"), Rgb32 = new("00000016-0000-0010-8000-00aa00389b71");
-    private nint writer; private bool mf, com, completed; private uint videoStream;
+    private nint writer; private bool mf, com, completed; private uint videoStream; private uint? audioStream;
     private readonly int bytes;
-    internal NativeVideoWriter(string path, int width, int height)
+    internal NativeVideoWriter(string path, int width, int height, bool audio = false)
     {
         if (width < 2 || height < 2 || width > 7680 || height > 4320 || width % 2 != 0 || height % 2 != 0) throw new ArgumentOutOfRangeException(nameof(width));
         if (File.Exists(path)) throw new IOException("A video already exists at this location.");
@@ -29,10 +29,47 @@ internal sealed class NativeVideoWriter : IDisposable
             input = VideoType(width, height, Rgb32);
             Set32(input, new("644b4e48-1e02-4516-b0eb-c01ca9d49ac6"), (uint)(width * 4));
             Hr(Method<InputType>(writer, 4)(writer, videoStream, input, 0));
+            if (audio)
+            {
+                nint audioOutput = 0, audioInput = 0;
+                try
+                {
+                    audioOutput = AudioType(true); Hr(Method<AddStream>(writer, 3)(writer, audioOutput, out var stream)); audioStream = stream;
+                    audioInput = AudioType(false); Hr(Method<InputType>(writer, 4)(writer, stream, audioInput, 0));
+                }
+                finally { Release(audioOutput); Release(audioInput); }
+            }
             Hr(Method<Simple>(writer, 5)(writer));
         }
         catch { Dispose(); throw; }
         finally { Release(input); Release(output); Release(attributes); }
+    }
+    private static nint AudioType(bool aac)
+    {
+        Hr(MFCreateMediaType(out var type));
+        try
+        {
+            SetGuid(type, Major, new("73647561-0000-0010-8000-00aa00389b71"));
+            SetGuid(type, Subtype, new(aac ? "00001610-0000-0010-8000-00aa00389b71" : "00000001-0000-0010-8000-00aa00389b71"));
+            Set32(type, new("37e48bf5-645e-4c5b-89de-ada9e29b696a"), 1);
+            Set32(type, new("5faeeae7-0290-4c31-9e8a-c534f68d9dba"), 48000);
+            Set32(type, new("f2deb57f-40fa-4764-aa33-ed4f2d1ff669"), 16);
+            Set32(type, new("1aab75c8-cfef-451c-ab95-ac034b8e1731"), aac ? 16000u : 96000u);
+            Set32(type, new("322de230-9eeb-43bd-ab7a-ff412251541d"), aac ? 1u : 2u);
+            if (aac)
+            {
+                Set32(type, new("bfbabe79-7434-4d1c-94f0-72a3b9e17188"), 0);
+                Set32(type, new("7632f0e6-9538-4d61-acda-ea29c8c14456"), 0x29);
+            }
+            return type;
+        }
+        catch { Release(type); throw; }
+    }
+    internal void WriteAudio(byte[] pcm, long startFrame)
+    {
+        if (audioStream is not { } stream || pcm.Length == 0 || pcm.Length % 2 != 0 || startFrame < 0 || completed || writer == 0) throw new InvalidOperationException("Invalid audio sample or writer state.");
+        var time = startFrame * 10_000_000 / 48000;
+        WriteSample(stream, pcm, time, (startFrame + pcm.Length / 2) * 10_000_000 / 48000 - time);
     }
     private static nint VideoType(int width, int height, Guid subtype)
     {

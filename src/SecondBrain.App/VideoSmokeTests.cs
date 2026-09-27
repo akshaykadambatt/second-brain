@@ -64,35 +64,38 @@ internal static class VideoSmokeTests
         }
         return boxes;
     }
-    internal static (int Count, long LastTime, byte[]? First) Decode(string path)
+    internal static (int Count, long LastTime, byte[]? First, long EndTime, byte[] Audio) Decode(string path, bool audio = false)
     {
         nint reader = 0, type = 0, attrs = 0; Hr(CoInitializeEx(0, 0)); Hr(MFStartup(0x20070, 0));
         try
         {
             Hr(MFCreateAttributes(out attrs, 1)); Set32(attrs, new("fb394f3d-ccf1-42ee-bbb3-f9b845d5681d"), 1);
-            Hr(MFCreateSourceReaderFromURL(path, attrs, out reader)); Hr(MFCreateMediaType(out type)); SetGuid(type, Major, Video); SetGuid(type, Subtype, Rgb32);
-            Hr(Method<ReaderType>(reader, 7)(reader, 0xfffffffc, 0, type));
-            var count = 0; long last = 0; byte[]? first = null;
+            Hr(MFCreateSourceReaderFromURL(path, attrs, out reader)); Hr(MFCreateMediaType(out type)); SetGuid(type, Major, audio ? new("73647561-0000-0010-8000-00aa00389b71") : Video); SetGuid(type, Subtype, audio ? new("00000001-0000-0010-8000-00aa00389b71") : Rgb32);
+            if (audio) { Set32(type, new("f2deb57f-40fa-4764-aa33-ed4f2d1ff669"), 16); Set32(type, new("5faeeae7-0290-4c31-9e8a-c534f68d9dba"), 48000); Set32(type, new("37e48bf5-645e-4c5b-89de-ada9e29b696a"), 1); }
+            var streamIndex = audio ? 0xfffffffd : 0xfffffffcu;
+            Hr(Method<ReaderType>(reader, 7)(reader, streamIndex, 0, type));
+            var count = 0; long last = 0, end = 0; byte[]? first = null; using var pcm = new MemoryStream();
             while (count < 10000)
             {
-                Hr(Method<ReadSample>(reader, 9)(reader, 0xfffffffc, 0, out _, out var flags, out var time, out var sample));
+                Hr(Method<ReadSample>(reader, 9)(reader, streamIndex, 0, out _, out var flags, out var time, out var sample));
                 try
                 {
                     if ((flags & 2) != 0) break;
-                    if (sample == 0) continue; count++; last = time;
-                    if (first is null)
+                    if (sample == 0) continue; count++; last = time; Hr(Method<Duration>(sample, 37)(sample, out var duration)); end = time + duration;
+                    if (first is null || audio)
                     {
                         Hr(Method<Contiguous>(sample, 41)(sample, out var buffer));
-                        try { Hr(Method<LockBuffer>(buffer, 3)(buffer, out var pointer, out _, out var length)); try { first = new byte[length]; Marshal.Copy(pointer, first, 0, (int)length); } finally { Hr(Method<Simple>(buffer, 4)(buffer)); } }
+                        try { Hr(Method<LockBuffer>(buffer, 3)(buffer, out var pointer, out _, out var length)); try { first = new byte[length]; Marshal.Copy(pointer, first, 0, (int)length); if (audio) pcm.Write(first); } finally { Hr(Method<Simple>(buffer, 4)(buffer)); } }
                         finally { Release(buffer); }
                     }
                 }
                 finally { Release(sample); }
             }
-            return (count, last, first);
+            return (count, last, first, end, pcm.ToArray());
         }
         finally { Release(type); Release(reader); Release(attrs); MFShutdown(); CoUninitialize(); }
     }
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int Duration(nint self, out long duration);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int ReaderType(nint self, uint index, nint reserved, nint type);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int ReadSample(nint self, uint index, uint control, out uint actual, out uint flags, out long time, out nint sample);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int Contiguous(nint self, out nint buffer);
