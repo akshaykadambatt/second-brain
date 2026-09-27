@@ -1,5 +1,5 @@
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="SecondBrain.App.MainWindow" Title="Second Brain" Style="{StaticResource ShellWindowStyle}" Width="1000" Height="790" MinWidth="620" MinHeight="480" WindowStartupLocation="CenterScreen">
-  <Grid Margin="20">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="SecondBrain.App.MainWindow" Title="Second Brain" Style="{StaticResource ShellWindowStyle}" Width="1280" Height="880" MinWidth="620" MinHeight="480" WindowStartupLocation="CenterScreen">
+  <Grid Margin="18">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
@@ -8,108 +8,177 @@
     </Grid.RowDefinitions>
     <DockPanel Margin="0,0,0,16">
       <Button x:Name="NavigationToggle" Content="Compact menu" Click="NavigationToggle_Click" DockPanel.Dock="Right" HorizontalAlignment="Right" Padding="10,4" Margin="12,0,0,0" />
-      <TextBlock Text="SECOND BRAIN" FontSize="18" FontWeight="Bold" />
-      <TextBlock Text="LIVE MEETING COMPANION" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right" />
+      <TextBlock Text="Second Brain" FontSize="21" FontWeight="SemiBold" />
+      <TextBlock Text="A little clarity for every conversation" Foreground="{StaticResource Muted}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" />
     </DockPanel>
     <ScrollViewer x:Name="WorkspaceScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-      <Grid x:Name="WorkspaceGrid" MinHeight="520" MinWidth="650" Width="{Binding ElementName=WorkspaceScroll, Path=ViewportWidth}" Height="{Binding ElementName=WorkspaceScroll, Path=ViewportHeight}">
-        <TabControl x:Name="WorkspaceTabs" TabStripPlacement="Left" SelectionChanged="Workspace_SelectionChanged">
-          <TabItem Header="Live" x:Name="LiveTab" MinWidth="112" ToolTip="Live" AutomationProperties.Name="Live">
+      <Grid x:Name="WorkspaceGrid" MinHeight="520" MinWidth="0" Width="{Binding ElementName=WorkspaceScroll, Path=ViewportWidth}" Height="{Binding ElementName=WorkspaceScroll, Path=ViewportHeight}">
+        <TabControl x:Name="WorkspaceTabs" TabStripPlacement="Left" SelectionChanged="Workspace_SelectionChanged" Style="{StaticResource NavigationShell}">
+          <TabItem Header="Live" x:Name="LiveTab" MinWidth="130" ToolTip="Live" AutomationProperties.Name="Live" Style="{StaticResource NavigationItem}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-              <StackPanel Margin="20">
-                <DockPanel Margin="0,0,0,16">
-                  <Border x:Name="SessionStateBadge" DockPanel.Dock="Right" HorizontalAlignment="Right" Background="{StaticResource Subtle}" BorderBrush="{StaticResource Ink}" BorderThickness="2" Padding="10,5" CornerRadius="2">
+              <StackPanel Margin="16,8,12,20">
+                <DockPanel Margin="0,0,0,8">
+                  <Border x:Name="SessionStateBadge" DockPanel.Dock="Right" HorizontalAlignment="Right" Background="{StaticResource Subtle}" BorderBrush="{StaticResource Ink}" BorderThickness="0" Padding="12,7" CornerRadius="12">
                     <TextBlock x:Name="SessionStateText" Text="READY" FontWeight="Bold" FontSize="11" AutomationProperties.Name="Session state" />
                   </Border>
-                  <TextBlock Text="Live" Style="{StaticResource PageTitle}" Margin="0" />
+                  <TextBlock Text="In the moment" Style="{StaticResource PageTitle}" Margin="0" />
                 </DockPanel>
-                <DockPanel Margin="0,0,0,8"><ComboBox x:Name="ClientPicker" DisplayMemberPath="DisplayName" SelectionChanged="ClientPicker_Changed" Width="210" DockPanel.Dock="Left" Margin="0,0,12,0" AutomationProperties.Name="Client profile"/><TextBlock x:Name="MeetingBriefSummary" Text="General meeting" VerticalAlignment="Center" TextWrapping="Wrap" MaxHeight="40" FontSize="12" Foreground="{StaticResource Muted}"/></DockPanel>
-<Expander x:Name="MeetingBriefExpander" Header="Meeting brief" Margin="0,0,0,12"><StackPanel x:Name="ContextEditor" Margin="0,10,0,0">
-<TextBlock Text="Client name (blank for a general meeting)"/><TextBox x:Name="ContextClient" MaxLength="120" TextChanged="ContextField_Changed" AutomationProperties.Name="Client name"/>
-<TextBlock Text="Project filter (optional; exact project name in your notes)" Margin="0,8,0,0"/><TextBox x:Name="ContextProject" MaxLength="120" TextChanged="ContextField_Changed" AutomationProperties.Name="Meeting project"/>
-<TextBlock Text="Goal for this meeting" Margin="0,8,0,0"/><TextBox x:Name="ContextGoal" MaxLength="2000" AcceptsReturn="True" TextWrapping="Wrap" Height="70" VerticalScrollBarVisibility="Auto" TextChanged="ContextField_Changed" AutomationProperties.Name="Meeting goal"/>
-<TextBlock Text="Expected participants · one name per line (up to 50)" Margin="0,8,0,0"/><TextBox x:Name="ContextParticipants" MaxLength="5050" AcceptsReturn="True" TextWrapping="Wrap" Height="65" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Expected participants"/>
-<TextBlock Text="Work vocabulary · one term per line (up to 100)" Margin="0,8,0,0"/><TextBox x:Name="ContextVocabulary" MaxLength="8100" AcceptsReturn="True" TextWrapping="Wrap" Height="65" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Work vocabulary"/>
-<WrapPanel Margin="0,10,0,8"><Button Content="Save brief" Click="SaveContext_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0"/><Button Content="New client" Click="NewContext_Click"/></WrapPanel>
-<TextBlock x:Name="ContextStatus" Text="Save a brief to reuse it. Starting a session saves the current brief and keeps that meeting’s copy fixed." TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}"/>
-</StackPanel></Expander><WrapPanel Margin="0,0,0,10">
+                <TextBlock Text="Listen, think clearly, and keep the conversation moving." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,20" />
+                <WrapPanel Margin="0,0,0,8">
                   <Button x:Name="ListenButton" Content="Start listening" Click="Listen_Click" Padding="20,12" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
                   <Button Content="Open reader" Click="OpenReader_Click" Padding="16,12" Margin="10,0,0,0" />
-                  <Button x:Name="RecordMeetingButton" Content="Record meeting…" Click="RecordMeeting_Click" Padding="16,12" Margin="10,0,0,0" />
                 </WrapPanel>
-                <DockPanel Margin="0,0,0,8">
-                  <Button Content="Audio settings" Click="AudioSettings_Click" DockPanel.Dock="Right" Padding="8,4" Margin="10,0,0,0" FontSize="12" />
-                  <TextBlock Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center">
-                    <TextBlock.Text>
-                      <MultiBinding StringFormat="Mic: {0} · Output: {1}">
-                        <Binding ElementName="MicrophonePicker" Path="SelectedItem.Name" TargetNullValue="Not selected" />
-                        <Binding ElementName="LiveOutputPicker" Path="SelectedItem.Name" TargetNullValue="Not selected" />
-                      </MultiBinding>
-                    </TextBlock.Text>
-                  </TextBlock>
-                </DockPanel>
-                <WrapPanel Margin="0,0,0,8"><Button x:Name="OpenVideoButton" Content="Open saved video" Click="OpenVideo_Click" IsEnabled="False" Margin="0,0,10,0"/><TextBlock x:Name="VideoStatus" Text="Display recording is optional." TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" FontSize="12"/></WrapPanel>
                 <TextBlock x:Name="CompanionStatus" Text="Ready when you are. Start listening to get answers during your meeting." TextWrapping="Wrap" Margin="0,0,0,12" />
-                <Border Style="{StaticResource CardSurface}" Padding="16">
-                  <StackPanel>
-                    <TextBlock x:Name="CurrentQuestion" Text="Your next answer" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" FontSize="18" />
-                    <TextBox x:Name="LiveAnswer" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="150" MaxHeight="240" FontSize="20" BorderThickness="0" Padding="0" Text="Answers will appear here and in your reader when a question comes through." AutomationProperties.Name="Current answer" />
+                <Grid SizeChanged="LiveLayout_SizeChanged" x:Name="LiveLayout">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="300" />
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <StackPanel Margin="0,0,18,0" x:Name="AnswerWorkspace">
+                    <Border Style="{StaticResource CardSurface}" Padding="24">
+                      <StackPanel>
+                        <TextBlock Text="YOUR ANSWER" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Muted}" Margin="0,0,0,14" />
+                        <TextBlock x:Name="CurrentQuestion" Text="Your next answer" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" FontSize="18" />
+                        <TextBox x:Name="LiveAnswer" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="150" MaxHeight="280" FontSize="22" BorderThickness="0" Padding="0" Text="A clear answer will appear here when a question comes through.&#10;&#10;Open your reader to follow along at your own pace." AutomationProperties.Name="Current answer" />
+                        <WrapPanel x:Name="RefinementButtons" Margin="0,18,0,0">
+                          <Button Content="Shorter" Tag="Shorter" Click="Refine_Click" Margin="0,0,6,4" Padding="12,7" FontSize="12" />
+                          <Button Content="Explain" Tag="Explain" Click="Refine_Click" Margin="0,0,6,4" Padding="12,7" FontSize="12" />
+                          <Button Content="Example" Tag="Example" Click="Refine_Click" Margin="0,0,6,4" Padding="12,7" FontSize="12" />
+                        </WrapPanel>
+                        <TextBlock x:Name="RefinementStatus" TextWrapping="Wrap" FontSize="11" />
+                        <WrapPanel Margin="0,10,0,10">
+                          <Button Content="Previous answer" Click="CompanionPrevious_Click" Padding="8,6" Margin="0,0,6,5" />
+                          <Button Content="Next answer" Click="CompanionNext_Click" Padding="8,6" Margin="0,0,6,5" />
+                          <Button Content="Resume following" Click="ResumeFollowing_Click" Padding="8,6" Margin="0,0,6,5" />
+                        </WrapPanel>
+                        <Expander Header="More answer tools" IsExpanded="False" Margin="0,12,0,0" x:Name="AnswerTools">
+                          <StackPanel Margin="0,14,0,0">
+                            <WrapPanel>
+                              <Button x:Name="OriginalAnswerButton" Content="Original answer" Click="OriginalAnswer_Click" IsEnabled="False" Margin="0,0,6,4" Padding="12,7" FontSize="12" />
+                              <Button Content="Save client talk track…" Click="SaveTalkTrack_Click" Margin="0,0,6,4" Padding="12,7" FontSize="12" />
+                            </WrapPanel>
+                          </StackPanel>
+                        </Expander>
+                      </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardSurface}" Margin="0,14,0,0" Background="{StaticResource Lavender}" Padding="20">
+                      <StackPanel>
+                        <TextBlock Text="Ask a question" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10" />
+                        <DockPanel Margin="0,0,0,8">
+                          <Button x:Name="LiveAsk" Content="Ask" DockPanel.Dock="Right" Click="LiveAsk_Click" Padding="12,6" Margin="8,0,0,0" />
+                          <TextBox x:Name="LiveQuestion" MaxLength="2000" ToolTip="Optional typed question while listening" AutomationProperties.Name="Ask about this meeting" KeyDown="LiveQuestion_KeyDown" />
+                        </DockPanel>
+                      </StackPanel>
+                    </Border>
+                    <Border x:Name="SuggestionCard" Visibility="Collapsed" Style="{StaticResource CardSurface}" Background="{StaticResource Mint}" Padding="20" Margin="0,0,0,8">
+                      <StackPanel>
+                        <TextBlock x:Name="SuggestionText" TextWrapping="Wrap" />
+                        <TextBlock x:Name="SuggestionSource" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,5,0,4" />
+                        <Button Content="Dismiss suggestion" Click="SuggestionDismiss_Click" HorizontalAlignment="Left" />
+                      </StackPanel>
+                    </Border>
+                    <Expander Header="Evidence for this answer" Margin="0,4,0,0" x:Name="LiveEvidence" IsExpanded="False">
+                      <StackPanel>
+                        <TextBlock x:Name="SourceStatus" Text="Relevant vault passages will appear here, separate from the spoken answer." TextWrapping="Wrap" FontSize="11" />
+                        <ListBox x:Name="LiveSources" MaxHeight="200" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                        <Button Content="Open selected source in Obsidian" Click="SourceOpen_Click" HorizontalAlignment="Left" Padding="8,5" />
+                      </StackPanel>
+                    </Expander>
+                    <Expander x:Name="LiveDetails" Header="Live transcript &amp; capture details" Margin="0,10,0,0" IsExpanded="False">
+                      <StackPanel Margin="0,8,0,0">
+                        <TextBlock x:Name="CaptureStatus" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
+                        <TextBlock x:Name="LiveMic" Text="Microphone · waiting" TextWrapping="Wrap" MaxHeight="65" Margin="0,0,0,6" />
+                        <TextBlock x:Name="LiveSystem" Text="Computer audio · waiting" TextWrapping="Wrap" MaxHeight="65" Margin="0,0,0,10" />
+                        <TextBlock Text="Listening records both sources locally and sends audio to Deepgram. Questions and selected context are sent to OpenAI." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" />
+                      </StackPanel>
+                    </Expander>
+                    <Expander x:Name="MeetingMemoryDetails" Header="Earlier meeting context" Margin="0,10,0,0" IsExpanded="False">
+                      <TextBox x:Name="MeetingMemoryText" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="220" VerticalScrollBarVisibility="Auto" />
+                    </Expander>
+                    <Expander x:Name="LatencyDetails" Header="Answer timing" Margin="0,10,0,0" IsExpanded="False">
+                      <StackPanel Margin="0,8,0,0">
+                        <TextBlock x:Name="TimingSummary" Text="No answer timings yet." TextWrapping="Wrap" />
+                        <TextBlock Text="Cold/warm groups mean first/later requests in this session; provider cache state is unknown. Speech end uses the last timed word. Readable means text ready, not measured screen presentation. Typed questions have no speech timing." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,0" />
+                        <Button x:Name="ExportTiming" Content="Export timing report…" Click="ExportTiming_Click" IsEnabled="False" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                        <TextBlock x:Name="TimingMessage" Text="Timings are saved with the meeting when listening stops." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,6,0,0" />
+                      </StackPanel>
+                    </Expander>
                   </StackPanel>
-                </Border>
-                <WrapPanel x:Name="RefinementButtons" Margin="0,8,0,0">
-                  <Button Content="Shorter" Tag="Shorter" Click="Refine_Click" Margin="0,0,6,4" />
-                  <Button Content="Explain" Tag="Explain" Click="Refine_Click" Margin="0,0,6,4" />
-                  <Button Content="Example" Tag="Example" Click="Refine_Click" Margin="0,0,6,4" />
-                  <Button x:Name="OriginalAnswerButton" Content="Original answer" Click="OriginalAnswer_Click" IsEnabled="False" Margin="0,0,6,4" />
-                  <Button Content="Save client talk track…" Click="SaveTalkTrack_Click" Margin="0,0,6,4" />
-                </WrapPanel>
-                <TextBlock x:Name="RefinementStatus" TextWrapping="Wrap" FontSize="11" />
-                <WrapPanel Margin="0,10,0,10">
-                  <Button Content="Previous answer" Click="CompanionPrevious_Click" Padding="8,6" Margin="0,0,6,5" />
-                  <Button Content="Next answer" Click="CompanionNext_Click" Padding="8,6" Margin="0,0,6,5" />
-                  <Button Content="Resume following" Click="ResumeFollowing_Click" Padding="8,6" Margin="0,0,6,5" />
-                </WrapPanel>
-                <DockPanel Margin="0,0,0,8">
-                  <CheckBox x:Name="FlowCheck" Content="Keep this answer flowing as I read" IsChecked="True" Click="FlowCheck_Click" ToolTip="Appends grounded detail as you approach the end by voice, timed following or forward taps. Tapping or scrolling moves active voice following to your chosen position. Explicitly paused readers stay paused. Older answers do not generate more text." />
-                </DockPanel>
-                <DockPanel Margin="0,0,0,8">
-                  <Button x:Name="LiveAsk" Content="Ask" DockPanel.Dock="Right" Click="LiveAsk_Click" Padding="12,6" />
-                  <TextBox x:Name="LiveQuestion" MaxLength="2000" ToolTip="Optional typed question while listening" AutomationProperties.Name="Ask about this meeting" />
-                </DockPanel>
-                <CheckBox x:Name="SuggestionCheck" Content="Quiet suggestions" Click="SuggestionCheck_Click" ToolTip="Optional source reminders and follow-up prompts. One at a time, at least 30 seconds apart; never changes your reader." Margin="0,4,0,6" />
-                <Border x:Name="SuggestionCard" Visibility="Collapsed" BorderBrush="{StaticResource Ink}" BorderThickness="2" Padding="10" Margin="0,0,0,8">
-                  <StackPanel><TextBlock x:Name="SuggestionText" TextWrapping="Wrap" /><TextBlock x:Name="SuggestionSource" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,5,0,4" /><Button Content="Dismiss suggestion" Click="SuggestionDismiss_Click" HorizontalAlignment="Left" /></StackPanel>
-                </Border>
-                <Expander Header="Evidence for this answer" Margin="0,4,0,0" x:Name="LiveEvidence" IsExpanded="False">
-                  <StackPanel>
-                    <TextBlock x:Name="SourceStatus" Text="Relevant vault passages will appear here, separate from the spoken answer." TextWrapping="Wrap" FontSize="11" />
-                    <ListBox x:Name="LiveSources" MaxHeight="200" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-                    <Button Content="Open selected source in Obsidian" Click="SourceOpen_Click" HorizontalAlignment="Left" Padding="8,5" />
+                  <StackPanel x:Name="SessionWorkspace" Grid.Column="1">
+                    <Border Style="{StaticResource CardSurface}" Background="{StaticResource Mint}" Padding="20">
+                      <StackPanel>
+                        <TextBlock Text="Meeting context" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="CLIENT" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Muted}" Margin="0,0,0,8" />
+                        <ComboBox x:Name="ClientPicker" DisplayMemberPath="DisplayName" SelectionChanged="ClientPicker_Changed" Margin="0,0,0,10" AutomationProperties.Name="Client profile" />
+                        <TextBlock x:Name="MeetingBriefSummary" Text="General meeting" VerticalAlignment="Center" TextWrapping="Wrap" MaxHeight="80" FontSize="12" Foreground="{StaticResource Muted}" />
+                        <Expander x:Name="MeetingBriefExpander" Header="Meeting brief" Margin="0,0,0,12">
+                          <StackPanel x:Name="ContextEditor" Margin="0,10,0,0">
+                            <TextBlock Text="Client name (blank for a general meeting)" />
+                            <TextBox x:Name="ContextClient" MaxLength="120" TextChanged="ContextField_Changed" AutomationProperties.Name="Client name" />
+                            <TextBlock Text="Project filter (optional; exact project name in your notes)" Margin="0,8,0,0" />
+                            <TextBox x:Name="ContextProject" MaxLength="120" TextChanged="ContextField_Changed" AutomationProperties.Name="Meeting project" />
+                            <TextBlock Text="Goal for this meeting" Margin="0,8,0,0" />
+                            <TextBox x:Name="ContextGoal" MaxLength="2000" AcceptsReturn="True" TextWrapping="Wrap" Height="70" VerticalScrollBarVisibility="Auto" TextChanged="ContextField_Changed" AutomationProperties.Name="Meeting goal" />
+                            <TextBlock Text="Expected participants · one name per line (up to 50)" Margin="0,8,0,0" />
+                            <TextBox x:Name="ContextParticipants" MaxLength="5050" AcceptsReturn="True" TextWrapping="Wrap" Height="65" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Expected participants" />
+                            <TextBlock Text="Work vocabulary · one term per line (up to 100)" Margin="0,8,0,0" />
+                            <TextBox x:Name="ContextVocabulary" MaxLength="8100" AcceptsReturn="True" TextWrapping="Wrap" Height="65" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Work vocabulary" />
+                            <WrapPanel Margin="0,10,0,8">
+                              <Button Content="Save brief" Click="SaveContext_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0" />
+                              <Button Content="New client" Click="NewContext_Click" />
+                            </WrapPanel>
+                            <TextBlock x:Name="ContextStatus" Text="Save a brief to reuse it. Starting a session saves the current brief and keeps that meeting’s copy fixed." TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}" />
+                          </StackPanel>
+                        </Expander>
+                      </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardSurface}" Margin="0,14,0,0" Padding="20">
+                      <StackPanel>
+                        <TextBlock Text="Your reader" Style="{StaticResource SectionTitle}" />
+                        <DockPanel Margin="0,0,0,8">
+                          <CheckBox x:Name="FlowCheck" IsChecked="True" Click="FlowCheck_Click" ToolTip="Appends grounded detail as you approach the end by voice, timed following or forward taps. Tapping or scrolling moves active voice following to your chosen position. Explicitly paused readers stay paused. Older answers do not generate more text.">
+                            <TextBlock Text="Keep this answer flowing" TextWrapping="Wrap" />
+                          </CheckBox>
+                        </DockPanel>
+                        <CheckBox x:Name="SuggestionCheck" Content="Quiet suggestions" Click="SuggestionCheck_Click" ToolTip="Optional source reminders and follow-up prompts. One at a time, at least 30 seconds apart; never changes your reader." Margin="0,12,0,0" />
+                        <TextBlock Text="Voice, taps and timed reading can move you through the answer." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,12,0,0" />
+                      </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardSurface}" Margin="0,14,0,0" Padding="20">
+                      <StackPanel>
+                        <TextBlock Text="Capture" Style="{StaticResource SectionTitle}" />
+                        <Button x:Name="RecordMeetingButton" Content="Record display…" Click="RecordMeeting_Click" Padding="14,10" Margin="0,0,0,10" />
+                        <Expander Header="Audio &amp; saved video" IsExpanded="False" Margin="0,12,0,0" x:Name="CaptureOptions">
+                          <StackPanel Margin="0,14,0,0">
+                            <StackPanel Margin="0,0,0,8">
+                              <Button Content="Audio settings" Click="AudioSettings_Click" Padding="8,4" Margin="0,0,0,8" FontSize="12" HorizontalAlignment="Left" />
+                              <TextBlock Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center">
+                                <TextBlock.Text>
+                                  <MultiBinding StringFormat="Mic: {0} · Output: {1}">
+                                    <Binding ElementName="MicrophonePicker" Path="SelectedItem.Name" TargetNullValue="Not selected" />
+                                    <Binding ElementName="LiveOutputPicker" Path="SelectedItem.Name" TargetNullValue="Not selected" />
+                                  </MultiBinding>
+                                </TextBlock.Text>
+                              </TextBlock>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,0,8">
+                              <Button x:Name="OpenVideoButton" Content="Open saved video" Click="OpenVideo_Click" IsEnabled="False" Margin="0,0,10,0" />
+                              <TextBlock x:Name="VideoStatus" Text="Display recording is optional." TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" FontSize="12" />
+                            </StackPanel>
+                          </StackPanel>
+                        </Expander>
+                      </StackPanel>
+                    </Border>
                   </StackPanel>
-                </Expander>
-                <Expander x:Name="MeetingMemoryDetails" Header="Earlier meeting context" Margin="0,10,0,0" IsExpanded="False">
-                  <TextBox x:Name="MeetingMemoryText" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="220" VerticalScrollBarVisibility="Auto" />
-                </Expander>
-                <Expander x:Name="LatencyDetails" Header="Answer timing" Margin="0,10,0,0" IsExpanded="False">
-                  <StackPanel Margin="0,8,0,0">
-                    <TextBlock x:Name="TimingSummary" Text="No answer timings yet." TextWrapping="Wrap" />
-                    <TextBlock Text="Cold/warm groups mean first/later requests in this session; provider cache state is unknown. Speech end uses the last timed word. Readable means text ready, not measured screen presentation. Typed questions have no speech timing." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,0" />
-                    <Button x:Name="ExportTiming" Content="Export timing report…" Click="ExportTiming_Click" IsEnabled="False" HorizontalAlignment="Left" Margin="0,8,0,0" />
-                    <TextBlock x:Name="TimingMessage" Text="Timings are saved with the meeting when listening stops." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,6,0,0" />
-                  </StackPanel>
-                </Expander>
-                <Expander x:Name="LiveDetails" Header="Live transcript &amp; capture details" Margin="0,10,0,0" IsExpanded="False">
-                  <StackPanel Margin="0,8,0,0">
-                    <TextBlock x:Name="CaptureStatus" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
-                    <TextBlock x:Name="LiveMic" Text="Microphone · waiting" TextWrapping="Wrap" MaxHeight="65" Margin="0,0,0,6" />
-                    <TextBlock x:Name="LiveSystem" Text="Computer audio · waiting" TextWrapping="Wrap" MaxHeight="65" Margin="0,0,0,10" />
-                    <TextBlock Text="Listening records both sources locally and sends audio to Deepgram. Questions and selected context are sent to OpenAI." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" />
-                  </StackPanel>
-                </Expander>
+                </Grid>
               </StackPanel>
             </ScrollViewer>
           </TabItem>
-          <TabItem x:Name="MeetingsTab" MinWidth="112" ToolTip="Meetings" AutomationProperties.Name="Meetings" Header="Meetings">
+          <TabItem x:Name="MeetingsTab" MinWidth="130" ToolTip="Meetings" AutomationProperties.Name="Meetings" Header="Meetings" Style="{StaticResource NavigationItem}">
             <TabControl>
               <TabItem Header="Recordings">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -118,9 +187,15 @@
                     <TextBlock Text="Audio and transcripts from your sessions, kept on this computer." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,16" />
                     <Button Content="Refresh meetings" Click="MeetingsRefresh_Click" HorizontalAlignment="Left" />
                     <TextBlock x:Name="MeetingListStatus" Text="Open Meetings to load saved sessions." TextWrapping="Wrap" Margin="0,12,0,8" />
-                    <ListBox x:Name="MeetingList" MinHeight="220" MaxHeight="380" DisplayMemberPath="Label" AutomationProperties.Name="Saved meetings" />
-                    <Button Content="Open selected meeting folder" Click="MeetingFolder_Click" HorizontalAlignment="Left" Margin="0,12,0,0" />
-                    <Button Content="View selected transcript" Click="MeetingTranscript_Click" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                    <ListBox x:Name="MeetingList" MinHeight="220" MaxHeight="380" AutomationProperties.Name="Saved meetings" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Button Content="Open meeting files" Click="MeetingFolder_Click" HorizontalAlignment="Left" Margin="0,12,0,0" />
+                    <Button Content="Review transcript" Click="MeetingTranscript_Click" HorizontalAlignment="Left" Margin="0,8,0,0" Style="{StaticResource PrimaryButton}" />
                     <TextBlock Text="Your audio tracks and transcript are inside each meeting folder." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,12,0,0" />
                   </StackPanel>
                 </ScrollViewer>
@@ -154,17 +229,31 @@
               </TabItem>
             </TabControl>
           </TabItem>
-          <TabItem Header="Knowledge" x:Name="KnowledgeTab" MinWidth="112" ToolTip="Knowledge" AutomationProperties.Name="Knowledge">
+          <TabItem Header="Knowledge" x:Name="KnowledgeTab" MinWidth="130" ToolTip="Knowledge" AutomationProperties.Name="Knowledge" Style="{StaticResource NavigationItem}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-              <StackPanel Margin="18">
-                <TextBlock Text="Your Markdown vault" FontSize="22" FontWeight="SemiBold" />
-                <TextBlock Text="The companion and Obsidian use this same folder. Notes remain beside the app by default; links become edges in Obsidian’s graph." TextWrapping="Wrap" Margin="0,8,0,12" />
-                <TextBlock Text="Client scope for imports and knowledge answers" Margin="0,0,0,4" />
-                <ComboBox x:Name="KnowledgeClient" DisplayMemberPath="DisplayName" SelectionChanged="KnowledgeClient_Changed" Margin="0,0,0,8" />
-                <Button Content="Assign an existing vault note to this client…" Click="AssignSource_Click" HorizontalAlignment="Left" Margin="0,0,0,8" />
-                <TextBlock Text="General contains unassigned notes. Client meetings use only assigned client material. Assign older notes explicitly; project names alone do not grant access." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
-                <Button Content="Clients, people, projects and facts…" Click="ClientKnowledge_Click" HorizontalAlignment="Left" Margin="0,0,0,12" />
-                <Expander Header="Import documents" IsExpanded="True" Margin="0,0,0,12">
+              <StackPanel Margin="20,8,12,20">
+                <TextBlock Text="Your knowledge" Style="{StaticResource PageTitle}" />
+                <TextBlock Text="Find the detail you need. Keep every answer connected to its source." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,20" />
+                <Border Style="{StaticResource CardSurface}">
+                  <StackPanel>
+                    <TextBlock Text="Search within this client" Margin="0,0,0,4" />
+                    <ComboBox x:Name="KnowledgeClient" DisplayMemberPath="DisplayName" SelectionChanged="KnowledgeClient_Changed" Margin="0,4,0,14" />
+                    <DockPanel>
+                      <Button x:Name="VaultSearch" Content="Search" Click="VaultSearch_Click" DockPanel.Dock="Right" Padding="10,6" Margin="8,0,0,0" />
+                      <TextBox x:Name="VaultQuery" MaxLength="2000" ToolTip="Search notes and previous meetings" KeyDown="VaultQuery_KeyDown" AutomationProperties.Name="Search client knowledge" />
+                    </DockPanel>
+                    <Button Content="Ask my knowledge" Click="KnowledgeAnswer_Click" HorizontalAlignment="Left" Margin="0,8,0,6" Style="{StaticResource PrimaryButton}" />
+                    <TextBox x:Name="KnowledgeAnswer" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="260" VerticalScrollBarVisibility="Auto" MinHeight="50" />
+                    <TextBlock x:Name="VaultSearchStatus" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,6" />
+                    <ListBox x:Name="VaultResults" Height="180" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                    <Button Content="Open selected note in Obsidian" Click="VaultOpenResult_Click" Padding="8,6" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                  </StackPanel>
+                </Border>
+                <WrapPanel Margin="0,18,0,0">
+                  <Button Content="Manage clients &amp; facts…" Click="ClientKnowledge_Click" HorizontalAlignment="Left" Margin="0,0,10,6" />
+                  <Button Content="Assign an existing note…" Click="AssignSource_Click" HorizontalAlignment="Left" Margin="0,0,10,6" />
+                </WrapPanel>
+                <Expander Header="Import documents" IsExpanded="False" Margin="0,12,0,0" x:Name="DocumentImportsPanel">
                   <StackPanel Margin="0,8,0,0">
                     <TextBlock Text="Bring Markdown, text, PDFs, Word documents and PowerPoint presentations into your knowledge. Originals are preserved; changed files become separate versions." TextWrapping="Wrap" />
                     <TextBlock Text="Project for these imports (optional)" Margin="0,8,0,4" />
@@ -177,7 +266,11 @@
                     <TextBlock Text="Text: 2 MB · Office: 20 MB; PDF: 20 MB / 250 pages · 500,000 characters · 20 files per batch. Scanned PDFs need OCR first." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,4" />
                     <TextBlock x:Name="DocumentImportStatus" Text="Choose files or browse your saved imports. Text files use UTF-8 or BOM-marked UTF-16." TextWrapping="Wrap" FontSize="11" />
                     <ListBox x:Name="DocumentImportResults" Height="120" Margin="0,6,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                      <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ListBox.ItemTemplate>
+                      <ListBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
                     </ListBox>
                     <WrapPanel Margin="0,6,0,0">
                       <Button Content="Open preserved original" Click="DocumentOriginal_Click" Margin="0,0,6,0" />
@@ -186,51 +279,49 @@
                     </WrapPanel>
                   </StackPanel>
                 </Expander>
-                <TextBox x:Name="VaultFolder" ToolTip="Vault folder" />
-                <WrapPanel Margin="0,8,0,8">
-                  <Button x:Name="VaultChoose" Content="Choose folder…" Click="VaultChoose_Click" Padding="8,6" Margin="0,0,6,6" />
-                  <Button Content="Open folder" Click="VaultExplorer_Click" Padding="8,6" Margin="0,0,6,6" />
-                  <Button Content="Open in Obsidian" Click="VaultObsidian_Click" Padding="8,6" Margin="0,0,6,6" />
-                </WrapPanel>
-                <CheckBox x:Name="SemanticCheck">
-                  <TextBlock Text="Semantic search: sends Markdown passages to OpenAI for embeddings (API usage)" TextWrapping="Wrap" />
-                </CheckBox>
-                <CheckBox x:Name="AutoUpdates" Margin="0,8,0,0">
-                  <TextBlock Text="Automatically update notes after meetings (OpenAI API use; local history and undo)" TextWrapping="Wrap" />
-                </CheckBox>
-                <TextBlock Text="Project filter (exact project: frontmatter value; blank means all)" TextWrapping="Wrap" Margin="0,12,0,4" />
-                <TextBox x:Name="VaultProject" MaxLength="120" />
-                <TextBlock Text="Date range · 27-September-2026 (blank means unrestricted)" Margin="0,8,0,4" />
-                <UniformGrid Columns="2">
-                  <TextBox x:Name="VaultFrom" ToolTip="From date" Margin="0,0,6,0" />
-                  <TextBox x:Name="VaultUntil" ToolTip="Until date" />
-                </UniformGrid>
-                <WrapPanel Margin="0,8,0,10">
-                  <Button x:Name="VaultApply" Content="Apply vault and filters" Click="VaultApply_Click" Padding="8,6" Margin="0,0,6,6" />
-                  <Button Content="Rebuild index" Click="VaultRebuild_Click" Padding="8,6" Margin="0,0,6,6" />
-                  <Button x:Name="VaultImport" Content="Import saved meetings" Click="VaultImport_Click" Padding="8,6" Margin="0,0,6,6" />
-                </WrapPanel>
-                <TextBlock Text="New sessions export transcripts and linked excerpt summaries when stopped. Import saved meetings brings earlier sessions into this vault without changing original recordings." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
-                <TextBlock x:Name="VaultStatus" TextWrapping="Wrap" Margin="0,0,0,12" />
-
-                <DockPanel>
-                  <Button x:Name="VaultSearch" Content="Search" Click="VaultSearch_Click" DockPanel.Dock="Right" Padding="10,6" />
-                  <TextBox x:Name="VaultQuery" MaxLength="2000" ToolTip="Search notes and previous meetings" />
-                </DockPanel>
-                <Button Content="Answer from this client’s sources" Click="KnowledgeAnswer_Click" HorizontalAlignment="Left" Margin="0,8,0,6" />
-                <TextBox x:Name="KnowledgeAnswer" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="260" VerticalScrollBarVisibility="Auto" />
-                <TextBlock x:Name="VaultSearchStatus" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,6" />
-                <ListBox x:Name="VaultResults" Height="200" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-                <Button Content="Open selected note in Obsidian" Click="VaultOpenResult_Click" Padding="8,6" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                <Expander Header="Vault settings &amp; search filters" IsExpanded="False" Margin="0,12,0,0" x:Name="VaultSettingsPanel">
+                  <StackPanel Margin="0,14,0,0">
+                    <TextBox x:Name="VaultFolder" ToolTip="Vault folder" />
+                    <WrapPanel Margin="0,8,0,8">
+                      <Button x:Name="VaultChoose" Content="Choose folder…" Click="VaultChoose_Click" Padding="8,6" Margin="0,0,6,6" />
+                      <Button Content="Open folder" Click="VaultExplorer_Click" Padding="8,6" Margin="0,0,6,6" />
+                      <Button Content="Open in Obsidian" Click="VaultObsidian_Click" Padding="8,6" Margin="0,0,6,6" />
+                    </WrapPanel>
+                    <CheckBox x:Name="SemanticCheck">
+                      <TextBlock Text="Semantic search: sends Markdown passages to OpenAI for embeddings (API usage)" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox x:Name="AutoUpdates" Margin="0,8,0,0">
+                      <TextBlock Text="Automatically update notes after meetings (OpenAI API use; local history and undo)" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="Project filter (exact project: frontmatter value; blank means all)" TextWrapping="Wrap" Margin="0,12,0,4" />
+                    <TextBox x:Name="VaultProject" MaxLength="120" />
+                    <TextBlock Text="Date range · 27-September-2026 (blank means unrestricted)" Margin="0,8,0,4" />
+                    <UniformGrid Columns="2">
+                      <TextBox x:Name="VaultFrom" ToolTip="From date" Margin="0,0,6,0" />
+                      <TextBox x:Name="VaultUntil" ToolTip="Until date" />
+                    </UniformGrid>
+                    <WrapPanel Margin="0,8,0,10">
+                      <Button x:Name="VaultApply" Content="Apply vault and filters" Click="VaultApply_Click" Padding="8,6" Margin="0,0,6,6" />
+                      <Button Content="Rebuild index" Click="VaultRebuild_Click" Padding="8,6" Margin="0,0,6,6" />
+                      <Button x:Name="VaultImport" Content="Import saved meetings" Click="VaultImport_Click" Padding="8,6" Margin="0,0,6,6" />
+                    </WrapPanel>
+                    <TextBlock Text="New sessions export transcripts and linked excerpt summaries when stopped. Import saved meetings brings earlier sessions into this vault without changing original recordings." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
+                    <TextBlock x:Name="VaultStatus" TextWrapping="Wrap" Margin="0,0,0,12" />
+                    <TextBlock Text="The companion and Obsidian use this same folder. Notes remain beside the app by default; links become edges in Obsidian’s graph." TextWrapping="Wrap" Margin="0,8,0,12" />
+                    <TextBlock Text="General contains unassigned notes. Client meetings use only assigned client material. Assign older notes explicitly; project names alone do not grant access." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" />
+                  </StackPanel>
+                </Expander>
               </StackPanel>
             </ScrollViewer>
           </TabItem>
-          <TabItem x:Name="SettingsTab" MinWidth="112" ToolTip="Settings" AutomationProperties.Name="Settings" Header="Settings">
+          <TabItem x:Name="SettingsTab" MinWidth="130" ToolTip="Settings" AutomationProperties.Name="Settings" Header="Settings" Style="{StaticResource NavigationItem}">
             <TabControl x:Name="SettingsTabs">
-              <TabItem x:Name="DevicesTab" Header="Audio &amp; reader">
+              <TabItem x:Name="DevicesTab" Header="Audio">
                 <Border Style="{StaticResource CardSurface}" Padding="20" MaxWidth="780" HorizontalAlignment="Stretch">
                   <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
+                      <TextBlock Text="Audio setup" Style="{StaticResource PageTitle}" />
+                      <TextBlock Text="Choose once. Start listening from Live." Foreground="{StaticResource Muted}" Margin="0,0,0,24" />
                       <DockPanel Margin="0,0,0,6">
                         <Button x:Name="RefreshMicrophonesButton" DockPanel.Dock="Right" Content="Refresh" Click="RefreshMicrophones_Click" Padding="8,4" />
                         <TextBlock Text="Microphone" FontSize="12" VerticalAlignment="Center" />
@@ -241,24 +332,39 @@
                       <TextBlock Text="Meeting computer-audio output" FontSize="12" />
                       <ComboBox x:Name="LiveOutputPicker" DisplayMemberPath="Name" Padding="5" Margin="0,6,0,8" />
                       <TextBlock Text="Choose the headphones or speakers your meeting plays through." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,18" Foreground="{StaticResource Muted}" />
-                      <StackPanel x:Name="SpeakerSettingsPanel" Margin="0,0,0,18">
-                        <TextBlock Text="Audio speaker labels" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
-                        <CheckBox x:Name="SpeakerSeparation" Content="Separate speakers in computer audio" IsChecked="True" />
-                        <TextBlock Text="Your microphone participant name (optional)" Margin="0,10,0,5" />
-                        <TextBox x:Name="LocalParticipantName" MaxLength="100" AutomationProperties.Name="Microphone participant name" />
-                        <TextBlock Text="Audio labels use no screen capture or voiceprints. Unknown stays unassigned; remote speaker numbers are provisional and do not identify people." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,8" />
-                        <Button Content="Save speaker settings" Click="SpeakerSave_Click" HorizontalAlignment="Left" />
-                        <TextBlock x:Name="SpeakerSettingsStatus" Text="Applies to the next session. Meeting vocabulary is also sent as transcription hints within provider limits." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,6,0,0" />
-                      </StackPanel>
-                      <StackPanel Margin="0,0,0,18">
-                        <TextBlock Text="Optional meeting window" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
-                        <CheckBox x:Name="VisualHintsCheck" Content="Enable local window capture for name hints" Click="VisualEnable_Click" />
-                        <TextBlock x:Name="VisualWindowLabel" Text="No window selected" TextWrapping="Wrap" Margin="0,8,0,8" />
-                        <WrapPanel><Button Content="Choose meeting window…" Click="VisualChoose_Click" Margin="0,0,8,0" /><Button Content="Clear" Click="VisualClear_Click" /></WrapPanel>
-                        <TextBlock x:Name="VisualCaptureStatus" Text="Off · listening uses system audio and microphone." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,0" />
-                        <TextBlock x:Name="TeamsHintsStatus" Text="Experimental Chrome Teams / Meet names · add exact participant names in the meeting brief. English speaking labels only; unqualified layouts stay unnamed." TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0" />
-                        <TextBlock Text="Only the selected window is captured while listening. Frames stay in memory. Selection and permission reset when the app exits. Speaker naming requires a supported layout." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,0" />
-                      </StackPanel>
+                      <Expander Header="Speaker labels &amp; your name" Margin="0,18,0,0">
+                        <StackPanel x:Name="SpeakerSettingsPanel" Margin="0,14,0,0">
+                          <TextBlock Text="Audio speaker labels" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+                          <CheckBox x:Name="SpeakerSeparation" Content="Separate speakers in computer audio" IsChecked="True" />
+                          <TextBlock Text="Your microphone participant name (optional)" Margin="0,10,0,5" />
+                          <TextBox x:Name="LocalParticipantName" MaxLength="100" AutomationProperties.Name="Microphone participant name" />
+                          <TextBlock Text="Audio labels use no screen capture or voiceprints. Unknown stays unassigned; remote speaker numbers are provisional and do not identify people." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,8" />
+                          <Button Content="Save speaker settings" Click="SpeakerSave_Click" HorizontalAlignment="Left" />
+                          <TextBlock x:Name="SpeakerSettingsStatus" Text="Applies to the next session. Meeting vocabulary is also sent as transcription hints within provider limits." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,6,0,0" />
+                        </StackPanel>
+                      </Expander>
+                      <Expander Header="Optional speaker-name hints" Margin="0,18,0,0">
+                        <StackPanel Margin="0,14,0,0">
+                          <TextBlock Text="Optional meeting window" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+                          <CheckBox x:Name="VisualHintsCheck" Content="Enable local window capture for name hints" Click="VisualEnable_Click" />
+                          <TextBlock x:Name="VisualWindowLabel" Text="No window selected" TextWrapping="Wrap" Margin="0,8,0,8" />
+                          <WrapPanel>
+                            <Button Content="Choose meeting window…" Click="VisualChoose_Click" Margin="0,0,8,0" />
+                            <Button Content="Clear" Click="VisualClear_Click" />
+                          </WrapPanel>
+                          <TextBlock x:Name="VisualCaptureStatus" Text="Off · listening uses system audio and microphone." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,0" />
+                          <TextBlock x:Name="TeamsHintsStatus" Text="Experimental Chrome Teams / Meet names · add exact participant names in the meeting brief. English speaking labels only; unqualified layouts stay unnamed." TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0" />
+                          <TextBlock Text="Only the selected window is captured while listening. Frames stay in memory. Selection and permission reset when the app exits. Speaker naming requires a supported layout." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,0" />
+                        </StackPanel>
+                      </Expander>
+                    </StackPanel>
+                  </ScrollViewer>
+                </Border>
+              </TabItem>
+              <TabItem Header="Reader" x:Name="ReaderSettingsTab">
+                <Border Style="{StaticResource CardSurface}" Padding="24" MaxWidth="780">
+                  <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
                       <TextBlock Text="Make it comfortable" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,18" />
                       <TextBlock Text="Text size" FontSize="12" />
                       <DockPanel>
@@ -319,14 +425,22 @@
                   </StackPanel>
                 </ScrollViewer>
               </TabItem>
-              <TabItem x:Name="ShortcutsTab" Header="Shortcuts"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="20">
-<TextBlock Text="Reader shortcuts" Style="{StaticResource PageTitle}"/>
-<TextBlock Text="Use these commands from any app. Include Ctrl or Alt, for example Ctrl+Alt+R. Leave a field blank to disable it." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,20"/>
-<StackPanel x:Name="ShortcutRows"/>
-<WrapPanel><Button Content="Save shortcuts" Click="SaveShortcuts_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0"/><Button Content="Restore defaults" Click="DefaultShortcuts_Click"/></WrapPanel>
-<TextBlock x:Name="ShortcutStatus" TextWrapping="Wrap" Margin="0,16,0,16"/>
-<TextBlock Text="Inside a reader: Left / Right move by sentence; Up / Down move by word; Space pauses or resumes following. Global Previous / Next answer commands move between answers." TextWrapping="Wrap" Foreground="{StaticResource Muted}"/>
-</StackPanel></ScrollViewer></TabItem><TabItem x:Name="StorageTab" Header="Storage">
+              <TabItem x:Name="ShortcutsTab" Header="Shortcuts">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                  <StackPanel Margin="20">
+                    <TextBlock Text="Reader shortcuts" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="Use these commands from any app. Include Ctrl or Alt, for example Ctrl+Alt+R. Leave a field blank to disable it." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,20" />
+                    <StackPanel x:Name="ShortcutRows" />
+                    <WrapPanel>
+                      <Button Content="Save shortcuts" Click="SaveShortcuts_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0" />
+                      <Button Content="Restore defaults" Click="DefaultShortcuts_Click" />
+                    </WrapPanel>
+                    <TextBlock x:Name="ShortcutStatus" TextWrapping="Wrap" Margin="0,16,0,16" />
+                    <TextBlock Text="Inside a reader: Left / Right move by sentence; Up / Down move by word; Space pauses or resumes following. Global Previous / Next answer commands move between answers." TextWrapping="Wrap" Foreground="{StaticResource Muted}" />
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+              <TabItem x:Name="StorageTab" Header="Storage">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                   <StackPanel Margin="18">
                     <TextBlock Text="Keep your second brain safe" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -352,7 +466,7 @@
                   </StackPanel>
                 </ScrollViewer>
               </TabItem>
-              <TabItem x:Name="PracticeTab" Header="Practice and diagnostics">
+              <TabItem x:Name="PracticeTab" Header="Practice">
                 <Border Background="White" BorderBrush="#DFE4DA" BorderThickness="1" CornerRadius="12" Padding="20">
                   <Grid>
                     <Grid.RowDefinitions>
@@ -414,8 +528,8 @@
       </Grid>
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
-      <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.39.1" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock Text="Your meeting companion · Saved on this computer" FontSize="10" Foreground="{StaticResource Muted}" />
+      <TextBlock x:Name="VersionText" Text="v0.40.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

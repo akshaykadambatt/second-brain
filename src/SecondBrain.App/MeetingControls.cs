@@ -20,7 +20,7 @@ public partial class MainWindow
         foreach (var (tab, name, icon) in pages)
         {
             tab.Header = compactNavigation ? icon : name;
-            tab.MinWidth = compactNavigation ? 42 : 112;
+            tab.MinWidth = compactNavigation ? 42 : 130;
         }
         NavigationToggle.Content = compactNavigation ? "Expand menu" : "Compact menu";
     }

@@ -60,7 +60,7 @@ internal static class KnowledgeTests
         check(main.Knowledge.Chunks.Any(c => c.File == "decision.md"), "Background refresh notices an external Markdown edit without a rebuild click");
         var provider = new Provider(); var answers = new AssistantService(main.Dispatcher, provider, new(directory), main.Knowledge);
         var request = answers.Ask("What is Cedar release token?", new(), "", Guid.NewGuid(), continuation: true); await request.Work;
-        check(provider.Prompts.Count == 2 && provider.Prompts.All(p => p.Knowledge.Contains("VIOLET-731") && p.Knowledge.Contains("2026-09-24")) && request.Knowledge!.Hits.Count > 0 && request.RetrievalMs.HasValue, "Opening and continuation share the same dated evidence snapshot");
+        check(provider.Prompts.Count == 2 && provider.Prompts.All(p => p.Knowledge.Contains("VIOLET-731") && p.Knowledge.Contains("24-September-2026")) && request.Knowledge!.Hits.Count > 0 && request.RetrievalMs.HasValue, "Opening and continuation share the same dated evidence snapshot");
         check(request.Fast.Blocks.All(b => !b.Text.Contains("decision.md")), "Source metadata stays separate from reader paragraphs");
         var missing = answers.Ask("zzunmatchedsecret", new(Deeper: false), "", Guid.NewGuid()); await missing.Work;
         check(provider.Prompts[^1].Knowledge.Contains("No relevant vault evidence"), "Missing evidence reaches the provider explicitly");
