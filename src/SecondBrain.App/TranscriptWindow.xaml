@@ -44,5 +44,6 @@
     <TabItem x:Name="VideoTab" Header="Video &amp; files"><ContentControl x:Name="VideoContent"/></TabItem>
     <TabItem Header="Answers &amp; sources"><TextBox x:Name="EvidenceText" Margin="12" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Saved answer evidence"/></TabItem>
     <TabItem Header="Knowledge changes"><TextBox x:Name="ChangesText" Margin="12" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Meeting knowledge changes"/></TabItem>
+    <TabItem x:Name="OutcomesTab" Header="Outcomes"><ContentControl x:Name="OutcomeContent"/></TabItem>
   </TabControl>
 </Window>

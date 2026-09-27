@@ -20,6 +20,7 @@ public partial class TranscriptWindow : Window
     private readonly DispatcherTimer replayTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     internal TranscriptReview Review => review;
     internal MeetingVideoView Video { get; private set; } = null!;
+    internal MeetingOutcomeView Outcomes { get; private set; } = null!;
     internal TranscriptWindow(MainWindow owner, string directory, TranscriptDetail[] records, string warning, bool hidden)
     {
         this.directory = directory; this.records = records; this.hidden = hidden;
@@ -33,6 +34,7 @@ public partial class TranscriptWindow : Window
         ready = true; Refresh();
         LoadSavedContent(owner);
         Video = new(owner, directory, StopPlayback, hidden); VideoContent.Content = Video;
+        Outcomes = new(directory, records, GoToSegment, () => (WordSelection.SelectedItem as ReviewWord)?.SegmentId ?? (Segments.SelectedItem as ReviewTurn)?.Words[0].SegmentId); OutcomeContent.Content = Outcomes;
         replayTimer.Tick += (_, _) => { if (audio is null || audio.CurrentTime.TotalSeconds >= replayEnd) StopPlayback(); };
         Closed += (_, _) => { StopPlayback(); Video.Stop(); };
     }
@@ -46,6 +48,13 @@ public partial class TranscriptWindow : Window
         if (rows.Length == 0) { WordSelection.ItemsSource = null; WordDetails.Text = "No matching turns."; }
     }
     private void Search_Changed(object sender, TextChangedEventArgs e) { if (ready) Refresh(); }
+    internal void GoToSegment(string id)
+    {
+        Search.Clear(); BookmarksOnly.IsChecked = false; Refresh(); ReviewTabs.SelectedItem = TranscriptTab;
+        Segments.SelectedItem = Segments.Items.Cast<ReviewTurn>().FirstOrDefault(t => t.Words.Any(w => w.SegmentId == id));
+        if (Segments.SelectedItem is { } selected) Segments.ScrollIntoView(selected);
+        if (Segments.SelectedItem is ReviewTurn turn) WordSelection.SelectedItem = turn.Words.First(w => w.SegmentId == id);
+    }
     private void Filter_Changed(object sender, RoutedEventArgs e) { if (ready) Refresh(); }
     private void Segments_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

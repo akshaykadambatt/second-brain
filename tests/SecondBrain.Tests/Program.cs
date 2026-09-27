@@ -35,6 +35,7 @@ SpokenLanguageTests.Run(Test, Assert);
 DisplayFormatTests.Run(Test, Assert, Folder);
 VideoRecoveryTests.Run(Test, Assert, Folder);
 MeetingArchiveTests.Run(Test, Assert, Folder);
+MeetingOutcomeTests.Run(Test, Assert, Folder);
 
 Test("Continuing a completed answer retains identities and sequence protection", () =>
 {
