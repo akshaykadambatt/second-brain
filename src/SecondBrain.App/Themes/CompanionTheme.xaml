@@ -11,7 +11,7 @@
   <Thickness x:Key="ControlBorder">1</Thickness>
   <CornerRadius x:Key="ControlCorner">12</CornerRadius>
   <Style x:Key="KeyboardFocus" TargetType="Control">
-    <Setter Property="Template"><Setter.Value><ControlTemplate><Rectangle Margin="-4" Stroke="{StaticResource Ink}" StrokeThickness="2" StrokeDashArray="2,2" IsHitTestVisible="False"/></ControlTemplate></Setter.Value></Setter>
+    <Setter Property="Template"><Setter.Value><ControlTemplate><Rectangle Margin="-4" Stroke="#8175AF" StrokeThickness="2" StrokeDashArray="2,2" IsHitTestVisible="False"/></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="ShellWindowStyle" TargetType="Window">
     <Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="14"/>
@@ -83,7 +83,9 @@
     </ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="SectionTitle" TargetType="TextBlock"><Setter Property="FontSize" Value="18"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Margin" Value="0,0,0,12"/></Style>
-  <Style TargetType="ListBoxItem"><Setter Property="Padding" Value="10,8"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/></Style>
+  <Style TargetType="ListBoxItem"><Setter Property="Padding" Value="14,12"/><Setter Property="Margin" Value="0,0,0,6"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="Surface" Background="Transparent" CornerRadius="12" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{StaticResource Subtle}"/></Trigger><Trigger Property="IsSelected" Value="True"><Setter TargetName="Surface" Property="Background" Value="{StaticResource Lavender}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style x:Key="NavigationItem" TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
     <Setter Property="Foreground" Value="#E1E1E7"/><Setter Property="Padding" Value="18,16"/>
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem"><Border x:Name="Surface" Background="Transparent" CornerRadius="16" Padding="{TemplateBinding Padding}" Margin="0,0,0,10"><ContentPresenter ContentSource="Header" HorizontalAlignment="Left" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers>

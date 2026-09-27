@@ -66,6 +66,13 @@ internal static class ShellSmokeTests
         { fixture.Write(new(AudioSource.Microphone, 0, new byte[320])); fixture.Complete(.01); }
         await main.RefreshMeetings(); await Settle();
         check(main.MeetingList.Items.Count > 0 && main.MeetingList.SelectedItem is not null, "Meetings lists a saved session without opening recording controls");
+        var count = main.MeetingList.Items.Count;
+        main.MeetingFilter.Text = "gEnErAl"; await Settle();
+        check(main.MeetingList.Items.Count > 0, "Meeting search matches client titles without case sensitivity");
+        main.MeetingFilter.Text = "no such synthetic meeting"; await Settle();
+        check(main.MeetingList.Items.Count == 0 && main.MeetingListStatus.Text.Contains("No matching"), "No matching meetings gives a useful empty state");
+        main.MeetingFilter.Clear(); await Settle();
+        check(main.MeetingList.Items.Count == count && main.MeetingList.SelectedItem is not null, "Clearing meeting search restores saved sessions and a usable selection");
         capture(main, Path.Combine(directory, "meetings.png"));
         main.NavigationToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settle();
         check(System.Windows.Automation.AutomationProperties.GetName(main.KnowledgeTab) == "Knowledge", "Compact navigation retains accessible page names");

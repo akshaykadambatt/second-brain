@@ -185,18 +185,44 @@
                   <StackPanel Margin="20">
                     <TextBlock Text="Saved meetings" Style="{StaticResource PageTitle}" />
                     <TextBlock Text="Audio and transcripts from your sessions, kept on this computer." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,16" />
-                    <Button Content="Refresh meetings" Click="MeetingsRefresh_Click" HorizontalAlignment="Left" />
-                    <TextBlock x:Name="MeetingListStatus" Text="Open Meetings to load saved sessions." TextWrapping="Wrap" Margin="0,12,0,8" />
-                    <ListBox x:Name="MeetingList" MinHeight="220" MaxHeight="380" AutomationProperties.Name="Saved meetings" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                      <ListBox.ItemTemplate>
-                        <DataTemplate>
-                          <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
-                        </DataTemplate>
-                      </ListBox.ItemTemplate>
-                    </ListBox>
-                    <Button Content="Open meeting files" Click="MeetingFolder_Click" HorizontalAlignment="Left" Margin="0,12,0,0" />
-                    <Button Content="Review transcript" Click="MeetingTranscript_Click" HorizontalAlignment="Left" Margin="0,8,0,0" Style="{StaticResource PrimaryButton}" />
-                    <TextBlock Text="Your audio tracks and transcript are inside each meeting folder." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,12,0,0" />
+                    <Border Style="{StaticResource CardSurface}">
+                      <StackPanel>
+                        <TextBlock Text="Find a meeting · client, date or status" Foreground="{StaticResource Muted}" FontSize="12" />
+                        <TextBox TextChanged="MeetingFilter_Changed" MaxLength="200" Margin="0,8,0,0" ToolTip="Filter saved meetings by client, date or status" x:Name="MeetingFilter" AutomationProperties.Name="Find a saved meeting" />
+                        <Button Content="Refresh meetings" Click="MeetingsRefresh_Click" HorizontalAlignment="Left" Margin="0,10,0,0" />
+                        <TextBlock x:Name="MeetingListStatus" Text="Open Meetings to load saved sessions." TextWrapping="Wrap" Margin="0,12,0,8" />
+                        <Grid>
+                          <ListBox x:Name="MeetingList" MinHeight="150" MaxHeight="380" AutomationProperties.Name="Saved meetings" ScrollViewer.HorizontalScrollBarVisibility="Disabled" BorderThickness="0" Padding="4">
+                            <ListBox.ItemTemplate>
+                              <DataTemplate>
+                                <StackPanel>
+                                  <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                  <TextBlock Text="{Binding When}" FontSize="13" Margin="0,6,0,0" TextWrapping="Wrap" />
+                                  <TextBlock Text="{Binding Details}" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
+                                </StackPanel>
+                              </DataTemplate>
+                            </ListBox.ItemTemplate>
+                          </ListBox>
+                          <TextBlock Text="No meetings to show.&#10;Start a session from Live, or change the search above." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="16" VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock.Style>
+                              <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                  <DataTrigger Binding="{Binding ElementName=MeetingList, Path=HasItems}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                  </DataTrigger>
+                                </Style.Triggers>
+                              </Style>
+                            </TextBlock.Style>
+                          </TextBlock>
+                        </Grid>
+                        <WrapPanel Margin="0,14,0,0">
+                          <Button Content="Review transcript" Click="MeetingTranscript_Click" HorizontalAlignment="Left" Margin="0,0,10,6" Style="{StaticResource PrimaryButton}" />
+                          <Button Content="Open meeting files" Click="MeetingFolder_Click" HorizontalAlignment="Left" Margin="0,0,0,6" />
+                        </WrapPanel>
+                        <TextBlock Text="Your audio tracks and transcript are inside each meeting folder." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,12,0,0" />
+                      </StackPanel>
+                    </Border>
                   </StackPanel>
                 </ScrollViewer>
               </TabItem>
@@ -238,14 +264,40 @@
                   <StackPanel>
                     <TextBlock Text="Search within this client" Margin="0,0,0,4" />
                     <ComboBox x:Name="KnowledgeClient" DisplayMemberPath="DisplayName" SelectionChanged="KnowledgeClient_Changed" Margin="0,4,0,14" />
+                    <TextBlock x:Name="KnowledgeFilterSummary" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,14" />
+                    <TextBlock Text="Search notes and past meetings" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,0,0,6" />
                     <DockPanel>
                       <Button x:Name="VaultSearch" Content="Search" Click="VaultSearch_Click" DockPanel.Dock="Right" Padding="10,6" Margin="8,0,0,0" />
                       <TextBox x:Name="VaultQuery" MaxLength="2000" ToolTip="Search notes and previous meetings" KeyDown="VaultQuery_KeyDown" AutomationProperties.Name="Search client knowledge" />
                     </DockPanel>
                     <Button Content="Ask my knowledge" Click="KnowledgeAnswer_Click" HorizontalAlignment="Left" Margin="0,8,0,6" Style="{StaticResource PrimaryButton}" />
-                    <TextBox x:Name="KnowledgeAnswer" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="260" VerticalScrollBarVisibility="Auto" MinHeight="50" />
+                    <TextBox x:Name="KnowledgeAnswer" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="260" VerticalScrollBarVisibility="Auto" MinHeight="50">
+                      <TextBox.Style>
+                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                          <Style.Triggers>
+                            <Trigger Property="Text" Value="">
+                              <Setter Property="Visibility" Value="Collapsed" />
+                            </Trigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBox.Style>
+                    </TextBox>
                     <TextBlock x:Name="VaultSearchStatus" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,6" />
-                    <ListBox x:Name="VaultResults" Height="180" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                    <Grid>
+                      <ListBox x:Name="VaultResults" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MinHeight="120" MaxHeight="300" BorderThickness="0" Background="{StaticResource Paper}" />
+                      <TextBlock Text="Search for a topic, decision or commitment.&#10;Matching passages and source links appear here." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="16" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding ElementName=VaultResults, Path=HasItems}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
+                    </Grid>
                     <Button Content="Open selected note in Obsidian" Click="VaultOpenResult_Click" Padding="8,6" HorizontalAlignment="Left" Margin="0,8,0,0" />
                   </StackPanel>
                 </Border>

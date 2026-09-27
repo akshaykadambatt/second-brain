@@ -17,6 +17,8 @@ internal static class DateFormatSmokeTests
         var root = main.Knowledge!.Root; main.VaultFrom.Text = "2-January-2026"; main.VaultUntil.Text = "2026-09-27";
         main.VaultApply.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         check(main.VaultFrom.Text == "02-January-2026" && main.VaultUntil.Text == "27-September-2026", "Date filters accept display and legacy input and normalize both visibly");
+        check(main.KnowledgeFilterSummary.Text.Contains("02-January-2026") && main.KnowledgeFilterSummary.Text.Contains("27-September-2026"),
+            "Applied date filters remain visible in the search summary when configuration is collapsed");
         var client = new SessionContext { ProfileId = Guid.NewGuid(), Client = "Cedar" };
         File.WriteAllText(Path.Combine(root, "Source.md"), "Taylor will send the report Friday.");
         var editor = new ClientKnowledgeWindow(root, [client], client.ProfileId, main.SaveClientKnowledge, _ => { }) { Owner = main }; editor.Show();

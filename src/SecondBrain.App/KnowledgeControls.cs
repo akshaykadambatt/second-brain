@@ -46,6 +46,11 @@ public partial class MainWindow
             knowledgeStops.RemoveAll(t => t.IsCompleted); knowledgeStops.Add(Finish());
         }
         Knowledge = new(root, dataDirectory, new(options.Project, options.From, options.Until), !hiddenTestMode && options.Semantic ? new OpenAiEmbeddings(new ApiKeyStore(dataDirectory, "OpenAI").Load) : null);
+        var filters = new List<string>();
+        if (!string.IsNullOrWhiteSpace(options.Project)) filters.Add("Project: " + options.Project);
+        if (options.From is not null) filters.Add("From " + DisplayFormats.Date(options.From));
+        if (options.Until is not null) filters.Add("Until " + DisplayFormats.Date(options.Until));
+        KnowledgeFilterSummary.Text = filters.Count == 0 ? "All projects and dates within the selected client" : string.Join(" · ", filters) + " · Change in search filters below";
         VaultResults.Items.Clear();
         _ = Knowledge.Refresh(true); VaultStatus.Text = "Vault connected · indexing Markdown…";
         historyConnection = ConnectMaintenance(root, options.AutomaticUpdates);

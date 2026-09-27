@@ -8,7 +8,13 @@ namespace SecondBrain.App;
 
 public partial class MainWindow
 {
-    private sealed record MeetingRow(string Path, string Label);
+    private sealed record MeetingRow(string Path, string Label)
+    {
+        public string Title { get; init; } = "General meeting";
+        public string When { get; init; } = "";
+        public string Details { get; init; } = "";
+    }
+    private MeetingRow[] meetingRows = [];
     private Task meetingsRefresh = Task.CompletedTask;
     private bool compactNavigation;
     private void AudioSettings_Click(object sender, RoutedEventArgs e)
@@ -46,18 +52,32 @@ public partial class MainWindow
                     var elapsed = TimeSpan.FromSeconds(Math.Max(0, meeting.DurationSeconds));
                     string? client = null;
                     try { var brief = SessionContextStore.ReadSnapshot(path); if (brief?.SessionId == meeting.Id) client = brief.Context.Client; } catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException) { }
-                    return new MeetingRow(path, $"{DisplayFormats.LocalDateTime(meeting.StartedUtc)}   ·   {elapsed:hh\\:mm\\:ss}   ·   {meeting.State}" + (string.IsNullOrWhiteSpace(client) ? "" : "   ·   " + client));
+                    return new MeetingRow(path, $"{DisplayFormats.LocalDateTime(meeting.StartedUtc)}   ·   {elapsed:hh\\:mm\\:ss}   ·   {meeting.State}" + (string.IsNullOrWhiteSpace(client) ? "" : "   ·   " + client))
+                    { Title = string.IsNullOrWhiteSpace(client) ? "General meeting" : client, When = DisplayFormats.LocalDateTime(meeting.StartedUtc), Details = $"{elapsed:hh\\:mm\\:ss} · {meeting.State}" };
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException)
-                { return new MeetingRow(path, Path.GetFileName(path) + " · Details unavailable"); }
+                { return new MeetingRow(path, Path.GetFileName(path) + " · Details unavailable") { Title = Path.GetFileName(path), Details = "Details unavailable" }; }
             }).ToArray());
             if (closing) return;
-            MeetingList.ItemsSource = rows;
-            MeetingList.SelectedItem = rows.FirstOrDefault(r => r.Path == selected) ?? rows.FirstOrDefault();
-            MeetingListStatus.Text = rows.Length == 0 ? "No saved meetings yet. Start listening on the Live page to begin." : $"{rows.Length} saved meeting{(rows.Length == 1 ? "" : "s")}";
+            meetingRows = rows;
+            FilterMeetings(selected);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { MeetingListStatus.Text = "Meetings could not be loaded. Check access to the recording folder."; }
+    }
+    private void MeetingFilter_Changed(object sender, TextChangedEventArgs e)
+    {
+        if (MeetingList is not null && MeetingListStatus is not null) FilterMeetings((MeetingList.SelectedItem as MeetingRow)?.Path);
+    }
+    private void FilterMeetings(string? selected)
+    {
+        var query = MeetingFilter.Text.Trim();
+        var rows = meetingRows.Where(r => query.Length == 0 || r.Title.Contains(query, StringComparison.OrdinalIgnoreCase) || r.Label.Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+        MeetingList.ItemsSource = rows;
+        MeetingList.SelectedItem = rows.FirstOrDefault(r => r.Path == selected) ?? rows.FirstOrDefault();
+        MeetingListStatus.Text = meetingRows.Length == 0 ? "No saved meetings yet. Start listening on Live to begin."
+            : rows.Length == 0 ? "No matching meetings. Try another client or date, or clear the search."
+            : query.Length > 0 ? $"{rows.Length} of {meetingRows.Length} meetings" : $"{rows.Length} saved meeting{(rows.Length == 1 ? "" : "s")}";
     }
     private void MeetingFolder_Click(object sender, RoutedEventArgs e)
     {
