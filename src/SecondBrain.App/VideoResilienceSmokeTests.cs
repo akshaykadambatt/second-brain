@@ -33,7 +33,17 @@ internal static class VideoResilienceSmokeTests
         var display = new VideoRecording(directory, selection, AudioClock.Now, (_, receive, failed) => { disconnect = failed; return new VideoSmokeTests.Frames(receive); });
         await display.Ready; disconnect!("Selected display disconnected."); await display.Stop();
         check(display.Error!.Contains("disconnected") && !display.Active && !main.Recorder.HasSession, "Display removal releases video without opening another audio capture");
-        capture(main, Path.Combine(directory, "video-resilience.png"));
+        var view = new VideoLibraryView(main, directory);
+        var window = new Window { Owner = main, Width = 720, Height = 460, Content = view, ShowActivated = false, ShowInTaskbar = false, Opacity = 0 }; window.Show();
+        try
+        {
+            check(view.Clips.Items.Count >= 3 && view.Clips.Items.Cast<SavedVideo>().Any(v => v.State == "RecoveredPartial"), "Saved video view lists normal, failed and recovered clips");
+            view.Clips.SelectedItem = view.Clips.Items.Cast<SavedVideo>().Single(v => System.IO.Path.GetFileName(v.Path) == "video-interrupted.mp4");
+            await view.RecoverSelected();
+            check(view.Status.Text.Contains("Recovered copy saved") && !main.Recorder.HasSession, "Explicit recovery UI preserves originals and never starts listening");
+            capture(window, Path.Combine(directory, "video-recovery.png"));
+        }
+        finally { window.Close(); }
     }
     private static async Task Wait(VideoRecording video)
     { using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8)); while (video.Active) await Task.Delay(20, timeout.Token); }
