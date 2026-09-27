@@ -17,6 +17,10 @@ internal static class RichTranscriptTests
         check(viewer is not null && viewer.Segments.Items.Count == 1 && viewer.WordDetails.Text.Contains("1.000–1.400s") && viewer.Summary.Text.Contains("2 timed words"),
             "Meeting transcript viewer exposes mapped word times alongside original segments");
         capture(viewer!, Path.Combine(directory, "transcript-details.png")); viewer!.Close();
+        var metadata = File.ReadAllText(Path.Combine(path, TranscriptDetails.FileName));
+        File.WriteAllText(Path.Combine(path, TranscriptDetails.FileName), metadata.Replace("Confirmed milestone.", "Wrong original text."));
+        viewer = await main.OpenTranscript(path);
+        check(viewer is not null && viewer.Summary.Text.Contains("showing original") && viewer.Segments.Items.Count == 1, "Semantically invalid word metadata falls back to original transcript without an unhandled validation error"); viewer!.Close();
         File.WriteAllText(Path.Combine(path, TranscriptDetails.FileName), "broken metadata\n");
         viewer = await main.OpenTranscript(path);
         check(viewer is not null && viewer.Summary.Text.Contains("showing original") && viewer.WordDetails.Text.Contains("unavailable"), "Damaged optional metadata falls back visibly to the original transcript"); viewer!.Close();
@@ -36,6 +40,8 @@ internal static class RichTranscriptTests
         var original = File.ReadAllBytes(Path.Combine(path, "transcript.jsonl"));
         var viewer = (await main.OpenTranscript(path))!;
         void Click(string text) => viewer.EditControls.Children.OfType<System.Windows.Controls.Button>().Single(b => (string)b.Content == text).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+        viewer.SpeakerName.Text = ""; Click("Name this turn");
+        check(viewer.Review.Revision == 0 && viewer.ReviewStatus.Text.Contains("speaker name"), "Invalid blank speaker correction is reported in the review window without saving or crashing");
         viewer.SpeakerName.Text = "Morgan"; Click("Name this turn");
         check(viewer.Review.Words.All(w => w.Speaker == "Morgan"), "Naming a review turn saves a reversible manual correction");
         viewer.WordSelection.SelectedIndex = 1; viewer.SpeakerName.Text = "Taylor"; Click("Split selected words");

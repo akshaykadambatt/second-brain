@@ -70,7 +70,7 @@ public partial class TranscriptWindow : Window
     {
         if (!editable) return;
         try { action(); Refresh(); ReviewStatus.Text = "Saved locally · original transcript unchanged · Undo is available."; }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException or System.Text.Json.JsonException)
         { ReviewStatus.Text = ex.Message; }
     }
     private void Assign_Click(object sender, RoutedEventArgs e) => Edit(() => review.Assign(Selected().Words.Select(w => w.Id), SpeakerName.Text));
@@ -82,7 +82,7 @@ public partial class TranscriptWindow : Window
     private void Reload_Click(object sender, RoutedEventArgs e)
     {
         try { var loaded = new TranscriptReview(directory, records); review = loaded; editable = true; EditControls.IsEnabled = BookmarkButton.IsEnabled = true; Refresh(); ReviewStatus.Text = "Review reloaded."; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { ReviewStatus.Text = "Review could not reload: " + ex.Message; }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or System.Text.Json.JsonException) { ReviewStatus.Text = "Review could not reload: " + ex.Message; }
     }
     internal double ReplaySelection()
     {
