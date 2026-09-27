@@ -23,12 +23,13 @@ public partial class MainWindow
         LiveFastModel.Text = options.FastModel; LiveDeepModel.Text = options.DeepModel;
         LiveFastEffort.SelectedItem = options.FastEffort; LiveDeepEffort.SelectedItem = options.DeepEffort; LiveContext.Text = options.Context;
         GeneralGuidanceCheck.IsChecked = options.AllowGeneralGuidance;
+        JargonLevel = options.JargonLevel;
         SuggestionCheck.IsChecked = options.QuietSuggestions;
         RefreshOutputDevices();
         if (!hiddenTestMode) Session.ShowAnswer(new AnswerInbox().Begin(Guid.NewGuid(), Guid.NewGuid(), "Start listening to begin your companion session."));
     }
     private AssistantOptions CompanionOptions() => new(LiveFastModel.Text.Trim(), LiveDeepModel.Text.Trim(),
-        LiveFastEffort.SelectedItem as string ?? "none", LiveDeepEffort.SelectedItem as string ?? "medium", true, LiveContext.Text, GeneralGuidanceCheck.IsChecked == true) { QuietSuggestions = SuggestionCheck.IsChecked == true };
+        LiveFastEffort.SelectedItem as string ?? "none", LiveDeepEffort.SelectedItem as string ?? "medium", true, LiveContext.Text, GeneralGuidanceCheck.IsChecked == true) { QuietSuggestions = SuggestionCheck.IsChecked == true, JargonLevel = JargonLevel };
     private void RefreshOutputDevices()
     {
         try
@@ -67,6 +68,7 @@ public partial class MainWindow
             if (Companion is { } previous) { await previous.Answers.Stop(); previous.Dispose(); }
             var provider = testProvider ?? new OpenAiAnswerProvider(new ApiKeyStore(dataDirectory, "OpenAI").Load);
             Companion = new(Session, Playback, AssistantContext, new(Dispatcher, provider, log, Knowledge?.ForClient(meetingContext.ProfileId, meetingContext.Project)), options, testProvider is null ? provider as IDisposable : null, () => Recorder.ClockOrigin);
+            Companion.Answers.JargonLevelOverride = JargonLevel;
             Companion.KeepFlowing = FlowCheck.IsChecked == true;
             companionVaultRoot = Knowledge?.Root;
             sourcesRequest = Guid.Empty; LiveSources.Items.Clear(); SourceStatus.Text = "Waiting for retrieved sources.";

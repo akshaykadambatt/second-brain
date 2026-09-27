@@ -7,10 +7,15 @@
     <Grid>
       <Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition Height="*"/><RowDefinition Height="75"/></Grid.RowDefinitions>
       <Grid x:Name="HeaderChrome" Background="Transparent" MouseLeftButtonDown="Title_MouseDown" Margin="14,0,8,0">
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <TextBlock Text="READER   ·   drag to move" Foreground="#B5CDBD" FontSize="11" VerticalAlignment="Center" />
-        <Button Grid.Column="1" Content="Reset" Click="Reset_Click" Padding="10,5" FontSize="11" Background="#294C3E" Foreground="White" BorderThickness="0" Margin="0,0,6,0" />
-        <Button Grid.Column="2" Content="✕" Click="Close_Click" Padding="10,5" FontSize="12" Background="#294C3E" Foreground="White" BorderThickness="0" AutomationProperties.Name="Close reader panel" />
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="READER" ToolTip="Drag the header to move the reader" Foreground="#B5CDBD" FontSize="11" VerticalAlignment="Center" />
+        <StackPanel x:Name="JargonControls" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,8,0">
+          <Button x:Name="JargonDown" Content="−" Click="JargonDown_Click" Width="24" Padding="0,4" FontSize="13" ToolTip="Less jargon" AutomationProperties.Name="Decrease jargon"/>
+          <TextBlock x:Name="JargonText" Text="Jargon 2/5" Width="66" TextAlignment="Center" VerticalAlignment="Center" FontSize="11" Foreground="#B5CDBD" AutomationProperties.LiveSetting="Polite"/>
+          <Button x:Name="JargonUp" Content="+" Click="JargonUp_Click" Width="24" Padding="0,4" FontSize="13" ToolTip="More jargon" AutomationProperties.Name="Increase jargon"/>
+        </StackPanel>
+        <Button Grid.Column="2" Content="Reset" Click="Reset_Click" Padding="10,5" FontSize="11" Background="#294C3E" Foreground="White" BorderThickness="0" Margin="0,0,6,0" />
+        <Button Grid.Column="3" Content="✕" Click="Close_Click" Padding="10,5" FontSize="12" Background="#294C3E" Foreground="White" BorderThickness="0" AutomationProperties.Name="Close reader panel" />
       </Grid>
       <Grid Grid.Row="1" ClipToBounds="True" x:Name="ReadingArea">
         <Canvas IsHitTestVisible="False"><Border x:Name="Band" Height="3" Width="20" Background="#B9DA98" CornerRadius="1" Canvas.Left="8" /></Canvas>

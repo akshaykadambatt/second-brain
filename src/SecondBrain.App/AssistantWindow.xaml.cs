@@ -32,7 +32,7 @@ public partial class AssistantWindow : Window
         InitializeComponent();
         if (hidden) { Opacity = 0; ShowActivated = false; ShowInTaskbar = false; }
         if (provider is null) { var real = new OpenAiAnswerProvider(keys.Load); provider = real; ownedProvider = real; }
-        Service = new(Dispatcher, provider, log);
+        Service = new(Dispatcher, provider, log) { JargonLevelOverride = main.JargonLevel };
         FastEffort.ItemsSource = DeepEffort.ItemsSource = new[] { "none", "low", "medium", "high" };
         AssistantOptions options = new();
         try { options = settings.Load(); } catch (Exception) { Status.Text = "Saved AI settings could not be read. Defaults loaded; save to repair."; }
@@ -59,7 +59,7 @@ public partial class AssistantWindow : Window
         };
         async Task Finish() { try { await Service.Stop(); } finally { ownedProvider?.Dispose(); } }
     }
-    private AssistantOptions Options() => new(FastModel.Text.Trim(), DeepModel.Text.Trim(), FastEffort.SelectedItem as string ?? "none", DeepEffort.SelectedItem as string ?? "medium", Deeper.IsChecked == true, ContextNotes.Text, allowGeneralGuidance) { QuietSuggestions = quietSuggestions };
+    private AssistantOptions Options() => new(FastModel.Text.Trim(), DeepModel.Text.Trim(), FastEffort.SelectedItem as string ?? "none", DeepEffort.SelectedItem as string ?? "medium", Deeper.IsChecked == true, ContextNotes.Text, allowGeneralGuidance) { QuietSuggestions = quietSuggestions, JargonLevel = main.JargonLevel };
     internal AnswerRequest? Ask(string question, bool automatic = false)
     {
         try

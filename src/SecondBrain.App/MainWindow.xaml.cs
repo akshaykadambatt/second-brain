@@ -137,6 +137,7 @@ public partial class MainWindow : Window
     internal ReaderWindow AddReader(PanelPlacement? placement = null)
     {
         var panel = new ReaderWindow(Session, Playback); panels.Add(panel);
+        panel.SetJargon(JargonLevel); panel.JargonRequested += direction => ChangeJargon(direction);
         panel.PlaybackRequested += async () =>
         {
             if (Companion?.Active == true) { if (Playback.Voice.Active) Playback.Pause(); else Playback.StartVoice(); return; }

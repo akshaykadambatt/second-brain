@@ -54,6 +54,17 @@ public partial class ReaderWindow : Window
     }
     internal int DisplayedBlockCount => displayedBlocks;
     internal double AnchorError => runs.Count == 0 ? 0 : Math.Abs(WordTop(Math.Min(session.Position, runs.Count - 1)) - ReadingArea.ActualHeight * session.Style.ReadingBand);
+    public event Action<int>? JargonRequested;
+    internal void SetJargon(int level, string? error = null)
+    {
+        JargonText.Text = $"Jargon {level}/5";
+        JargonDown.IsEnabled = level > 1; JargonUp.IsEnabled = level < 5;
+        JargonText.Foreground = error is null ? FrozenBrush(181, 205, 189) : Brushes.Salmon;
+        JargonControls.ToolTip = error ?? $"{SpokenLanguage.Name(level)} · saved for all readers. Applies to new answers and the next generated section. Text already on screen stays in place.\n1 Plain · 2 Conversational · 3 Balanced · 4 Technical · 5 Specialist";
+        System.Windows.Automation.AutomationProperties.SetName(JargonText, $"Jargon level {level} of 5, {SpokenLanguage.Name(level)}");
+    }
+    private void JargonDown_Click(object sender, RoutedEventArgs e) { JargonRequested?.Invoke(-1); e.Handled = true; }
+    private void JargonUp_Click(object sender, RoutedEventArgs e) { JargonRequested?.Invoke(1); e.Handled = true; }
     public event Action? ResetRequested;
     public event Action? PlaybackRequested;
     public event Action<int>? SentenceRequested;

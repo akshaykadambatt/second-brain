@@ -5,10 +5,11 @@ namespace SecondBrain.Core;
 public sealed record AssistantOptions(string FastModel = "gpt-6-luna", string DeepModel = "gpt-6-sol",
     string FastEffort = "none", string DeepEffort = "medium", bool Deeper = true, string Context = "", bool AllowGeneralGuidance = false)
 {
-    public bool IsValid => ValidModel(FastModel) && ValidModel(DeepModel) && Context is not null && Context.Length <= 16000
+    public bool IsValid => JargonLevel is >= 1 and <= 5 && ValidModel(FastModel) && ValidModel(DeepModel) && Context is not null && Context.Length <= 16000
         && new[] { "none", "low", "medium", "high" }.Contains(FastEffort) && new[] { "none", "low", "medium", "high" }.Contains(DeepEffort);
     private static bool ValidModel(string text) => text is not null && Regex.IsMatch(text, @"^[a-zA-Z0-9][a-zA-Z0-9._:-]{1,100}$");
     public bool QuietSuggestions { get; init; }
+    public int JargonLevel { get; init; } = SpokenLanguage.DefaultLevel;
 }
 
 // UI-thread owned, bounded current-session context. Source transcript files remain
@@ -88,6 +89,7 @@ public sealed record AssistantPrompt(Guid RequestId, string Question, string Con
     bool Continuation = false, string Opening = "", string Knowledge = "")
 {
     public bool Extension { get; init; }
+    public int JargonLevel { get; init; } = SpokenLanguage.DefaultLevel;
     public AnswerRefinement? Refinement { get; init; }
     public string OriginalAnswer { get; init; } = "";
     public bool AllowGeneralGuidance { get; init; }

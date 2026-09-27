@@ -32,6 +32,7 @@ internal static class SmokeTest
             else if (phase == "refinements") { await RefinementSmokeTests.Run(window, directory, Check, Capture); }
             else if (phase == "video") { await VideoSmokeTests.Run(window, directory, Check, Capture); }
             else if (phase == "avsync") { await VideoAudioSmokeTests.Run(window, directory, Check, Capture); }
+            else if (phase == "jargon") { await JargonSmokeTests.Run(window, directory, Check, Capture); }
             else if (phase == "clientknowledge") { await ClientKnowledgeSmokeTests.Run(window, directory, Check, Capture); }
             else if (phase == "powerpoint") { await OfficeImportSmokeTests.RunPresentation(window, directory, Check, Capture); }
             else if (phase == "word") { await OfficeImportSmokeTests.Run(window, directory, Check, Capture); }

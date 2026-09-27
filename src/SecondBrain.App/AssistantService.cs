@@ -42,6 +42,12 @@ internal sealed class AnswerRequest(Guid id, string question, Guid sessionId, St
 
 internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider provider, DiagnosticLog log, IKnowledgeSearch? knowledge = null)
 {
+    private int? jargonLevelOverride;
+    internal int? JargonLevelOverride
+    {
+        get => jargonLevelOverride;
+        set { if (value is not null and not (>= 1 and <= 5)) throw new ArgumentOutOfRangeException(nameof(value)); jargonLevelOverride = value; }
+    }
     public AnswerInbox Inbox { get; } = new();
     public QuestionGate Questions { get; } = new();
     public List<AnswerRequest> Requests { get; } = [];
@@ -152,7 +158,7 @@ internal sealed class AssistantService(Dispatcher dispatcher, IAnswerProvider pr
             var buffer = new ReadableAnswerBuffer(); var priorWords = answer.WordCount;
             var prompt = new AssistantPrompt(run.Id, run.Question, options.Context, conversation, model, effort, deeper, run.Continuation,
                 deeper && run.Continuation ? string.Join("\n\n", answer.Blocks.Select(b => b.Text)) : "",
-                run.Knowledge is { } evidence ? evidence.Status + "\n" + evidence.Evidence : "") { Extension = extend, AllowGeneralGuidance = options.AllowGeneralGuidance, Refinement = run.Refinement, OriginalAnswer = run.OriginalAnswer };
+                run.Knowledge is { } evidence ? evidence.Status + "\n" + evidence.Evidence : "") { Extension = extend, JargonLevel = JargonLevelOverride ?? options.JargonLevel, AllowGeneralGuidance = options.AllowGeneralGuidance, Refinement = run.Refinement, OriginalAnswer = run.OriginalAnswer };
             await (refinementProvider ?? provider).Generate(prompt, async text => await dispatcher.InvokeAsync(() =>
             {
                 if (!run.Active || run.Cancellation.IsCancellationRequested) return;
