@@ -27,11 +27,11 @@ internal sealed class VideoRecording
     internal double Origin { get; private set; }
     internal Task Ready => ready.Task;
     internal VideoRecording(string directory, VideoSelection selection, double audioOrigin,
-        Func<DisplayChoice, Action<DisplayFrame>, Action<string>, IDisplayCapture>? factory = null, RecordingService? audio = null)
+        Func<DisplayChoice, Action<DisplayFrame>, Action<string>, IDisplayCapture>? factory = null, RecordingService? audio = null, Func<long>? freeBytes = null, Action<long>? beforeFrame = null)
     {
         var size = selection.Size;
         Path = System.IO.Path.Combine(directory, "video-" + Guid.NewGuid().ToString("N") + ".mp4");
-        worker = Task.Factory.StartNew(() => Run(selection, size, audioOrigin, factory, audio), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        worker = Task.Factory.StartNew(() => Run(selection, size, audioOrigin, factory, audio, freeBytes, beforeFrame), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
     private void Observe(DisplayFrame frame)
     {
@@ -49,12 +49,17 @@ internal sealed class VideoRecording
         else Interlocked.Increment(ref audioPacketsReceived);
     }
     private void Fail(string reason) { lock (gate) failure ??= reason; stop.Cancel(); }
-    private void Run(VideoSelection selection, (int Width, int Height) size, double audioOrigin, Func<DisplayChoice, Action<DisplayFrame>, Action<string>, IDisplayCapture>? factory, RecordingService? audio)
+    private void Run(VideoSelection selection, (int Width, int Height) size, double audioOrigin, Func<DisplayChoice, Action<DisplayFrame>, Action<string>, IDisplayCapture>? factory, RecordingService? audio, Func<long>? freeBytes, Action<long>? beforeFrame)
     {
         DisplayFrame? current = null; var began = AudioClock.Now; var scaled = new byte[size.Width * size.Height * 4];
         try
         {
+            using var lease = new FileStream(Path + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            freeBytes ??= () => new DriveInfo(System.IO.Path.GetPathRoot(Path)!).AvailableFreeSpace;
+            if (freeBytes() < 512L * 1024 * 1024) throw new IOException("Video needs at least 512 MB free. Free space or choose another data drive.");
             using var writer = new NativeVideoWriter(Path, size.Width, size.Height, audio is not null);
+            try
+            {
             Save("Recording", size, audioOrigin);
             if (audio is not null) audio.AudioForVideo += Audio;
             capture = (factory ?? ((d, receive, fail) => new DisplayVideoCapture(d, receive, fail)))(selection.Display, Observe, Fail);
@@ -87,10 +92,18 @@ internal sealed class VideoRecording
                     while (audioPackets.Reader.TryRead(out var packet)) mixer.Offer(packet.Packet, packet.Rate);
                     var start = mixer.Through; writer.WriteAudio(mixer.Read(1600), start);
                 }
-                writer.Write(scaled, FrameCount++); ready.TrySetResult();
+                if (FrameCount % 30 == 0 && freeBytes() < 128L * 1024 * 1024) { Fail("Low disk space: video stopped with a reserve for audio and metadata. Free space soon."); break; }
+                beforeFrame?.Invoke(FrameCount);
+                writer.Write(scaled, FrameCount); FrameCount++; ready.TrySetResult();
+                if (FrameCount == 1 || FrameCount % 60 == 0) Save("Recording", size, audioOrigin);
             }
-            if (FrameCount > 0) writer.Complete();
-            else if (failure is null) failure = "Stopped before the first video frame.";
+            if (FrameCount == 0 && failure is null) failure = "Stopped before the first video frame.";
+            }
+            catch (Exception ex) { failure ??= ex is IOException or InvalidOperationException ? ex.Message : "Native encoding failed (" + ex.GetType().Name + ")."; }
+            finally
+            {
+                if (FrameCount > 0) try { writer.Complete(); } catch (Exception) { failure ??= "Video could not finalize. Recover its complete fragments from Meetings."; }
+            }
         }
         catch (Exception ex) { failure ??= ex is IOException or InvalidOperationException ? ex.Message : "Native video encoding failed (" + ex.GetType().Name + ")."; }
         finally

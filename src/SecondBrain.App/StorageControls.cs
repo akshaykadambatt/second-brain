@@ -26,7 +26,7 @@ public partial class MainWindow
     private async void StorageRefresh_Click(object sender, RoutedEventArgs e) => await RefreshStorage();
     internal Task<string?> StorageOperation(Func<string, string> operation)
     {
-        if (storageBusy || closing || companionBusy || Companion?.Active == true || Recorder.HasSession || Recorder.Busy || Voice.Running || startingVoice)
+        if (VideoRecording?.Active == true || storageBusy || closing || companionBusy || Companion?.Active == true || Recorder.HasSession || Recorder.Busy || Voice.Running || startingVoice)
         { StorageMessage.Text = "Stop listening or recording before using backup, restore or deletion."; return Task.FromResult<string?>(null); }
         storageBusy = true;
         var task = Run(); storageTask = task; return task;
