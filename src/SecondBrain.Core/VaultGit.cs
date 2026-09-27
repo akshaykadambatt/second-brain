@@ -47,7 +47,7 @@ public sealed class VaultGit
     public string Diff(string commit)
     {
         if (!Regex.IsMatch(commit, "^[a-fA-F0-9]{7,40}$")) throw new InvalidDataException("Choose a saved revision.");
-        return Run(["show", "--format=fuller", "--no-ext-diff", "--no-textconv", "--stat", "--patch", commit, "--", ":(exclude).secondbrain/**"]);
+        return Run(["show", "--format=fuller", "--date=iso-strict", "--no-ext-diff", "--no-textconv", "--stat", "--patch", commit, "--", ":(exclude).secondbrain/**"]);
     }
     public string FindOperation(string operation) => Run(["log", "-1", "--format=%H", "--fixed-strings", "--grep=Operation: " + operation], allowFailure: true).Trim();
     private string Run(string[] args, byte[]? input = null, bool repository = true, bool allowFailure = false)

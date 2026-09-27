@@ -34,7 +34,7 @@ internal sealed class ClientKnowledgeWindow : Window
         void Field(string label, Control control) { form.Children.Add(new TextBlock { Text = label, Margin = new(0, 8, 0, 4) }); form.Children.Add(control); }
         Field("Record type", Kind); Field("Name", NameField); Field("Aliases (one per line)", Aliases); Aliases.AcceptsReturn = true;
         Field("Project (optional)", Project); Field("Notes · Markdown", Body);
-        Field("Source note · relative vault path", Source); Field("Source starting line", Line); Field("Exact source quote", Quote); Field("Source date · YYYY-MM-DD", Date);
+        Field("Source note · relative vault path", Source); Field("Source starting line", Line); Field("Exact source quote", Quote); Field("Source date · 27-September-2026", Date);
         Field("Owner · exact source wording, or blank", OwnerField); Field("Due · exact source wording, or blank", Due);
         Button(form, "Save observation", () => _ = Save(false)); Button(form, "Confirm sourced record", () => _ = Save(true));
         form.Children.Add(new TextBlock { Text = "Save observation also reverses confirmation. Source matching checks provenance; you confirm whether the note accurately represents it. History is kept in the vault.", TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 0) });
@@ -42,7 +42,7 @@ internal sealed class ClientKnowledgeWindow : Window
         Clients.SelectionChanged += (_, _) => { if (!busy) { Clear(); Reload(); } }; Records.SelectionChanged += (_, _) => { if (!busy && Records.SelectedItem is KnowledgeDocument row) Show(row); };
         Records.DisplayMemberPath = "Value"; Closing += (_, e) => { if (busy) { e.Cancel = true; Status.Text = "Finishing the current save…"; } };
         Reload();
-        if (source is not null) { Source.Text = source.Chunk.File; Line.Text = source.Chunk.Line.ToString(); Quote.Text = source.Chunk.Text; Date.Text = source.Chunk.Date?.ToString("yyyy-MM-dd") ?? ""; }
+        if (source is not null) { Source.Text = source.Chunk.File; Line.Text = source.Chunk.Line.ToString(); Quote.Text = source.Chunk.Text; Date.Text = DisplayFormats.Date(source.Chunk.Date, ""); }
     }
     internal void Reload()
     {
@@ -53,7 +53,7 @@ internal sealed class ClientKnowledgeWindow : Window
     private void Show(KnowledgeDocument row)
     {
         selected = row; var v = row.Value; Kind.SelectedItem = v.Kind; NameField.Text = v.Name; Aliases.Text = string.Join('\n', v.Aliases); Project.Text = v.Project; Body.Text = v.Text;
-        Source.Text = v.Source; Line.Text = v.SourceLine.ToString(); Quote.Text = v.Quote; Date.Text = v.Date?.ToString("yyyy-MM-dd") ?? ""; OwnerField.Text = v.Owner; Due.Text = v.Due;
+        Source.Text = v.Source; Line.Text = v.SourceLine.ToString(); Quote.Text = v.Quote; Date.Text = DisplayFormats.Date(v.Date, ""); OwnerField.Text = v.Owner; Due.Text = v.Due;
         Status.Text = v.Status + " · Changes are saved only when you press a save button.";
     }
     internal async Task Save(bool confirmed)
@@ -62,7 +62,7 @@ internal sealed class ClientKnowledgeWindow : Window
         try
         {
             if (Clients.SelectedItem is not SessionContext client) throw new InvalidDataException("Choose a saved client first.");
-            DateOnly? date = string.IsNullOrWhiteSpace(Date.Text) ? null : DateOnly.ParseExact(Date.Text.Trim(), "yyyy-MM-dd");
+            DateOnly? date = DisplayFormats.ParseOptionalDate(Date.Text);
             var value = new ClientKnowledge { Id = selected?.Value.Id ?? Guid.NewGuid(), ClientId = client.ProfileId, Kind = (KnowledgeKind)Kind.SelectedItem,
                 Name = NameField.Text.Trim(), Aliases = Aliases.Text.Split('\n').Select(s => s.Trim()).Where(s => s.Length > 0).Distinct().ToArray(), Project = Project.Text.Trim(), Text = Body.Text,
                 Source = Source.Text.Trim().Replace('\\', '/'), SourceLine = int.Parse(Line.Text), Quote = Quote.Text.Replace("\r", ""), Date = date, Owner = OwnerField.Text.Trim(), Due = Due.Text.Trim(), Status = confirmed ? "Confirmed" : "Observation" };

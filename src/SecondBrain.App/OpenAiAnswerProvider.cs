@@ -39,7 +39,7 @@ internal sealed class OpenAiAnswerProvider(Func<string> loadKey, HttpMessageHand
             AnswerRefinement.Explain => "Explain the reasoning in two or three short paragraphs, at most 160 words. Do not invent missing client information.",
             _ => "Give one clearly hypothetical example, at most 100 words. If general guidance is not permitted, illustrate only the supplied source facts and state missing specifics."
         });
-        instructions += SpokenLanguage.Instruction(prompt.JargonLevel);
+        instructions += SpokenLanguage.Instruction(prompt.JargonLevel) + DisplayFormats.AnswerInstruction;
         request.Content = new StringContent(JsonSerializer.Serialize(new
         {
             model = prompt.Model, stream = true, store = false, instructions,

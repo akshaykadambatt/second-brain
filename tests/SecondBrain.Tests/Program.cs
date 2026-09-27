@@ -32,6 +32,7 @@ RequestDetectionTests.Run(Test, Assert);
 QuietSuggestionTests.Run(Test, Assert);
 VideoAudioTests.Run(Test, Assert);
 SpokenLanguageTests.Run(Test, Assert);
+DisplayFormatTests.Run(Test, Assert, Folder);
 
 Test("Continuing a completed answer retains identities and sequence protection", () =>
 {

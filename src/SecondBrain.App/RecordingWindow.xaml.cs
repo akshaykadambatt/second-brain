@@ -98,7 +98,7 @@ public partial class RecordingWindow : Window
         {
             if (Directory.Exists(root)) foreach (var folder in Directory.EnumerateDirectories(root).OrderDescending().Take(20))
             {
-                try { var manifest = RecordingSession.ReadManifest(folder); items.Add(new(folder, $"{manifest.StartedUtc.ToLocalTime():g} · {manifest.State} · {TimeSpan.FromSeconds(manifest.DurationSeconds):hh\\:mm\\:ss}")); }
+                try { var manifest = RecordingSession.ReadManifest(folder); items.Add(new(folder, $"{DisplayFormats.LocalDateTime(manifest.StartedUtc)} · {manifest.State} · {TimeSpan.FromSeconds(manifest.DurationSeconds):hh\\:mm\\:ss}")); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
                 { items.Add(new(folder, Path.GetFileName(folder) + " · manifest needs attention")); }
             }

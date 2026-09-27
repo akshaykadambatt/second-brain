@@ -26,15 +26,16 @@ public partial class MainWindow
         try { vaultOptions = vaultSettings.Load(); } catch (Exception) { VaultStatus.Text = "Invalid vault settings; using the adjacent Vault folder."; }
         VaultFolder.Text = vaultSettings.Resolve(vaultOptions); SemanticCheck.IsChecked = vaultOptions.Semantic;
         AutoUpdates.IsChecked = vaultOptions.AutomaticUpdates;
-        VaultProject.Text = vaultOptions.Project; VaultFrom.Text = vaultOptions.From?.ToString("yyyy-MM-dd") ?? ""; VaultUntil.Text = vaultOptions.Until?.ToString("yyyy-MM-dd") ?? "";
+        VaultProject.Text = vaultOptions.Project; VaultFrom.Text = DisplayFormats.Date(vaultOptions.From, ""); VaultUntil.Text = DisplayFormats.Date(vaultOptions.Until, "");
         try { ConnectKnowledge(); } catch (Exception ex) { VaultStatus.Text = "Vault unavailable: " + ex.Message; }
     }
     private void ConnectKnowledge()
     {
         var root = Path.GetFullPath(VaultFolder.Text); VaultFiles.Initialize(root);
-        DateOnly? Date(string value) => string.IsNullOrWhiteSpace(value) ? null : DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", out var date) ? date : throw new InvalidOperationException("Use YYYY-MM-DD dates or leave dates empty.");
+        DateOnly? Date(string value) => DisplayFormats.ParseOptionalDate(value);
         var options = new VaultOptions(vaultSettings!.Portable(root), SemanticCheck.IsChecked == true, VaultProject.Text.Trim(), Date(VaultFrom.Text), Date(VaultUntil.Text), AutoUpdates.IsChecked == true);
         vaultSettings.Save(options); vaultOptions = options;
+        VaultFrom.Text = DisplayFormats.Date(options.From, ""); VaultUntil.Text = DisplayFormats.Date(options.Until, "");
         OpenKnowledge(root, options);
     }
     private void OpenKnowledge(string root, VaultOptions options)
@@ -90,7 +91,7 @@ public partial class MainWindow
         catch (Exception) { VaultSearchStatus.Text = "Open Obsidian once, choose Open folder as vault, and select the displayed Vault folder. Or use Open folder to edit the notes."; }
     }
     private async void VaultSearch_Click(object sender, RoutedEventArgs e) => await SearchClientKnowledge(false);
-    private static ListBoxItem SourceRow(KnowledgeHit hit) => new() { Tag = hit, Content = new TextBlock { Text = $"{hit.Chunk.File}:{hit.Chunk.Line} · {hit.Chunk.Date?.ToString("yyyy-MM-dd") ?? "undated"}\n{hit.Chunk.Text}", TextWrapping = TextWrapping.Wrap, MaxHeight = 140 }, Padding = new Thickness(6) };
+    private static ListBoxItem SourceRow(KnowledgeHit hit) => new() { Tag = hit, Content = new TextBlock { Text = $"{hit.Chunk.File}:{hit.Chunk.Line} · {DisplayFormats.Date(hit.Chunk.Date)}\n{hit.Chunk.Text}", TextWrapping = TextWrapping.Wrap, MaxHeight = 140 }, Padding = new Thickness(6) };
     private void VaultOpenResult_Click(object sender, RoutedEventArgs e)
     { if (Knowledge is { } knowledge && VaultResults.SelectedItem is ListBoxItem { Tag: KnowledgeHit hit }) OpenVaultNote(knowledge.Root, hit.Chunk.File, true); }
     private void SourceOpen_Click(object sender, RoutedEventArgs e)

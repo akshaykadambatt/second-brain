@@ -142,7 +142,7 @@ public sealed class VaultMaintenance
             }
         }
         return updates.Where(u => u.Value.Count > 0).Select(u => new AppliedSection(u.Key,
-            $"\n\n<!-- secondbrain:{input.MeetingId:N}:start -->\n## Meeting update · {input.Date}\n\nAI-derived notes; verify against the linked transcript. [[{input.Transcript}|Meeting source]]\n\n" + string.Join("\n\n", u.Value) + $"\n<!-- secondbrain:{input.MeetingId:N}:end -->\n")).ToArray();
+            $"\n\n<!-- secondbrain:{input.MeetingId:N}:start -->\n## Meeting update · {DisplayFormats.DateText(input.Date)}\n\nAI-derived notes; verify against the linked transcript. [[{input.Transcript}|Meeting source]]\n\n" + string.Join("\n\n", u.Value) + $"\n<!-- secondbrain:{input.MeetingId:N}:end -->\n")).ToArray();
     }
     private static string Normalize(string text) => Regex.Replace(text, @"\s+", " ").Trim();
     private static string Plain(string text) => Normalize(text).Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("[", "\\[").Replace("]", "\\]").Replace("`", "\\`");

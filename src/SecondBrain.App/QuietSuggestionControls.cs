@@ -27,7 +27,7 @@ public partial class MainWindow
     {
         Suggestions.Enabled = SuggestionCheck.IsChecked == true;
         var first = result.Hits.FirstOrDefault()?.Chunk;
-        var source = first is null ? "No supporting client source found" : $"{first.File}:{first.Line} · {first.Date?.ToString("yyyy-MM-dd") ?? "undated"} · {first.FactStatus}";
+        var source = first is null ? "No supporting client source found" : $"{first.File}:{first.Line} · {DisplayFormats.Date(first.Date)} · {first.FactStatus}";
         var text = result.Conflicts.Length > 0 ? "Follow up: which dated account should we treat as current?"
             : first is null ? "Follow up: which source can confirm this detail?"
             : "Source reminder: " + (first.Text.Length <= 240 ? first.Text : first.Text[..240] + "…");

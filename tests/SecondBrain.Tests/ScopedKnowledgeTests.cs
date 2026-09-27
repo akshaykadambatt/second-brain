@@ -38,7 +38,7 @@ internal static class ScopedKnowledgeTests
             foreach (var day in new[] { "Friday", "Monday" }) File.WriteAllText(Path.Combine(root, day + ".md"), $"---\nclient_id: {client}\nkind: Decision\ntitle: Release date\naliases: [\"launch gate\"]\nstatus: Confirmed\ndate: 2026-01-02\n---\nRelease is {day}.");
             var index = new VaultIndex(); index.Rebuild(root); var result = index.Search("launch gate", new(ClientId: client), new Dictionary<string, float[]>());
             check(result.Hits.Count == 2 && result.Conflicts.Length == 1, "Alias or conflict detection failed");
-            var answer = ScopedKnowledge.Answer(result); check(answer.Contains("Friday") && answer.Contains("Monday") && answer.Contains("[S1]") && answer.Contains("2026-01-02"), "Conflict answer omitted dated citations");
+            var answer = ScopedKnowledge.Answer(result); check(answer.Contains("Friday") && answer.Contains("Monday") && answer.Contains("[S1]") && answer.Contains("02-January-2026"), "Conflict answer omitted dated citations");
         });
     }
 }

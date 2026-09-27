@@ -40,10 +40,10 @@ public partial class MainWindow
             var selectedId = (HistoryUpdates.SelectedItem as ListBoxItem)?.Tag as Guid?;
             HistoryRevisions.Items.Clear();
             foreach (var line in view.Log.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-            { var item = new ListBoxItem { Content = line, Tag = line.Split(' ')[0] }; HistoryRevisions.Items.Add(item); if ((string)item.Tag == selectedCommit) item.IsSelected = true; }
+            { var item = new ListBoxItem { Content = DisplayFormats.HistoryLine(line), Tag = line.Split(' ')[0] }; HistoryRevisions.Items.Add(item); if ((string)item.Tag == selectedCommit) item.IsSelected = true; }
             HistoryUpdates.Items.Clear();
             foreach (var update in view.Updates)
-            { var item = new ListBoxItem { Content = $"{update.Date} · {update.State} · {update.Sections.Length} notes · {update.MeetingId.ToString("N")[..8]}", Tag = update.MeetingId }; HistoryUpdates.Items.Add(item); if (update.MeetingId == selectedId) item.IsSelected = true; }
+            { var item = new ListBoxItem { Content = $"{DisplayFormats.DateText(update.Date)} · {update.State} · {update.Sections.Length} notes · {update.MeetingId.ToString("N")[..8]}", Tag = update.MeetingId }; HistoryUpdates.Items.Add(item); if (update.MeetingId == selectedId) item.IsSelected = true; }
             HistoryJobs.Text = string.Join("\n", view.Jobs.TakeLast(12).Select(j => j.State + " · " + j.Message));
         }
         catch (Exception ex) { HistoryMessage.Text = "History unavailable: " + ex.Message; }
@@ -54,7 +54,7 @@ public partial class MainWindow
     {
         if (Maintenance is not { } history || HistoryRevisions.SelectedItem is not ListBoxItem { Tag: string commit } || historyUiBusy) return;
         historyUiBusy = true;
-        try { var diff = await history.Diff(commit); if (Maintenance == history) HistoryDiff.Text = diff; }
+        try { var diff = await history.Diff(commit); if (Maintenance == history) HistoryDiff.Text = DisplayFormats.HistoryDiff(diff); }
         catch (Exception ex) { HistoryMessage.Text = ex.Message; }
         finally { historyUiBusy = false; }
     }

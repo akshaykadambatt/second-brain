@@ -200,7 +200,7 @@
                 </CheckBox>
                 <TextBlock Text="Project filter (exact project: frontmatter value; blank means all)" TextWrapping="Wrap" Margin="0,12,0,4" />
                 <TextBox x:Name="VaultProject" MaxLength="120" />
-                <TextBlock Text="Date range · YYYY-MM-DD (blank means unrestricted)" Margin="0,8,0,4" />
+                <TextBlock Text="Date range · 27-September-2026 (blank means unrestricted)" Margin="0,8,0,4" />
                 <UniformGrid Columns="2">
                   <TextBox x:Name="VaultFrom" ToolTip="From date" Margin="0,0,6,0" />
                   <TextBox x:Name="VaultUntil" ToolTip="Until date" />
@@ -415,7 +415,7 @@
     </ScrollViewer>
     <DockPanel Grid.Row="3" Margin="0,16,0,0">
       <TextBlock Text="RECORD · TRANSCRIBE · ANSWER · FOLLOW" FontSize="10" Foreground="{StaticResource Muted}" />
-      <TextBlock x:Name="VersionText" Text="v0.39.0" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+      <TextBlock x:Name="VersionText" Text="v0.39.1" FontSize="11" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
     </DockPanel>
   </Grid>
 </Window>

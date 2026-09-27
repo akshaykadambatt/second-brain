@@ -121,7 +121,7 @@ public static class DocumentImports
     private static string Render(ImportManifest manifest, ImportExtraction extraction)
     {
         var title = Plain(manifest.Name[..Math.Min(100, manifest.Name.Length)]);
-        var note = new StringBuilder($"---\nclient_id: {manifest.ClientId}\nproject: \"{manifest.Project}\"\n---\n# Imported: {title}\n\nPreserved source: [Open original](Attachments/original{Path.GetExtension(manifest.Original)})\n\nImport date: {manifest.ImportedUtc:yyyy-MM-dd} (not the date of the source facts).\n\n");
+        var note = new StringBuilder($"---\nclient_id: {manifest.ClientId}\nproject: \"{manifest.Project}\"\n---\n# Imported: {title}\n\nPreserved source: [Open original](Attachments/original{Path.GetExtension(manifest.Original)})\n\nImport date: {DisplayFormats.Date(DateOnly.FromDateTime(manifest.ImportedUtc.LocalDateTime))} (not the date of the source facts).\n\n");
         foreach (var warning in extraction.Warnings) note.AppendLine(Plain(warning) + "\n");
         foreach (var passage in extraction.Passages)
         {

@@ -97,6 +97,7 @@ internal static class AssistantTests
         {
             using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
             var instructions = json.RootElement.GetProperty("instructions").GetString()!;
+            check(instructions.Contains(DisplayFormats.AnswerInstruction), "Calendar and clock preferences reach the answer provider without rewriting input evidence");
             check(instructions.Contains("Do not stop merely") && instructions.Contains("Never invent client facts") && instructions.Contains("hypothetical"), "Approved continuation adds general guidance without inventing client facts");
             return new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "text/event-stream") };
         }));

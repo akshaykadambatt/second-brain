@@ -49,7 +49,7 @@ internal static class HistoryTests
             check(Directory.Exists(Path.Combine(root, ".secondbrain", "history.git", "objects")) && !Directory.Exists(Path.Combine(root, ".git")), "History not separate");
             var manualCommit = engine.Git.Log().Split('\n')[1].Split(' ')[0];
             check(engine.Git.Diff(head).Contains("The Cedar trial") && engine.Git.Diff(manualCommit).Contains("Manual edit before AI"), "Readable history or manual checkpoint missing");
-            check(engine.Git.Diff(head).Contains("Meeting update · 2026") && !engine.Git.Log().Contains("Â"), "Unicode history decoded incorrectly");
+            check(engine.Git.Diff(head).Contains("Meeting update · 24-September-2026") && !engine.Git.Log().Contains("Â"), "Unicode history decoded incorrectly");
             engine.Process(summary, provider, default).GetAwaiter().GetResult(); check(provider.Calls == 1 && File.ReadAllText(target) == applied, "Reprocessing duplicated an update");
             var second = Guid.NewGuid(); engine.Process(Source(root, second, "The Pine review is scheduled for Monday."), provider, default).GetAwaiter().GetResult();
             File.AppendAllText(target, "\nUnrelated later manual edit.\n");

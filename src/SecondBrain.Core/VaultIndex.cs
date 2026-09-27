@@ -18,7 +18,7 @@ public sealed record KnowledgeResult(IReadOnlyList<KnowledgeHit> Hits, string St
     public string[] Conflicts => Hits.Where(h => h.Chunk.FactKey.Length > 0).GroupBy(h => h.Chunk.FactKey, StringComparer.OrdinalIgnoreCase)
         .Where(g => g.Select(h => h.Chunk.File).Distinct().Count() > 1 && g.Select(h => h.Chunk.Text).Distinct().Count() > 1).Select(g => "Different sourced accounts for " + g.Key + ". Review dates and sources; no current value is assumed.").ToArray();
     public string Evidence => Hits.Count == 0 ? "No relevant vault evidence was found. Do not invent private/project facts."
-        : string.Join("\n", Conflicts) + "\n" + string.Join("\n\n", Hits.Select((h, i) => $"[S{i + 1}] {h.Chunk.File}:{h.Chunk.Line}; date={h.Chunk.Date?.ToString("yyyy-MM-dd") ?? "undated"}; project={h.Chunk.Project}; status={h.Chunk.FactStatus}\n{h.Chunk.Text}"));
+        : string.Join("\n", Conflicts) + "\n" + string.Join("\n\n", Hits.Select((h, i) => $"[S{i + 1}] {h.Chunk.File}:{h.Chunk.Line}; date={DisplayFormats.Date(h.Chunk.Date)}; project={h.Chunk.Project}; status={h.Chunk.FactStatus}\n{h.Chunk.Text}"));
 }
 public interface IKnowledgeSearch
 {
@@ -112,8 +112,8 @@ public sealed class VaultIndex
             if (lines[i].StartsWith('#'))
             {
                 Flush(); title = lines[i].TrimStart('#', ' '); date = fileDate;
-                var meetingDate = Regex.Match(lines[i], @"^## Meeting update · (\d{4}-\d{2}-\d{2})$");
-                if (meetingDate.Success && DateOnly.TryParseExact(meetingDate.Groups[1].Value, "yyyy-MM-dd", out var sectionDate)) date = sectionDate;
+                var meetingDate = Regex.Match(lines[i], @"^## Meeting update · ([^\r\n]{1,40})$");
+                if (meetingDate.Success && DisplayFormats.TryDate(meetingDate.Groups[1].Value, out var sectionDate)) date = sectionDate;
             }
             if (buffer.Length + lines[i].Length > 1400) Flush();
             if (buffer.Length == 0) start = i + 1;
