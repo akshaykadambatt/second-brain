@@ -112,6 +112,7 @@ public partial class MainWindow
                 await Recorder.StopAsync(); await answers;
                 CompanionStatus.Text = Recorder.State == RecordingState.Completed ? "Stopped · audio and transcripts saved. Your answer stays in the reader." : Recorder.Message;
                 await ExportCurrentMeeting();
+                if (Recorder.LastDirectory is { } evidenceFolder) await SaveMeetingArchive(evidenceFolder, companion);
                 if (Recorder.LastDirectory is { } memoryFolder) await SaveMeetingMemory(memoryFolder);
                 if (Recorder.LastDirectory is { } folder && !await SaveCompanionTiming(folder))
                     CompanionStatus.Text += " Timing report could not be saved; audio is unaffected.";

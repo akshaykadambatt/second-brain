@@ -93,6 +93,7 @@ internal static class CompanionTests
         check(!companion.Active && main.Recorder.State == RecordingState.Completed && AudioRecordingTests.SyntheticSource.OpenCount == 0 && !main.Playback.Voice.Active, "One stop cancels generation, saves recording/transcripts and releases both devices");
         check(!companion.Answers.Inbox.Answers.Any(a => a.Blocks.Any(b => b.Text.Contains("canceled late"))) && main.Session.Answer == run.Fast, "Stop rejects late output and leaves the current readable answer in place");
         check(File.Exists(Path.Combine(main.Recorder.LastDirectory!, "transcript.md")) && File.Exists(Path.Combine(main.Recorder.LastDirectory!, "system.wav")), "Combined session saves durable transcripts and both-source recording");
+        check(MeetingArchive.Read(main.Recorder.LastDirectory!) is { Answers.Length: > 0 } saved && saved.Answers.Any(a => a.Sources.Any(s => s.File == "comfort.md")), "Stopping the integrated session archives its answers and exact source excerpts");
         check(Directory.GetFiles(main.Knowledge!.Root, "Summary.md", SearchOption.AllDirectories).Length == 1, "Stopping the combined session exports a linked vault summary automatically");
         check(await main.StartCompanion(new Provider()), "Combined session can restart after stop");
         await Until(() => main.AssistantContext.SessionId != id);
