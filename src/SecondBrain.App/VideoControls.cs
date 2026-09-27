@@ -28,11 +28,11 @@ public partial class MainWindow
             if (captureFactory is null && !DisplayChoice.List().Contains(selection.Display)) throw new InvalidOperationException("Display changed. Choose it again.");
             if (Companion?.Active != true && !await StartCompanion(provider)) { VideoStatus.Text = "Video did not start. " + CompanionStatus.Text; return false; }
             if (closing || Recorder.State != RecordingState.Recording || Recorder.LastDirectory is not { } directory) return false;
-            VideoRecording = new(directory, selection, Recorder.ClockOrigin, captureFactory);
+            VideoRecording = new(directory, selection, Recorder.ClockOrigin, captureFactory, Recorder);
             VideoStatus.Text = "Starting display recording…";
             await VideoRecording.Ready;
             if (closing || Recorder.State != RecordingState.Recording) { await VideoRecording.Stop(); return false; }
-            VideoStatus.Text = "Recording display · " + selection.Size.Width + " × " + selection.Size.Height + " · 30 fps";
+            VideoStatus.Text = "Recording display · " + selection.Size.Width + " × " + selection.Size.Height + " · 30 fps · microphone + computer audio";
             return true;
         }
         catch (Exception ex)

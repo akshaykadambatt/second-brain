@@ -73,6 +73,7 @@ public partial class MainWindow : Window
         };
         contextTimer.Start();
         Recorder = new RecordingService(System.IO.Path.Combine(dataDirectory, "recordings"), log, hiddenTestMode ? AudioRecordingTests.CreateSource : null, Transcriber);
+        Recorder.Changed += () => { if (Recorder.State is RecordingState.Stopping or RecordingState.Failed) VideoRecording?.EndAt(AudioClock.Now); };
         Voice.Status += text => SetStatus(text); Voice.Heard += text => HeardText.Text = "Heard: " + text; Voice.Level += level => MicLevel.Value = level;
         Voice.Stopped += () => { MicrophonePicker.IsEnabled = RefreshMicrophonesButton.IsEnabled = true; PracticeListenButton.Content = "Start listening"; MicLabel.Text = "Mic off"; MicLevel.Value = 0; };
         Session.Changed += change =>

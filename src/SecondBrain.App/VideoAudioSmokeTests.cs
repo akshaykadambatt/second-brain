@@ -33,6 +33,35 @@ internal static class VideoAudioSmokeTests
             check(firstSound >= 0 && drift < .06 && Math.Abs(audio.EndTime - video.EndTime) < 800000, "Decoded sound marker and video clock remain synchronized within codec padding allowance");
             File.WriteAllText(Path.Combine(directory, "native-av-measurement.json"), JsonSerializer.Serialize(new { Synthetic = true, DurationSeconds = 2, SoundMarkerSeconds = firstSound / 48000d, MarkerErrorSeconds = drift, VideoEndSeconds = video.EndTime / 1e7, AudioEndSeconds = audio.EndTime / 1e7 }));
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-        capture(main, Path.Combine(directory, "synchronized-controls.png"));
+        var key = Path.Combine(directory, "synthetic-key.txt"); File.WriteAllText(key, "synthetic-deepgram-key-for-offline-tests");
+        try { new ApiKeyStore(directory).Import(key); } finally { File.Delete(key); }
+        var provider = new VideoSmokeTests.Provider(); check(await main.StartCompanion(provider), "Audio session starts before optional video");
+        var session = main.Recorder.LastDirectory;
+        Action<AudioPacket, int> failedObserver = (_, _) => throw new IOException("Synthetic optional subscriber failure");
+        main.Recorder.AudioForVideo += failedObserver;
+        var selection = new VideoSelection(new(1, 320, 180, "Synthetic display"), false);
+        await Task.Delay(300);
+        check(await main.StartVideo(selection, null, (_, receive, _) => new VideoSmokeTests.Frames(receive)), "Video joins an already running session");
+        check(AudioRecordingTests.SyntheticSource.OpenCount == 2 && main.Recorder.LastDirectory == session, "Video reuses exactly the existing two audio sources");
+        await Task.Delay(1000); var clip = main.VideoRecording!; await main.StopVideo();
+        check(clip.AudioPacketsReceived > 20 && clip.Error is null && main.Recorder.State == RecordingState.Recording, "Packet fan-out failure cannot stop recording; video audio drains independently");
+        await Task.Factory.StartNew(() =>
+        {
+            var decoded = VideoSmokeTests.Decode(clip.Path, true);
+            var audible = Enumerable.Range(0, decoded.Audio.Length / 2).Count(i => Math.Abs((int)BinaryPrimitives.ReadInt16LittleEndian(decoded.Audio.AsSpan(i * 2))) > 1000);
+            check(audible > 4800, "Saved video contains audible existing-session microphone and system packets");
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        using (var info = JsonDocument.Parse(File.ReadAllText(Path.ChangeExtension(clip.Path, ".json"))))
+        {
+            var root = info.RootElement;
+            check(root.GetProperty("Audio").GetBoolean() && root.GetProperty("AudioFrames").GetInt64() == clip.FrameCount * 1600 && root.GetProperty("SessionStartSeconds").GetDouble() > .2, "Clip metadata records the shared session offset and identical audio/video duration");
+        }
+        check(await main.StartVideo(selection, null, (_, receive, _) => new VideoSmokeTests.Frames(receive)), "Video can restart in the same audio session");
+        await Task.Delay(200); await main.StopCompanion();
+        check(!main.VideoRecording!.Active && main.VideoRecording.Error is null && AudioRecordingTests.SyntheticSource.OpenCount == 0, "Stop listening drains and finalizes both media streams without retained devices");
+        check(await main.StartVideo(selection, provider, (_, receive, _) => new VideoSmokeTests.Frames(receive)), "Exit fixture starts a fresh integrated A/V session");
+        await Task.Delay(200); var final = main.VideoRecording!; Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown; main.ExitApplication();
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12))) while (!main.ShutdownCompleted) await Task.Delay(20, timeout.Token);
+        check(!final.Active && final.Error is null && AudioRecordingTests.SyntheticSource.OpenCount == 0, "Tray exit awaits final A/V mux and releases both original capture sources");
     }
 }

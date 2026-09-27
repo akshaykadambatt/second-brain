@@ -31,6 +31,17 @@ internal sealed class RecordingService(string root, DiagnosticLog log, Func<Audi
     public bool Busy => State is RecordingState.Starting or RecordingState.Stopping;
     public double Elapsed => State is RecordingState.Recording or RecordingState.Paused or RecordingState.Stopping ? Math.Max(0, AudioClock.Now - origin) : stoppedAt;
     public event Action? Changed;
+    // Read-only packet fan-out. A video subscriber may only enqueue; failure never stops audio recording.
+    internal event Action<AudioPacket, int>? AudioForVideo;
+    private void PublishAudio(AudioPacket packet, int rate)
+    {
+        foreach (var subscriber in AudioForVideo?.GetInvocationList() ?? [])
+        {
+            var sink = (Action<AudioPacket, int>)subscriber;
+            try { sink(packet, rate); }
+            catch (Exception ex) { AudioForVideo -= sink; log.Write("Video audio subscriber detached=" + ex.GetType().Name); }
+        }
+    }
     private void SetState(RecordingState state, string message)
     { State = state; Message = message; log.Write("Recording state=" + state + "; " + message); Changed?.Invoke(); }
     public (int Level, string Status) Meter(AudioSource source)
@@ -100,7 +111,7 @@ internal sealed class RecordingService(string root, DiagnosticLog log, Func<Audi
             transcriber?.Begin(session.DirectoryPath, session.Manifest, AudioClock.Now - origin);
             writer = Task.Run(async () =>
             {
-                try { await foreach (var packet in run.Queue.Reader.ReadAllAsync()) { session.Write(packet); transcriber?.Offer(packet); } }
+                try { await foreach (var packet in run.Queue.Reader.ReadAllAsync()) { PublishAudio(packet, session.Manifest.Tracks.Single(t => t.Source == packet.Source).SampleRate); session.Write(packet); transcriber?.Offer(packet); } }
                 catch (Exception ex)
                 {
                     run.Code = ex is not InvalidDataException && ex is (IOException or UnauthorizedAccessException) ? "DiskWriteFailure" : "RecordingDataFailure";

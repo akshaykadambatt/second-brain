@@ -42,9 +42,9 @@ internal static class VideoSmokeTests
         check(second.Error is null && !second.Active && main.Recorder.State == RecordingState.Completed && main.Recorder.LastDirectory == session, "Stopping listening finalizes video without replacing the session");
         capture(main, Path.Combine(directory, "video-controls.png"));
     }
-    private sealed class Provider : SecondBrain.Core.IAnswerProvider
+    internal sealed class Provider : SecondBrain.Core.IAnswerProvider
     { public Task Generate(SecondBrain.Core.AssistantPrompt prompt, Func<string, Task> delta, CancellationToken cancellation) => Task.CompletedTask; }
-    private sealed class Frames : IDisplayCapture
+    internal sealed class Frames : IDisplayCapture
     {
         private readonly Timer timer;
         internal Frames(Action<DisplayFrame> observe)

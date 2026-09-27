@@ -1,5 +1,7 @@
 using System.IO;
 using System.Text.Json;
+using System.Threading.Channels;
+using SecondBrain.Core;
 
 namespace SecondBrain.App;
 
@@ -7,6 +9,11 @@ internal sealed class VideoRecording
 {
     private readonly object gate = new();
     private readonly Queue<DisplayFrame> frames = new();
+    private readonly Channel<(AudioPacket Packet, int Rate)> audioPackets = Channel.CreateBounded<(AudioPacket, int)>(128);
+    private VideoAudioMixer? mixer;
+    private double stopAt;
+    private long audioPacketsReceived;
+    internal long AudioPacketsReceived => Interlocked.Read(ref audioPacketsReceived);
     private readonly CancellationTokenSource stop = new();
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Task worker;
@@ -20,40 +27,53 @@ internal sealed class VideoRecording
     internal double Origin { get; private set; }
     internal Task Ready => ready.Task;
     internal VideoRecording(string directory, VideoSelection selection, double audioOrigin,
-        Func<DisplayChoice, Action<DisplayFrame>, Action<string>, IDisplayCapture>? factory = null)
+        Func<DisplayChoice, Action<DisplayFrame>, Action<string>, IDisplayCapture>? factory = null, RecordingService? audio = null)
     {
         var size = selection.Size;
         Path = System.IO.Path.Combine(directory, "video-" + Guid.NewGuid().ToString("N") + ".mp4");
-        worker = Task.Factory.StartNew(() => Run(selection, size, audioOrigin, factory), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        worker = Task.Factory.StartNew(() => Run(selection, size, audioOrigin, factory, audio), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
     private void Observe(DisplayFrame frame)
     {
         lock (gate)
         {
-            if (stop.IsCancellationRequested) return;
+            if (stop.IsCancellationRequested || Volatile.Read(ref stopAt) is > 0 and var cutoff && frame.Clock > cutoff) return;
             if (frames.Count == 4) { Array.Clear(frames.Dequeue().Pixels); dropped++; }
             frames.Enqueue(frame with { Pixels = frame.Pixels.ToArray() });
         }
     }
+    private void Audio(AudioPacket packet, int rate)
+    {
+        if (stop.IsCancellationRequested) return;
+        if (!audioPackets.Writer.TryWrite((packet, rate))) Fail("Video audio queue could not keep up. Listening continues.");
+        else Interlocked.Increment(ref audioPacketsReceived);
+    }
     private void Fail(string reason) { lock (gate) failure ??= reason; stop.Cancel(); }
-    private void Run(VideoSelection selection, (int Width, int Height) size, double audioOrigin, Func<DisplayChoice, Action<DisplayFrame>, Action<string>, IDisplayCapture>? factory)
+    private void Run(VideoSelection selection, (int Width, int Height) size, double audioOrigin, Func<DisplayChoice, Action<DisplayFrame>, Action<string>, IDisplayCapture>? factory, RecordingService? audio)
     {
         DisplayFrame? current = null; var began = AudioClock.Now; var scaled = new byte[size.Width * size.Height * 4];
         try
         {
-            using var writer = new NativeVideoWriter(Path, size.Width, size.Height);
+            using var writer = new NativeVideoWriter(Path, size.Width, size.Height, audio is not null);
             Save("Recording", size, audioOrigin);
+            if (audio is not null) audio.AudioForVideo += Audio;
             capture = (factory ?? ((d, receive, fail) => new DisplayVideoCapture(d, receive, fail)))(selection.Display, Observe, Fail);
-            while (!stop.IsCancellationRequested)
+            while (true)
             {
+                var stopping = stop.IsCancellationRequested;
+                if (stopping && (failure is not null || current is null)) break;
                 if (current is null)
                 {
                     lock (gate) if (frames.Count > 0) { current = frames.Dequeue(); Origin = current.Clock; }
                     if (current is null) { if (AudioClock.Now - began > 6) throw new IOException("No display frames arrived."); stop.Token.WaitHandle.WaitOne(5); continue; }
                     Scale(current, scaled, size.Width, size.Height);
+                    if (audio is not null) mixer = new(Origin - audioOrigin);
                 }
                 // Use the compositor clock; leave a small arrival allowance instead of timestamping CPU copy completion.
-                var due = (long)Math.Floor((AudioClock.Now - Origin - .1) * 30);
+                var end = Volatile.Read(ref stopAt);
+                var due = stopping ? (long)Math.Ceiling((end - Origin) * 30) - 1 : (long)Math.Floor((AudioClock.Now - Origin - .1) * 30);
+                if (end > 0) due = Math.Min(due, (long)Math.Ceiling((end - Origin) * 30) - 1);
+                if (stopping && FrameCount > due) break;
                 if (due - FrameCount > 15) throw new IOException("Video encoding cannot keep up. Try 1080p recording.");
                 if (due < FrameCount) { stop.Token.WaitHandle.WaitOne(5); continue; }
                 var at = Origin + FrameCount / 30d; DisplayFrame? newer = null;
@@ -62,6 +82,11 @@ internal sealed class VideoRecording
                     while (frames.TryPeek(out var next) && next.Clock <= at) { if (newer is not null) Array.Clear(newer.Pixels); newer = frames.Dequeue(); }
                 }
                 if (newer is not null) { Array.Clear(current.Pixels); current = newer; Scale(current, scaled, size.Width, size.Height); }
+                if (mixer is not null)
+                {
+                    while (audioPackets.Reader.TryRead(out var packet)) mixer.Offer(packet.Packet, packet.Rate);
+                    var start = mixer.Through; writer.WriteAudio(mixer.Read(1600), start);
+                }
                 writer.Write(scaled, FrameCount++); ready.TrySetResult();
             }
             if (FrameCount > 0) writer.Complete();
@@ -70,7 +95,9 @@ internal sealed class VideoRecording
         catch (Exception ex) { failure ??= ex is IOException or InvalidOperationException ? ex.Message : "Native video encoding failed (" + ex.GetType().Name + ")."; }
         finally
         {
-            capture?.Dispose(); capture = null;
+            if (audio is not null) audio.AudioForVideo -= Audio;
+            try { capture?.Dispose(); } catch (Exception) { failure ??= "Display capture could not close cleanly."; } capture = null;
+            while (audioPackets.Reader.TryRead(out _)) { }
             if (current is not null) Array.Clear(current.Pixels); Array.Clear(scaled);
             lock (gate) while (frames.Count > 0) Array.Clear(frames.Dequeue().Pixels);
             try { Save(failure is null ? "Completed" : "Failed", size, audioOrigin); } catch (Exception) { failure ??= "Video metadata could not be saved."; }
@@ -81,10 +108,15 @@ internal sealed class VideoRecording
     {
         var file = System.IO.Path.ChangeExtension(Path, ".json"); var temporary = file + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(new { Schema = 1, State = state, File = System.IO.Path.GetFileName(Path), size.Width, size.Height, FramesPerSecond = 30,
-            Frames = FrameCount, SessionStartSeconds = Origin == 0 ? (double?)null : Origin - audioOrigin, DurationSeconds = FrameCount / 30d, DroppedCaptureFrames = dropped, Audio = false, Error = failure }, new JsonSerializerOptions { WriteIndented = true }));
+            Frames = FrameCount, SessionStartSeconds = Origin == 0 ? (double?)null : Origin - audioOrigin, DurationSeconds = FrameCount / 30d, DroppedCaptureFrames = dropped, Audio = mixer is not null, AudioSampleRate = mixer is null ? 0 : VideoAudioMixer.SampleRate,
+            AudioPackets = AudioPacketsReceived, AudioFrames = mixer?.Through ?? 0, LateAudioSamples = mixer?.LateSamples ?? 0,
+            MissingMicrophoneSamples = mixer?.MissingMicrophoneSamples ?? 0, MissingSystemSamples = mixer?.MissingSystemSamples ?? 0,
+            EstimatedAudioPackets = mixer?.EstimatedPackets ?? 0, AudioDiscontinuities = mixer?.Discontinuities ?? 0,
+            AudioMix = "Equal-gain microphone and system PCM, resampled to 48 kHz mono; missing packets are padded, not proof of captured silence", Error = failure }, new JsonSerializerOptions { WriteIndented = true }));
         File.Move(temporary, file, true);
     }
-    internal async Task Stop() { stop.Cancel(); await worker; }
+    internal void EndAt(double clock) => Interlocked.CompareExchange(ref stopAt, clock, 0);
+    internal async Task Stop() { EndAt(AudioClock.Now); stop.Cancel(); await worker; }
     private static void Scale(DisplayFrame source, byte[] output, int width, int height)
     {
         if (source.Width == width && source.Height == height) { source.Pixels.CopyTo(output, 0); return; }
