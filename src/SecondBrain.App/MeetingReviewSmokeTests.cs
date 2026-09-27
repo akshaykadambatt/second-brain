@@ -7,9 +7,9 @@ namespace SecondBrain.App;
 
 internal static class MeetingReviewSmokeTests
 {
-    internal static string Fixture(string directory)
+    internal static string Fixture(string directory, string name = "review-fixture")
     {
-        var path = Path.Combine(directory, "review-fixture"); Directory.CreateDirectory(path);
+        var path = Path.Combine(directory, name); Directory.CreateDirectory(path);
         var manifest = new RecordingManifest { State = "Completed", DurationSeconds = 10, Tracks = [new(AudioSource.Microphone, "test", "Mic", 16000), new(AudioSource.System, "test", "System", 16000)] };
         File.WriteAllText(Path.Combine(path, "session.json"), JsonSerializer.Serialize(manifest));
         SessionContextStore.SaveSnapshot(path, manifest.Id, new());
@@ -42,6 +42,9 @@ internal static class MeetingReviewSmokeTests
             check(viewer.ReplayVideoSelection() && viewer.Video.RequestedOffset == .5, "Transcript timestamp maps through the saved clip's session offset");
             using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10))) while (!viewer.Video.Opened && viewer.Video.Player is not null) await Task.Delay(20, timeout.Token);
             check(viewer.Video.Opened && viewer.Video.Player!.NaturalVideoWidth == 320, "Windows in-app playback opens native fragmented MP4 and seeks without audio recapture");
+            await Task.Delay(200);
+            File.WriteAllText(Path.Combine(directory, "seek-measurement.json"), JsonSerializer.Serialize(new { Position = viewer.Video.Player!.Position.TotalSeconds, Duration = viewer.Video.Player.NaturalDuration.ToString(), Requested = viewer.Video.RequestedOffset }));
+            check(viewer.Video.Player!.Position.TotalSeconds is >= .45 and < 1.5, "Native review playback advances from the requested half-second clip offset");
             capture(viewer, Path.Combine(directory, "meeting-video.png"));
             viewer.ReviewTabs.SelectedItem = viewer.TranscriptTab; viewer.UpdateLayout();
             check(viewer.ReplaySelection() == 1 && viewer.Video.Player is null, "Audio replay closes video and uses the selected saved source");

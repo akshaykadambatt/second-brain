@@ -36,12 +36,13 @@ internal sealed class VideoLibraryView : UserControl
 {
     private readonly MainWindow main;
     private readonly string directory;
+    private readonly Action? beforeMediaAccess;
     internal ListBox Clips { get; } = new() { DisplayMemberPath = "Label", MinHeight = 120 };
     internal TextBlock Status { get; } = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) };
     private readonly WrapPanel actions = new() { Margin = new Thickness(0, 12, 0, 0) };
-    internal VideoLibraryView(MainWindow main, string directory)
+    internal VideoLibraryView(MainWindow main, string directory, Action? beforeMediaAccess = null)
     {
-        this.main = main; this.directory = directory;
+        this.main = main; this.directory = directory; this.beforeMediaAccess = beforeMediaAccess;
         var grid = new Grid { Margin = new Thickness(20) };
         foreach (var height in new[] { GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto }) grid.RowDefinitions.Add(new() { Height = height });
         var description = new TextBlock { Text = "Saved video clips\nRecovery creates a separate copy from complete fragments. Stop listening first; original files are preserved.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 16) };
@@ -61,6 +62,7 @@ internal sealed class VideoLibraryView : UserControl
     internal async Task RecoverSelected()
     {
         if (Clips.SelectedItem is not SavedVideo video) { Status.Text = "Select a clip first."; return; }
+        beforeMediaAccess?.Invoke();
         actions.IsEnabled = false; Clips.IsEnabled = false; Status.Text = "Recovering complete fragments…";
         try
         {
@@ -73,7 +75,7 @@ internal sealed class VideoLibraryView : UserControl
     }
     private void Open()
     {
-        try { if (Clips.SelectedItem is SavedVideo video) Process.Start(new ProcessStartInfo(LocalBackup.Root(video.Path)) { UseShellExecute = true }); }
+        try { beforeMediaAccess?.Invoke(); if (Clips.SelectedItem is SavedVideo video) Process.Start(new ProcessStartInfo(LocalBackup.Root(video.Path)) { UseShellExecute = true }); }
         catch (Exception) { Status.Text = "Video could not open. Try recovery or open the meeting folder."; }
     }
 }

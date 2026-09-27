@@ -21,7 +21,7 @@ internal sealed class MeetingVideoView : UserControl
     internal MeetingVideoView(MainWindow owner, string directory, Action beforePlay, bool muted)
     {
         this.beforePlay = beforePlay; this.muted = muted;
-        Library = new(owner, directory) { MaxHeight = 260 };
+        Library = new(owner, directory, Stop) { MaxHeight = 260 };
         var grid = new Grid { Margin = new Thickness(8) };
         foreach (var size in new[] { GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto }) grid.RowDefinitions.Add(new() { Height = size });
         grid.Children.Add(Library); Grid.SetRow(display, 1); grid.Children.Add(display);
@@ -53,7 +53,7 @@ internal sealed class MeetingVideoView : UserControl
             if (!double.IsFinite(offset) || offset < 0) throw new InvalidDataException();
             var source = LocalBackup.Root(clip.Path);
             if (!File.Exists(source)) throw new FileNotFoundException();
-            var player = new MediaElement { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Close, Stretch = Stretch.Uniform, IsMuted = muted };
+            var player = new MediaElement { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Close, Stretch = Stretch.Uniform, IsMuted = true };
             Player = player; display.Child = player; RequestedOffset = offset; paused = false;
             player.MediaOpened += (_, _) =>
             {
@@ -61,10 +61,16 @@ internal sealed class MeetingVideoView : UserControl
                 timeout.Stop();
                 if (!player.NaturalDuration.HasTimeSpan || offset >= player.NaturalDuration.TimeSpan.TotalSeconds)
                 { Stop(); Status.Text = "Saved video does not contain that timestamp."; return; }
-                player.Position = TimeSpan.FromSeconds(offset); Opened = true; player.Play();
-                Status.Text = $"Playing clip from {TimeSpan.FromSeconds(offset):hh\\:mm\\:ss} · " + (clip.Audio ? "includes saved meeting audio" : "no saved audio in this clip");
+                player.Play();
+                // Let WPF apply its play transition before seeking; that transition can reset a pending position.
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (Player != player) return;
+                    player.Position = TimeSpan.FromSeconds(offset); player.IsMuted = muted; Opened = true;
+                    Status.Text = $"Playing clip from {TimeSpan.FromSeconds(offset):hh\\:mm\\:ss} · " + (clip.Audio ? "includes saved meeting audio" : "no saved audio in this clip");
+                }, DispatcherPriority.Background);
             };
-            player.MediaFailed += (_, _) => { if (Player == player) { Stop(); Status.Text = "Windows playback could not open this clip. Use Open video or recover a copy; original media is unchanged."; } };
+            player.MediaFailed += (_, _) => { if (Player == player) { Stop(); Status.Text = "Windows playback could not open this clip. Use Open video or recover a copy; original media is unchanged." + (source.Length >= 260 ? " This path is long; try a shorter location for the restored app and data." : ""); } };
             player.MediaEnded += (_, _) => { if (Player == player) { Stop(); Status.Text = "Video ended."; } };
             Status.Text = "Opening saved video…"; player.Source = new Uri(source); player.Pause(); timeout.Start();
         }
