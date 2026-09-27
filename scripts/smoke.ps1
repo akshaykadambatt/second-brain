@@ -1,6 +1,6 @@
 param([string]$Executable = '',
-    [ValidateSet('seed','verify','voice','flow','timed','study','replay','audio','transcription','hybrid','assistant','knowledge','history','storage','wrap','companion','stream','tray','shell','chrome','shortcuts','context','latency','opening','flowing','rich','speakers','capture','names','meet','imports','pdf','word','powerpoint','clientknowledge','jargon','resilience','dateformats','avsync','video','refinements','suggestions','requests','memory','scoped')]
-    [string[]]$Phases = @('seed','verify','voice','flow','timed','study','replay','audio','transcription','hybrid','assistant','knowledge','history','storage','wrap','companion','stream','tray','shell','chrome','shortcuts','context','latency','opening','flowing','rich','speakers','capture','names','meet','imports','pdf','word','powerpoint','clientknowledge','jargon','resilience','dateformats','avsync','video','refinements','suggestions','requests','memory','scoped'))
+    [ValidateSet('seed','verify','voice','flow','timed','study','replay','audio','transcription','hybrid','assistant','knowledge','history','storage','wrap','companion','stream','tray','shell','chrome','shortcuts','context','latency','opening','flowing','rich','speakers','capture','names','meet','imports','pdf','word','powerpoint','clientknowledge','jargon','review','resilience','dateformats','avsync','video','refinements','suggestions','requests','memory','scoped')]
+    [string[]]$Phases = @('seed','verify','voice','flow','timed','study','replay','audio','transcription','hybrid','assistant','knowledge','history','storage','wrap','companion','stream','tray','shell','chrome','shortcuts','context','latency','opening','flowing','rich','speakers','capture','names','meet','imports','pdf','word','powerpoint','clientknowledge','jargon','review','resilience','dateformats','avsync','video','refinements','suggestions','requests','memory','scoped'))
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $Executable) { $Executable = Join-Path $root 'dist\single-file\SecondBrain.exe' }
@@ -17,9 +17,9 @@ try {
     $env:DOTNET_ROOT = Join-Path $data 'absent-runtime'
     $env:DOTNET_MULTILEVEL_LOOKUP = '0'
     foreach ($phase in $Phases) {
-        $phaseData = if ($phase -in @('voice','flow','timed','study','replay','stream','audio','transcription','hybrid','assistant','knowledge','history','storage','wrap','companion','tray','shell','chrome','shortcuts','context','latency','opening','flowing','rich','speakers','capture','names','meet','imports','pdf','word','powerpoint','clientknowledge','jargon','resilience','dateformats','avsync','video','refinements','suggestions','requests','memory','scoped')) { Join-Path $data $phase } else { $data }
+        $phaseData = if ($phase -in @('voice','flow','timed','study','replay','stream','audio','transcription','hybrid','assistant','knowledge','history','storage','wrap','companion','tray','shell','chrome','shortcuts','context','latency','opening','flowing','rich','speakers','capture','names','meet','imports','pdf','word','powerpoint','clientknowledge','jargon','review','resilience','dateformats','avsync','video','refinements','suggestions','requests','memory','scoped')) { Join-Path $data $phase } else { $data }
         $p = Start-Process -FilePath $isolatedExe -ArgumentList @('--data-dir', ('"' + $phaseData + '"'), '--smoke-test', $phase) -PassThru -WindowStyle Hidden
-        if (-not $p.WaitForExit($(if ($phase -in @('history','storage','pdf','resilience')) { 90000 } else { 30000 }))) { $p.Kill(); throw "Smoke phase timed out: $phase" }
+        if (-not $p.WaitForExit($(if ($phase -in @('history','storage','pdf','review','resilience')) { 90000 } else { 30000 }))) { $p.Kill(); throw "Smoke phase timed out: $phase" }
         if ($p.ExitCode -ne 0) { throw "Smoke phase failed: $phase ($($p.ExitCode)). Inspect $data" }
         $report = Get-Content -Raw -LiteralPath (Join-Path $phaseData "$phase.json") | ConvertFrom-Json
         if (-not $report.passed) { throw "Smoke assertions failed: $phase" }

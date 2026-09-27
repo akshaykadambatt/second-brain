@@ -19,6 +19,7 @@ public partial class TranscriptWindow : Window
     private double replayEnd;
     private readonly DispatcherTimer replayTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     internal TranscriptReview Review => review;
+    internal MeetingVideoView Video { get; private set; } = null!;
     internal TranscriptWindow(MainWindow owner, string directory, TranscriptDetail[] records, string warning, bool hidden)
     {
         this.directory = directory; this.records = records; this.hidden = hidden;
@@ -30,8 +31,10 @@ public partial class TranscriptWindow : Window
         Summary.Text = $"{records.Length} finalized segments · {records.Sum(r => r.Words.Length)} timed words. Original transcript text is read-only. " + warning + " " + review.HintWarning;
         EditControls.IsEnabled = BookmarkButton.IsEnabled = editable;
         ready = true; Refresh();
+        LoadSavedContent(owner);
+        Video = new(owner, directory, StopPlayback, hidden); VideoContent.Content = Video;
         replayTimer.Tick += (_, _) => { if (audio is null || audio.CurrentTime.TotalSeconds >= replayEnd) StopPlayback(); };
-        Closed += (_, _) => StopPlayback();
+        Closed += (_, _) => { StopPlayback(); Video.Stop(); };
     }
     private void Refresh()
     {
@@ -74,6 +77,7 @@ public partial class TranscriptWindow : Window
     }
     internal double ReplaySelection()
     {
+        Video.Stop();
         StopPlayback(); var row = Selected(); var word = WordSelection.SelectedItem as ReviewWord ?? row.Words[0];
         var path = LocalBackup.Root(Path.Combine(directory, word.Source == AudioSource.Microphone ? "microphone.wav" : "system.wav"));
         try
@@ -92,7 +96,14 @@ public partial class TranscriptWindow : Window
         try { ReplaySelection(); }
         catch (Exception) { ReviewStatus.Text = "Saved audio or playback device is unavailable. Stop/save an active recording first, or check the audio file."; }
     }
-    private void Stop_Click(object sender, RoutedEventArgs e) { StopPlayback(); ReviewStatus.Text = "Playback stopped."; }
+    internal bool ReplayVideoSelection()
+    {
+        var row = Selected(); var word = WordSelection.SelectedItem as ReviewWord ?? row.Words[0];
+        ReviewTabs.SelectedItem = VideoTab; UpdateLayout(); return Video.PlayAt(word.Start);
+    }
+    private void Video_Click(object sender, RoutedEventArgs e)
+    { try { ReplayVideoSelection(); } catch (Exception) { ReviewStatus.Text = "Select a transcript turn first."; } }
+    private void Stop_Click(object sender, RoutedEventArgs e) { StopPlayback(); Video.Stop(); ReviewStatus.Text = "Playback stopped."; }
     private void StopPlayback()
     {
         replayTimer.Stop();
